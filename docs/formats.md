@@ -68,6 +68,7 @@ Good morning, Cooper! Big one first: Contoso Data wants a phone screen...
 | `date`                | yes      | The day the brief is about (`YYYY-MM-DD`). |
 | `generated_at`        | yes      | When the task wrote it. |
 | `answers_escalations` | no       | Ids of the escalation files this brief answers. Default `[]`. |
+| `sample`              | no       | `true` marks made-up data (development, tests, demos). The UI tags it SAMPLE. Real briefs omit it. |
 
 ### Body
 

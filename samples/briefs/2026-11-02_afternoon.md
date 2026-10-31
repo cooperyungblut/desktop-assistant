@@ -1,5 +1,6 @@
 ---
 schema: secretary-brief/1
+sample: true
 id: 2026-11-02_afternoon
 type: afternoon
 date: 2026-11-02
@@ -27,7 +28,7 @@ answers_escalations: [esc-20261102-101503]
 
 # Spoken
 
-Hi again! Quick afternoon update. Sam Ortiz sent a thank you after your coffee chat, and offered to pass your resume along to Woodgrove Utilities. That's a nice lead.
+Heads up, this is a practice brief, and everything in it is made up. Hi again! Quick afternoon update. Sam Ortiz sent a thank you after your coffee chat, and offered to pass your resume along to Woodgrove Utilities. That's a nice lead.
 
 You also asked whether the Contoso phone screen is technical. Dana's email says it's non-technical, just background and logistics. A technical round would come after that.
 

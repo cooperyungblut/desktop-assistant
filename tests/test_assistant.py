@@ -79,7 +79,7 @@ async def test_follow_up_uses_brief_and_history(env, fake_model):
     await finish(a)
     sent = fake_model.requests[-1]
     assert "<brief>" in sent[0]["content"]
-    assert sent[1]["role"] == "assistant" and sent[1]["content"].startswith("Good morning")
+    assert sent[1]["role"] == "assistant" and sent[1]["content"].startswith("Heads up")
     assert events[-2]["type"] == "reply_end" or events[-1]["type"] == "say"
     assert a.history[-1].content == "It's at ten. Have fun!"
 

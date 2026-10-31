@@ -100,6 +100,7 @@ class Assistant:
                         "type": b.type.value,
                         "date": b.date.isoformat(),
                         "handled": self._state.is_handled(b.id),
+                        "sample": b.sample,
                     }
                     for b in listing
                 ],
@@ -150,6 +151,7 @@ class Assistant:
                     "type": brief.type.value,
                     "date": brief.date.isoformat(),
                     "display": brief.display,
+                    "sample": brief.sample,
                 },
             }
         )

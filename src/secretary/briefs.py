@@ -31,6 +31,7 @@ class Brief(BaseModel):
     date: dt.date
     generated_at: dt.datetime
     answers_escalations: list[str] = Field(default_factory=list)
+    sample: bool = False  # fake data for development and demos
     display: str
     spoken: str
 
@@ -58,6 +59,7 @@ def parse_brief(text: str, *, expected_id: str | None = None) -> Brief:
             date=meta.get("date"),
             generated_at=meta.get("generated_at"),
             answers_escalations=meta.get("answers_escalations") or [],
+            sample=bool(meta.get("sample", False)),
             display=sections["display"],
             spoken=sections["spoken"],
         )

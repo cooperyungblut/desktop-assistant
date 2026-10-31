@@ -55,14 +55,21 @@ const handlers = {
     els.ready.hidden = !readyId;
     if (readyId) {
       const b = e.briefs.find((x) => x.id === readyId);
-      els.readyLabel.textContent = `${cap(b.type)} brief ready`;
+      els.readyLabel.textContent = `${b.sample ? "Sample " : ""}${cap(b.type)} brief ready`;
     }
     els.history.replaceChildren(new Option("History", ""),
-      ...e.briefs.map((b) => new Option(`${b.date} ${b.type}${b.handled ? "" : " (new)"}`, b.id)));
+      ...e.briefs.map((b) => new Option(`${b.date} ${b.type}${b.sample ? " (sample)" : ""}${b.handled ? "" : " (new)"}`, b.id)));
   },
   readout(e) {
     const b = e.brief;
     els.briefTitle.textContent = `${cap(b.type)} brief · ${b.date}`;
+    if (b.sample) {
+      const tag = document.createElement("span");
+      tag.className = "sample-tag";
+      tag.textContent = "SAMPLE";
+      tag.title = "Made-up data for testing";
+      els.briefTitle.append(" ", tag);
+    }
     // Brief content includes email text, so treat it as untrusted HTML.
     els.briefBody.innerHTML = DOMPurify.sanitize(marked.parse(b.display));
     addMessage("note", `Reading the ${b.type} brief`);

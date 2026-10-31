@@ -19,7 +19,7 @@ def test_morning_fields(morning_text):
     assert brief.date == dt.date(2026, 11, 2)
     assert brief.generated_at.utcoffset() == dt.timedelta(hours=-6)
     assert "Interview invite" in brief.display
-    assert brief.spoken.startswith("Good morning")
+    assert brief.spoken.startswith("Heads up")
     assert "# Spoken" not in brief.display
 
 
@@ -61,3 +61,9 @@ def test_id_must_match_file_name(morning_text):
 def test_nested_headings_in_display_are_fine(morning_text):
     brief = parse_brief(morning_text)
     assert "## Calendar today" in brief.display
+
+
+def test_samples_are_marked_and_real_briefs_default_to_not_sample(morning_text):
+    assert parse_brief(morning_text).sample is True
+    assert parse_brief(morning_text.replace("sample: true\n", "")).sample is False
+    assert "practice brief" in parse_brief(morning_text).spoken
