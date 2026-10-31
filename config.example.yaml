@@ -1,0 +1,29 @@
+# Copy to config.yaml (git-ignored) and edit. Relative paths are relative to this file.
+
+# The synced Google Drive folder that contains briefs/ and escalations/.
+# For development, point it at the local fake inbox: data/inbox
+# Windows example: "C:/Users/you/My Drive/Secretary"  (forward slashes are fine)
+secretary_dir: data/inbox
+
+state_file: data/state.json
+persona_file: personas/juniper.yaml
+
+# Google Drive for Desktop doesn't reliably raise file events, so the app polls.
+poll_seconds: 5
+
+# How many past user/assistant exchanges to send to the model each turn.
+history_turns: 12
+
+host: 127.0.0.1
+port: 8765
+
+ollama:
+  url: http://127.0.0.1:11434
+  model: gemma4:12b    # check the exact tag at ollama.com/library; any chat model works
+  keep_alive: 30m      # keep the model in VRAM between questions
+  think: null          # set to false for reasoning models (Qwen3, Qwen3.5) to skip slow "thinking"
+
+tts:
+  engine: kokoro       # "none" disables speech (text-only mode)
+  model_path: models/kokoro-v1.0.onnx
+  voices_path: models/voices-v1.0.bin

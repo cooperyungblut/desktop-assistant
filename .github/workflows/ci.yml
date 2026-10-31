@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install (no speech models)
+        run: uv sync
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Test
+        run: uv run pytest -q
+
+  privacy:
+    # Fails the build if anything that looks like a real brief or escalation is committed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Only fake samples may contain brief or escalation files
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)(briefs|escalations)/' | grep -v '^samples/' || true)
+          if [ -n "$bad" ]; then echo "Real data committed?"; echo "$bad"; exit 1; fi
+          bad=$(git ls-files | grep -E '\.vrm$|^config\.yaml$|^data/' || true)
+          if [ -n "$bad" ]; then echo "Local-only file committed:"; echo "$bad"; exit 1; fi

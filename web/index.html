@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Desk Secretary</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- No build step: modules load straight from a CDN, pinned to exact versions. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+      "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.5.5/lib/three-vrm.module.min.js",
+      "marked": "https://cdn.jsdelivr.net/npm/marked@18.1.0/lib/marked.esm.js",
+      "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.es.mjs"
+    }
+  }
+  </script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <main class="layout">
+    <section class="stage">
+      <canvas id="avatar"></canvas>
+      <div id="avatar-note" class="avatar-note" hidden></div>
+
+      <header class="topbar">
+        <span id="persona-name" class="persona">…</span>
+        <span class="dot" id="dot-model" title="Local model (Ollama)">model</span>
+        <span class="dot" id="dot-tts" title="Text to speech (Kokoro)">voice</span>
+        <span class="dot" id="dot-link" title="Connection to the app">link</span>
+      </header>
+
+      <button id="ready" class="ready" hidden>
+        <span class="pulse"></span>
+        <span id="ready-label">Brief ready</span>
+        <kbd>Space</kbd>
+      </button>
+
+      <p id="caption" class="caption" aria-live="polite"></p>
+    </section>
+
+    <aside class="side">
+      <section class="brief">
+        <div class="brief-head">
+          <h2 id="brief-title">No brief yet</h2>
+          <select id="history" title="Earlier briefs"><option value="">History</option></select>
+        </div>
+        <div id="brief-body" class="brief-body">
+          <p class="muted">When a new brief syncs, a “Brief ready” button appears. Click it
+          (or press Space) and I'll read it to you.</p>
+        </div>
+      </section>
+
+      <section class="chat">
+        <ol id="messages" class="messages"></ol>
+        <form id="ask-form" class="ask">
+          <input id="ask-input" autocomplete="off" placeholder="Ask about the brief…"
+                 title="Start with /claude to save the question for Claude instead">
+          <button type="submit">Send</button>
+          <button type="button" id="ask-claude" class="secondary"
+                  title="Save this question for Claude; the answer comes in your next brief">Ask Claude</button>
+          <button type="button" id="stop" class="secondary" title="Stop talking (Esc)" aria-label="Stop talking">■</button>
+        </form>
+      </section>
+    </aside>
+  </main>
+</body>
+</html>

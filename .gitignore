@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Local config and runtime state: may contain personal paths and data
+config.yaml
+data/
+
+# Speech models (large, downloaded per machine)
+/models/
+
+# Avatar models: VRoid Hub licenses vary, download your own
+web/models/*
+!web/models/README.md
+
+# Never commit real briefs or escalations. Only files under samples/ are fake.
+/briefs/
+/escalations/
+*.brief.md
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.vrm binary
+*.onnx binary
+*.bin binary

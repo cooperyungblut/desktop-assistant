@@ -1,0 +1,66 @@
+"""Local app configuration (paths, ports, model names).
+
+The real config lives in `config.yaml`, which is git-ignored because it holds
+personal paths such as the Google Drive folder. `config.example.yaml` is the
+committed template.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+from pydantic import BaseModel, Field
+
+
+class OllamaConfig(BaseModel):
+    url: str = "http://127.0.0.1:11434"
+    model: str = "gemma4:12b"
+    keep_alive: str = "30m"
+    # Reasoning models (Qwen3, Qwen3.5) "think" before answering, which adds seconds
+    # of latency; set this to False for them. None leaves the flag out entirely.
+    think: bool | None = None
+    timeout_seconds: float = 120.0
+
+
+class TtsConfig(BaseModel):
+    engine: str = "kokoro"  # "kokoro" or "none" (text only)
+    model_path: Path = Path("models/kokoro-v1.0.onnx")
+    voices_path: Path = Path("models/voices-v1.0.bin")
+
+
+class AppConfig(BaseModel):
+    secretary_dir: Path = Field(description="Synced folder holding briefs/ and escalations/")
+    state_file: Path = Path("data/state.json")
+    persona_file: Path = Path("personas/juniper.yaml")
+    poll_seconds: float = 5.0
+    history_turns: int = 12
+    host: str = "127.0.0.1"
+    port: int = 8765
+    ollama: OllamaConfig = OllamaConfig()
+    tts: TtsConfig = TtsConfig()
+
+    @property
+    def briefs_dir(self) -> Path:
+        return self.secretary_dir / "briefs"
+
+    @property
+    def escalations_dir(self) -> Path:
+        return self.secretary_dir / "escalations"
+
+
+def load_config(path: Path) -> AppConfig:
+    """Load config.yaml. Relative paths resolve against the config file's folder."""
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    config = AppConfig.model_validate(raw)
+    base = path.resolve().parent
+
+    def resolve(p: Path) -> Path:
+        return p if p.is_absolute() else (base / p)
+
+    config.secretary_dir = resolve(config.secretary_dir)
+    config.state_file = resolve(config.state_file)
+    config.persona_file = resolve(config.persona_file)
+    config.tts.model_path = resolve(config.tts.model_path)
+    config.tts.voices_path = resolve(config.tts.voices_path)
+    return config
