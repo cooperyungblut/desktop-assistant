@@ -1,5 +1,7 @@
 # Desk Secretary
 
+[![CI](https://github.com/cooperyungblut/desktop-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/cooperyungblut/desktop-assistant/actions/workflows/ci.yml)
+
 A local AI secretary with a 3D avatar and a voice. Three times a day, a
 scheduled Claude task reads my email and calendar and writes a short brief
 into a synced Google Drive folder. This app picks the brief up, shows a
