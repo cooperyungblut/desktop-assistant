@@ -42,6 +42,20 @@ class OllamaClient:
         names = {m.get("name") for m in r.json().get("models", [])}
         return self._config.model in names or f"{self._config.model}:latest" in names
 
+    async def warm_up(self) -> None:
+        """Load the model into VRAM now, so the first question isn't slow.
+
+        A generate request with no prompt just loads the model and returns.
+        """
+        try:
+            r = await self._client.post(
+                "/api/generate",
+                json={"model": self._config.model, "keep_alive": self._config.keep_alive},
+            )
+            r.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise LlmUnavailable(f"couldn't load {self._config.model}: {exc}") from exc
+
     async def stream_chat(
         self, messages: Sequence[dict[str, str]], options: dict[str, Any]
     ) -> AsyncIterator[str]:

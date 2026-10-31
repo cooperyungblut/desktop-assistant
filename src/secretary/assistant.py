@@ -10,9 +10,9 @@ Event types sent to the UI:
     status       {model: bool, tts: bool, persona: name}
     readout      {brief: {id, type, date, display}}
     say          {seq, text, audio: base64 WAV | None}     one sentence of speech
-    reply_start  {}
-    reply_token  {text}
-    reply_end    {text}
+    reply_start  {id}
+    reply_token  {id, text}
+    reply_end    {id, text}
     escalated    {id, question}
     error        {message}
 """
@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -65,6 +66,7 @@ class Assistant:
         self.current: Brief | None = None
         self.history: list[Turn] = []
         self._seq = 0
+        self._reply_ids = 0
         self._task: asyncio.Task | None = None
 
     # ---- brief pickup -------------------------------------------------------
@@ -173,35 +175,43 @@ class Assistant:
         messages = build_messages(
             self.persona, self.current, self.history, text, history_turns=self._history_turns
         )
-        await self._emit({"type": "reply_start"})
+        rid = self._next_reply_id()
+        await self._emit({"type": "reply_start", "id": rid})
         splitter = SentenceSplitter()
         speech: asyncio.Queue[str | None] = asyncio.Queue()
         speaking = asyncio.create_task(self._speak_queue(speech))
         reply = []
+        start = time.perf_counter()
         try:
             async for token in self._model.stream_chat(
                 messages, self.persona.sampling.as_options()
             ):
+                if not reply:
+                    log.info("First token after %.1f s", time.perf_counter() - start)
                 reply.append(token)
-                await self._emit({"type": "reply_token", "text": token})
+                await self._emit({"type": "reply_token", "id": rid, "text": token})
                 for sentence in splitter.feed(token):
                     speech.put_nowait(sentence)
         except asyncio.CancelledError:
             speaking.cancel()  # interrupted: stop the speech pipeline too
+            partial = "".join(reply).strip()
+            await self._emit(
+                {"type": "reply_end", "id": rid, "text": f"{partial} (stopped)".strip()}
+            )
             raise
         except LlmUnavailable as exc:
             log.warning("model unavailable: %s", exc)
             reply = [self.persona.lines.model_unavailable]
             splitter = SentenceSplitter()  # drop any half-finished sentence
             speech.put_nowait(reply[0])
-            await self._emit({"type": "reply_token", "text": reply[0]})
+            await self._emit({"type": "reply_token", "id": rid, "text": reply[0]})
         finally:
             for sentence in splitter.flush():
                 speech.put_nowait(sentence)
             speech.put_nowait(None)
 
         full = "".join(reply).strip()
-        await self._emit({"type": "reply_end", "text": full})
+        await self._emit({"type": "reply_end", "id": rid, "text": full})
         self.history += [Turn("user", text), Turn("assistant", full)]
         await speaking
 
@@ -219,10 +229,15 @@ class Assistant:
         log.info("Wrote escalation %s", path.name)
         await self._emit({"type": "escalated", "id": esc.id, "question": question})
         line = self.persona.lines.escalated
-        await self._emit({"type": "reply_start"})
-        await self._emit({"type": "reply_end", "text": line})
+        rid = self._next_reply_id()
+        await self._emit({"type": "reply_start", "id": rid})
+        await self._emit({"type": "reply_end", "id": rid, "text": line})
         self.history += [Turn("user", text), Turn("assistant", line)]
         await self._say(line)
+
+    def _next_reply_id(self) -> int:
+        self._reply_ids += 1
+        return self._reply_ids
 
     async def _speak_queue(self, queue: asyncio.Queue[str | None]) -> None:
         while (sentence := await queue.get()) is not None:

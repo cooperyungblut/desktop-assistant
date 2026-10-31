@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .assistant import Assistant
 from .config import AppConfig
-from .llm import OllamaClient
+from .llm import LlmUnavailable, OllamaClient
 from .persona import load_persona
 from .state import StateStore
 from .tts import make_speaker
@@ -70,6 +71,18 @@ def create_app(config: AppConfig) -> FastAPI:
                 log.exception("poll failed")
             await asyncio.sleep(config.poll_seconds)
 
+    async def warm_up() -> None:
+        if not await model.is_available():
+            return
+        log.info("Loading %s into memory...", config.ollama.model)
+        start = time.perf_counter()
+        try:
+            await model.warm_up()
+        except LlmUnavailable as exc:
+            log.warning("%s", exc)
+            return
+        log.info("Model ready in %.1f s", time.perf_counter() - start)
+
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         log.info("Watching %s", config.briefs_dir)
@@ -81,7 +94,9 @@ def create_app(config: AppConfig) -> FastAPI:
                 config.ollama.model,
             )
         task = asyncio.create_task(poll_forever())
+        warm = asyncio.create_task(warm_up())
         yield
+        warm.cancel()
         task.cancel()
         await model.aclose()
 

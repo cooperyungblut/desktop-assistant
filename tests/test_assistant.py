@@ -121,3 +121,22 @@ async def test_newest_unhandled_brief_is_offered(env):
         shutil.copy(SAMPLES / f"2026-11-02_{t}.md", briefs)
     await a.poll()
     assert a.ready_brief().id == "2026-11-02_afternoon"
+
+
+async def test_interrupted_reply_is_closed_out(env, persona):
+    a, _, _, events = env
+
+    class SlowModel:
+        async def stream_chat(self, messages, options):
+            yield "Let me check"
+            await asyncio.sleep(10)
+            yield " never"
+
+    a._model = SlowModel()
+    a.ask("first question")
+    await asyncio.sleep(0.05)
+    a.ask("second question")  # interrupts the first
+    await asyncio.sleep(0.05)
+    ends = [e["text"] for e in events if e["type"] == "reply_end"]
+    assert ends == ["Let me check (stopped)"]
+    a.stop()

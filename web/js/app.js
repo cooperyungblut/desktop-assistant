@@ -33,7 +33,7 @@ const player = new SpeechPlayer({
 
 let ws;
 let readyId = null;
-let replyEl = null;
+const replies = new Map(); // reply id -> chat bubble
 
 function connect() {
   ws = new WebSocket(`ws://${location.host}/ws`);
@@ -75,14 +75,21 @@ const handlers = {
     addMessage("note", `Reading the ${b.type} brief`);
   },
   say(e) { player.enqueue(e.text, e.audio); },
-  reply_start() { replyEl = addMessage("her", "…"); replyEl.dataset.text = ""; },
+  // Replies carry an id, so a reply that was interrupted can still be closed out
+  // even if a newer one has already started.
+  reply_start(e) { replies.set(e.id, addMessage("her", "…")); },
   reply_token(e) {
-    if (!replyEl) return;
-    replyEl.dataset.text += e.text;
-    replyEl.textContent = replyEl.dataset.text;
+    const el = replies.get(e.id);
+    if (!el) return;
+    el.dataset.text = (el.dataset.text || "") + e.text;
+    el.textContent = el.dataset.text;
     scrollChat();
   },
-  reply_end(e) { if (replyEl) replyEl.textContent = e.text; replyEl = null; },
+  reply_end(e) {
+    const el = replies.get(e.id);
+    if (el) el.textContent = e.text;
+    replies.delete(e.id);
+  },
   escalated(e) { addMessage("note", `Saved for Claude (${e.id}): “${e.question}”`); },
   error(e) { addMessage("note", `⚠ ${e.message}`); },
 };
