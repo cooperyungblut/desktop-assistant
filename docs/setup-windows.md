@@ -13,8 +13,8 @@ error. Run everything in PowerShell from the repo folder.
 2. Get the code and install:
    ```powershell
    cd $HOME\source\repos          # or wherever you keep code
-   git clone https://github.com/<you>/desk-secretary.git
-   cd desk-secretary
+   git clone https://github.com/cooperyungblut/desktop-assistant.git
+   cd desktop-assistant
    uv python install 3.12
    uv sync --python 3.12
    uv run pytest -q

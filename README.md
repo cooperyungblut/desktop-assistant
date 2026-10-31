@@ -72,8 +72,8 @@ Prerequisites: Python 3.11 or 3.12, [uv](https://docs.astral.sh/uv/),
 [Ollama](https://ollama.com).
 
 ```powershell
-git clone https://github.com/<you>/desk-secretary.git
-cd desk-secretary
+git clone https://github.com/cooperyungblut/desktop-assistant.git
+cd desktop-assistant
 uv sync --extra tts                 # Python deps, including Kokoro
 uv run python scripts/download_models.py   # Kokoro model files (~340 MB)
 ollama pull gemma4:12b              # or any chat model; set it in config.yaml
