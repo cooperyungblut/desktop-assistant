@@ -23,6 +23,10 @@ def main() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    # Quiet chatty libraries: one line per HTTP request, and espeak's harmless
+    # "words count mismatch" warnings on every sentence.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("phonemizer").setLevel(logging.ERROR)
     if not args.config.is_file():
         sys.exit(f"{args.config} not found. Copy config.example.yaml to config.yaml first.")
 
