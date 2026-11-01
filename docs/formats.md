@@ -143,17 +143,7 @@ A brief is **handled** once its readout has started. Unhandled briefs show the
 "brief ready" indicator. Only the newest unhandled brief is offered; older ones
 can still be opened from the history list.
 
-## Instructions to paste into the scheduled tasks
+## Instructions for the scheduled tasks
 
-Add this to each brief task's prompt (adjust the folder name):
-
-> Write the brief as a plain Markdown file (mimeType text/markdown, not a Google
-> Doc) named `YYYY-MM-DD_<type>.md` in the `Secretary/briefs` folder, following
-> the format in the example exactly: YAML front matter with schema, id, type,
-> date, generated_at and answers_escalations, then a `# Display` section and a
-> `# Spoken` section. The Spoken section is read aloud verbatim by a cheerful
-> assistant named Juniper: write it in her warm, upbeat voice, in plain spoken
-> sentences, with no markdown, lists, links or emoji, and never soften or drop
-> facts. Before writing, read every file in `Secretary/escalations` whose
-> front matter says `status: open`, answer each question in both sections, and
-> list their ids in answers_escalations. Do not modify or delete escalation files.
+Ready-to-paste prompt blocks for each task are in
+[scheduled-task-prompts.md](scheduled-task-prompts.md).

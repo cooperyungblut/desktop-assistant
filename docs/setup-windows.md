@@ -69,8 +69,8 @@ error. Run everything in PowerShell from the repo folder.
 ## Chunk C: hook up the real folder (about 30 min)
 
 1. In Google Drive, create `Secretary/briefs` and `Secretary/escalations`.
-2. Update the three scheduled tasks with the instructions at the end of
-   `docs/formats.md`, and paste the sample brief in as the example.
+2. Update the scheduled tasks with the blocks in
+   `docs/scheduled-task-prompts.md`, then use **Run now** on one of them.
 3. In `config.yaml`, set `secretary_dir` to the synced folder, e.g.
    `secretary_dir: "G:/My Drive/Secretary"`.
 4. Drop a sample brief into the real folder to test the sync path:
