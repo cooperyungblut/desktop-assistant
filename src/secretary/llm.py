@@ -7,6 +7,7 @@ seeing the raw protocol (newline-delimited JSON) makes failures easier to debug.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from collections.abc import AsyncIterator, Sequence
 from typing import Any, Protocol
@@ -14,6 +15,8 @@ from typing import Any, Protocol
 import httpx
 
 from .config import OllamaConfig
+
+log = logging.getLogger(__name__)
 
 
 class ChatModel(Protocol):
@@ -42,16 +45,21 @@ class OllamaClient:
         names = {m.get("name") for m in r.json().get("models", [])}
         return self._config.model in names or f"{self._config.model}:latest" in names
 
-    async def warm_up(self) -> None:
+    async def warm_up(self, options: dict[str, Any] | None = None) -> None:
         """Load the model into VRAM now, so the first question isn't slow.
 
-        A generate request with no prompt just loads the model and returns.
+        A generate request with no prompt just loads the model and returns. Pass
+        the same options the chat will use: Ollama reloads the model whenever
+        num_ctx changes, so warming up at the default context would be wasted.
         """
+        payload: dict[str, Any] = {
+            "model": self._config.model,
+            "keep_alive": self._config.keep_alive,
+        }
+        if options:
+            payload["options"] = options
         try:
-            r = await self._client.post(
-                "/api/generate",
-                json={"model": self._config.model, "keep_alive": self._config.keep_alive},
-            )
+            r = await self._client.post("/api/generate", json=payload)
             r.raise_for_status()
         except httpx.HTTPError as exc:
             raise LlmUnavailable(f"couldn't load {self._config.model}: {exc}") from exc
@@ -74,22 +82,56 @@ class OllamaClient:
                     body = (await r.aread()).decode(errors="replace")
                     raise LlmUnavailable(f"Ollama returned {r.status_code}: {body[:300]}")
                 filt = ThinkFilter()
+                thinking_chars = 0
                 async for line in r.aiter_lines():
                     if not line:
                         continue
                     chunk = json.loads(line)
                     if "error" in chunk:
                         raise LlmUnavailable(chunk["error"])
-                    text = filt.feed(chunk.get("message", {}).get("content", ""))
+                    message = chunk.get("message", {})
+                    thinking_chars += len(message.get("thinking") or "")
+                    text = filt.feed(message.get("content", ""))
                     if text:
                         yield text
                     if chunk.get("done"):
+                        log_timings(chunk, thinking_chars)
                         break
         except httpx.HTTPError as exc:
             raise LlmUnavailable(f"can't reach Ollama at {self._config.url}: {exc}") from exc
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+
+def _seconds(chunk: dict[str, Any], key: str) -> float:
+    return (chunk.get(key) or 0) / 1e9  # Ollama reports nanoseconds
+
+
+def log_timings(chunk: dict[str, Any], thinking_chars: int = 0) -> str:
+    """Log where the time went, from the stats in Ollama's final chunk.
+
+    load = model (re)load, prompt = reading the system prompt, brief and history,
+    gen = writing the reply. A slow first token is one of these three, or thinking.
+    """
+    gen_n = chunk.get("eval_count") or 0
+    gen_s = _seconds(chunk, "eval_duration")
+    line = (
+        f"Ollama: load {_seconds(chunk, 'load_duration'):.1f} s, "
+        f"prompt {chunk.get('prompt_eval_count') or 0} tok in "
+        f"{_seconds(chunk, 'prompt_eval_duration'):.1f} s, "
+        f"gen {gen_n} tok in {gen_s:.1f} s"
+    )
+    if gen_s > 0:
+        line += f" ({gen_n / gen_s:.0f} tok/s)"
+    log.info("%s", line)
+    if thinking_chars:
+        log.warning(
+            "The model spent part of that time thinking (%d hidden characters). "
+            "Set ollama.think: false in config.yaml to skip it.",
+            thinking_chars,
+        )
+    return line
 
 
 class ThinkFilter:

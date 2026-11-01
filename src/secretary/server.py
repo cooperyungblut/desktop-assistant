@@ -108,7 +108,7 @@ def create_app(config: AppConfig) -> FastAPI:
             log.info("Loading %s into memory...", config.ollama.model)
             start = time.perf_counter()
             try:
-                await model.warm_up()
+                await model.warm_up(persona.sampling.as_options())
                 log.info("Model ready in %.1f s", time.perf_counter() - start)
             except LlmUnavailable as exc:
                 log.warning("%s", exc)
