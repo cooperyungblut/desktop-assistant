@@ -18,7 +18,8 @@ dependencies = [
 tts = ["kokoro-onnx>=0.4", "numpy>=1.26"]
 stt = ["faster-whisper>=1.1"]
 # Only for stt.device: cuda on Windows. Large downloads (~1 GB).
-stt-gpu = ["nvidia-cublas-cu12", "nvidia-cudnn-cu12>=9,<10"]
+# cuBLAS 12.9.3 shipped Linux wheels only, so stay below it until Windows wheels exist.
+stt-gpu = ["nvidia-cublas-cu12>=12.4,<12.9.3", "nvidia-cudnn-cu12>=9,<10"]
 
 [project.scripts]
 desk-secretary = "secretary.__main__:main"
