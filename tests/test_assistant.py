@@ -147,11 +147,13 @@ class FakeTranscriber:
 
     def __init__(self, text):
         self.text = text
+        self.hints = []
 
     async def load(self):
         pass
 
-    async def transcribe(self, audio):
+    async def transcribe(self, audio, hints=None):
+        self.hints.append(hints)
         return self.text
 
 
@@ -189,3 +191,16 @@ async def test_voice_without_stt_reports_an_error(env, fake_model):
     a.voice(b"audio")
     await finish(a)
     assert [e["type"] for e in events] == ["transcript", "error"]
+
+
+async def test_voice_hints_include_names_from_the_current_brief(env):
+    a, briefs, _, _ = env
+    shutil.copy(SAMPLES / "2026-11-02_morning.md", briefs)
+    await a.poll()
+    a.start_brief()
+    await finish(a)
+
+    a._transcriber = t = FakeTranscriber("What did Northwind say?")
+    a.voice(b"audio")
+    await finish(a)
+    assert "Northwind Traders" in t.hints[-1] and "Juniper" in t.hints[-1]

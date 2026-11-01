@@ -48,8 +48,12 @@ class Transcriber(Protocol):
     async def load(self) -> None:
         """Prepare the model. Never raises; sets `available` on success."""
 
-    async def transcribe(self, audio: bytes) -> str:
-        """Return the text spoken in `audio` (any format PyAV can decode)."""
+    async def transcribe(self, audio: bytes, hints: str | None = None) -> str:
+        """Return the text spoken in `audio` (any format PyAV can decode).
+
+        `hints` is text the speaker is likely to use, such as names from the
+        current brief; Whisper favors those spellings.
+        """
 
 
 class NoTranscriber:
@@ -58,7 +62,7 @@ class NoTranscriber:
     async def load(self) -> None:
         pass
 
-    async def transcribe(self, audio: bytes) -> str:
+    async def transcribe(self, audio: bytes, hints: str | None = None) -> str:
         raise SttUnavailable("speech input is turned off (stt.engine is 'none')")
 
 
@@ -114,13 +118,13 @@ class WhisperTranscriber:
         log.info("Whisper %s ready on %s (%s)", self._config.model, device, compute_type)
         return model
 
-    async def transcribe(self, audio: bytes) -> str:
+    async def transcribe(self, audio: bytes, hints: str | None = None) -> str:
         if self._model is None:
             raise SttUnavailable(self.error or "speech recognition is still loading")
         async with self._lock:
-            return await asyncio.to_thread(self._transcribe_sync, audio)
+            return await asyncio.to_thread(self._transcribe_sync, audio, hints)
 
-    def _transcribe_sync(self, audio: bytes) -> str:
+    def _transcribe_sync(self, audio: bytes, hints: str | None) -> str:
         samples = decode_audio(audio)
         if samples.size < SAMPLE_RATE // 4:  # under a quarter second: nothing to hear
             return ""
@@ -130,6 +134,7 @@ class WhisperTranscriber:
             beam_size=5,
             vad_filter=True,  # skip leading/trailing silence and breaths
             condition_on_previous_text=False,
+            initial_prompt=hints,  # e.g. "Names: Northwind Traders, Dana Reyes, ..."
         )
         return clean_transcript(" ".join(s.text for s in segments))
 
