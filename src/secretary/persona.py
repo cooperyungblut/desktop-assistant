@@ -34,8 +34,11 @@ class Voice(BaseModel):
     # Silence after each spoken sentence, in seconds. Speech is made one sentence
     # at a time, and Kokoro trims each clip, so without this they run together.
     sentence_pause: float = Field(default=0.35, ge=0.0, le=2.0)
-    # Used instead when a chunk ends mid-sentence (comma, colon, dash).
+    # Silence after a comma, semicolon, colon or dash.
     clause_pause: float = Field(default=0.15, ge=0.0, le=2.0)
+    # Make each clause separately so every comma gets clause_pause. Off means
+    # Kokoro picks comma pauses itself, which vary a lot.
+    split_clauses: bool = True
 
 
 # VRM 1.0 preset names. three-vrm maps VRM 0.x names (joy, sorrow, fun) onto

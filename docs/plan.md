@@ -78,7 +78,8 @@ Chunk 1 (expressions, plus two tuning items from using Milestone 2):
 - [x] Persona file gets an `expressions:` map (emotion → VRM preset + weight).
 - [x] Persona: answer small talk warmly in a few words before the facts.
 - [x] Speech: a set pause after each sentence (`voice.sentence_pause`), since
-  per-sentence clips left only ~0.1 s between sentences.
+  per-sentence clips left only ~0.1 s between sentences, and after each comma
+  (`voice.clause_pause`), since Kokoro's own comma pauses ranged 0.05–0.4 s.
 - [ ] **Cooper:** Chunk E in the setup guide (try it with the real avatar,
   pick a pause, tune expression weights).
 

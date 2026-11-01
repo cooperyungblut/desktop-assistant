@@ -31,8 +31,15 @@ pause at its end, in the persona file:
 ```yaml
 voice:
   sentence_pause: 0.35   # after . ! ?
-  clause_pause: 0.15     # after a chunk that ends on , : ; or a dash
+  clause_pause: 0.15     # after , ; : or a dash
+  split_clauses: true
 ```
+
+Commas need the same treatment. Left to itself, Kokoro's pause at a comma is
+anywhere from 0.05 s to 0.4 s, often as long as a full stop, which is what
+made her sound halting. With `split_clauses` each clause is synthesized on
+its own and joined with `clause_pause`. Very short pieces ("Good morning,
+Cooper.") stay in one piece, and commas inside numbers never split.
 
 To compare pauses, `try_voices.py` takes several values and writes one file
 per value, spoken sentence by sentence exactly like the app:
@@ -41,7 +48,8 @@ per value, spoken sentence by sentence exactly like the app:
 uv run python scripts/try_voices.py "af_heart:80,af_nicole:20" --pause 0 0.25 0.35 0.5
 ```
 
-`--pause 0` is how the app sounded before this setting existed.
+`--pause 0` is how the app sounded before this setting existed. For commas,
+`--comma off 0.1 0.15 0.2` does the same (`off` is Kokoro's own pauses).
 
 ## Blending voices
 

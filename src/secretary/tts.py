@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import re
 import wave
 from typing import Protocol
 
@@ -47,15 +48,53 @@ class KokoroSpeaker:
 
     async def synthesize(self, text: str, voice: Voice) -> bytes | None:
         async with self._lock:
-            samples, rate = await asyncio.to_thread(
-                self._kokoro.create,
-                text,
-                voice=resolve_voice(self._kokoro, voice.kokoro_voice),
-                speed=voice.speed,
-                lang=voice.lang,
-            )
-        samples = pad_to_pause(samples, rate, pause_after(text, voice))
+            samples, rate = await asyncio.to_thread(speak, self._kokoro, text, voice)
         return to_wav(samples, rate)
+
+
+def speak(kokoro, text: str, voice: Voice):
+    """Synthesize one sentence with set pauses at its commas and at its end.
+
+    Left to itself, Kokoro's pause at a comma varies a lot (measured: 0.05 s
+    after one comma, 0.4 s after the next in the same sentence). With
+    voice.split_clauses each clause is made on its own, so every comma gets
+    the same clause_pause. Returns (float32 samples, sample rate).
+    """
+    import numpy as np
+
+    style = resolve_voice(kokoro, voice.kokoro_voice)
+    chunks = split_clauses(text) if voice.split_clauses else [text]
+    parts, rate = [], 24000
+    for chunk in chunks:
+        samples, rate = kokoro.create(chunk, voice=style, speed=voice.speed, lang=voice.lang)
+        parts.append(pad_to_pause(samples, rate, pause_after(chunk, voice)))
+    return np.concatenate(parts), rate
+
+
+_CLAUSE_BREAK = re.compile(r"(?<=[,;:])\s+|\s+(?=[\u2013\u2014]\s)")
+
+
+def split_clauses(text: str, min_chars: int = 10) -> list[str]:
+    """Split a sentence after its commas, semicolons, colons and dashes.
+
+    Very short pieces ("Okay," "so,") are kept with their neighbour: on their
+    own they'd sound clipped. Commas inside numbers (1,000) have no space
+    after them, so they never split.
+    """
+    pieces = [p for p in _CLAUSE_BREAK.split(text.strip()) if p]
+    chunks: list[str] = []
+    buf = ""
+    for piece in pieces:
+        buf = f"{buf} {piece}" if buf else piece
+        if len(buf) >= min_chars:
+            chunks.append(buf)
+            buf = ""
+    if buf:
+        if chunks and len(buf) < min_chars:
+            chunks[-1] = f"{chunks[-1]} {buf}"
+        else:
+            chunks.append(buf)
+    return chunks
 
 
 # Speech is made one sentence at a time, and Kokoro trims the silence off each

@@ -127,6 +127,8 @@ Your `config.yaml` doesn't need an `stt:` section; the defaults are the ones in
    ```
    `pause0ms` is the old sound. Put the one you like in
    `personas\juniper.yaml` as `voice: sentence_pause:` (the default is 0.35).
+   Do the same for commas with `--comma off 0.1 0.15 0.2` (`off` is the old
+   sound) and set `clause_pause:`.
 3. Start the app (`uv run desk-secretary`), open the page, and press **F12**
    to open the browser console. Type:
    ```js

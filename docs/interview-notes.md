@@ -148,4 +148,7 @@ VRM expression, holds it while she talks, and relaxes after she stops.
 talking before the reply is finished. Measuring the clips showed Kokoro trims
 each one, leaving about 0.1 s of silence between sentences, which sounded
 rushed. Each clip now ends with a set pause (counting the silence it already
-has), configurable per persona.
+has), configurable per persona. Listening showed the bigger problem was at
+commas: Kokoro's comma pauses ranged from 0.05 s to 0.4 s within a single
+reply. The fix synthesizes each clause separately and joins them with a fixed
+short pause, keeping very short pieces together so they don't sound clipped.

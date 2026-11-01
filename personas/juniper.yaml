@@ -43,7 +43,8 @@ voice:
   speed: 1.1
   lang: en-us
   sentence_pause: 0.35   # seconds of silence after each sentence
-  clause_pause: 0.15     # after a chunk that ends on a comma, colon or dash
+  clause_pause: 0.15     # after a comma, semicolon, colon or dash
+  split_clauses: true    # false lets Kokoro pick comma pauses (they vary a lot)
 
 # How each mood tag looks on the avatar. The moods are fixed (the model picks
 # one per reply); the preset is a VRM expression name and the weight is how
