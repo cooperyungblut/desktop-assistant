@@ -75,10 +75,11 @@ async def test_whisper_loads_and_transcribes(fake_faster_whisper, tmp_path):
     t = WhisperTranscriber(SttConfig(download_dir=tmp_path))
     await t.load()
     assert t.available
-    assert await t.transcribe(_encode_tone(1.0)) == "When is my coffee chat?"
+    assert await t.transcribe(_encode_tone(1.0), "Names: Dana Reyes.") == "When is my coffee chat?"
     model = fake_faster_whisper.instances[-1]
     assert (model.device, model.compute_type) == ("cpu", "int8")
     assert model.calls[-1]["vad_filter"] is True
+    assert model.calls[-1]["initial_prompt"] == "Names: Dana Reyes."
 
 
 async def test_cuda_failure_falls_back_to_cpu(fake_faster_whisper, tmp_path):

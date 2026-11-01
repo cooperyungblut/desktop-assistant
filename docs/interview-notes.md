@@ -89,6 +89,12 @@ bubble, and from there it is exactly a typed question.
   tiny deny-list catches the rest without throwing away real phrases like
   "thank you".
 
+- *Context biasing instead of a bigger model.* `base.en` heard "Northwind
+  Traders" as "Northwind Traitors". Rather than move Whisper to the GPU, the app
+  pulls proper nouns out of the current brief (`vocabulary.py`) and passes them
+  as Whisper's `initial_prompt`, which biases it toward those spellings. It
+  costs nothing at runtime and uses context the app already has.
+
 **A bug the end-to-end test caught.** Unit tests with a fake Whisper model
 passed, but running the real page in headless Chromium with a fake
 microphone showed faster-whisper's own audio decoder crashing against the

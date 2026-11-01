@@ -36,6 +36,7 @@ from .prompt import Turn, build_messages
 from .state import StateStore
 from .stt import NoTranscriber, SttUnavailable, Transcriber
 from .tts import Speaker
+from .vocabulary import speech_hints
 from .watcher import BriefScanner
 
 log = logging.getLogger(__name__)
@@ -175,7 +176,8 @@ class Assistant:
     async def _voice(self, audio: bytes) -> None:
         start = time.perf_counter()
         try:
-            text = await self._transcriber.transcribe(audio)
+            hints = speech_hints(self.current, self.persona)
+            text = await self._transcriber.transcribe(audio, hints)
         except SttUnavailable as exc:
             await self._emit({"type": "transcript", "text": ""})
             await self._emit({"type": "error", "message": str(exc)})
