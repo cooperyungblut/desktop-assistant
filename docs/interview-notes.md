@@ -102,3 +102,53 @@ current PyAV release (it passes an option PyAV removed). The fix was to decode
 with PyAV directly, which also removed a dependency on library internals. The
 test suite now encodes real Opus audio with PyAV, so this can't regress
 silently. Mocks prove your logic; only a real run proves your integration.
+
+**A latency bug that wasn't the GPU.** After voice input worked, the first
+word of each reply took 7 to 35 seconds. The obvious suspects were VRAM
+pressure and Whisper competing with the LLM. Logging Ollama's own timing
+breakdown (load, prompt, generation) showed all three were fast: Gemma 4 was
+"thinking" silently before every answer, because reasoning is on by default
+when the request doesn't say otherwise. Sending `think: false` brought the
+first token down to about 0.6 s. Measure before you optimize: the timing log
+stays in, and it warns if a model spends time thinking.
+
+## Milestone 3: facial expressions
+
+**What it does.** The model starts each reply with a mood tag such as
+`[happy]` or `[sad]`. The app pulls the tag out of the token stream before
+anything is shown or spoken, and the avatar's face eases into the matching
+VRM expression, holds it while she talks, and relaxes after she stops.
+
+**How it works.**
+1. A fixed rule in the system prompt (in code, like the accuracy rules) asks
+   for one tag from a fixed set, and the per-turn reminder repeats it.
+2. `TagFilter` sits between the LLM stream and everything else. Tokens arrive
+   in pieces (`[`, `sur`, `prised`, `]`), so it holds back a possible tag
+   until it can decide, then releases the text and reports the mood.
+3. The server maps mood → VRM preset + weight from the persona file and sends
+   an `expression` event. The browser eases each preset's weight toward its
+   target every frame (faster in than out).
+
+**Key decisions.**
+- *The model chooses the mood; code owns the vocabulary.* The set of moods is
+  fixed in code and validated, so the persona file can change how "sad" looks
+  but can't invent a mood the UI doesn't know. Unknown or missing tags fall
+  back to neutral rather than failing.
+- *Forgiving parser.* Small models don't follow formats perfectly. An unknown
+  tag at the start still counts as a tag, a known tag mid-reply changes the
+  face, and ordinary brackets in text are left alone. Tags never reach the
+  speech engine, which would read them aloud.
+- *Tags stay in the history.* The model sees its own earlier replies with
+  their tags, which makes it more likely to keep using the format.
+- *Readouts stay neutral.* The brief readout is read verbatim and never goes
+  through the model, so there's no mood to pick. That's on purpose: the face
+  shouldn't editorialize the facts.
+
+**Speech pauses.** Speech is made sentence by sentence so she can start
+talking before the reply is finished. Measuring the clips showed Kokoro trims
+each one, leaving about 0.1 s of silence between sentences, which sounded
+rushed. Each clip now ends with a set pause (counting the silence it already
+has), configurable per persona. Listening showed the bigger problem was at
+commas: Kokoro's comma pauses ranged from 0.05 s to 0.4 s within a single
+reply. The fix synthesizes each clause separately and joins them with a fixed
+short pause, keeping very short pieces together so they don't sound clipped.

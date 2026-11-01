@@ -111,6 +111,45 @@ error. Run everything in PowerShell from the repo folder.
 Your `config.yaml` doesn't need an `stt:` section; the defaults are the ones in
 `config.example.yaml`. Add the section only to change them.
 
+## Chunk E: expressions and pauses (about 30 min)
+
+1. Get the new code (Milestone 3, chunk 1):
+   ```powershell
+   git checkout main
+   git pull
+   uv sync --extra tts --extra stt
+   ```
+   (Add `--extra stt-gpu` too if you use Whisper on the GPU.)
+2. Pick a sentence pause. Make samples, then play them from File Explorer:
+   ```powershell
+   uv run python scripts/try_voices.py "af_heart:80,af_nicole:20" --pause 0 0.25 0.35 0.5
+   explorer data\voice-samples
+   ```
+   `pause0ms` is the old sound. Put the one you like in
+   `personas\juniper.yaml` as `voice: sentence_pause:` (the default is 0.35).
+   Do the same for commas with `--comma off 0.1 0.15 0.2` (`off` is the old
+   sound) and set `clause_pause:`.
+3. Start the app (`uv run desk-secretary`), open the page, and press **F12**
+   to open the browser console. Type:
+   ```js
+   secretary.avatar.expressionNames()
+   ```
+   **Check:** the list includes `happy`, `sad` and `relaxed`. If `surprised`
+   is missing (VRM 0.x models), set `surprised: { preset: happy, weight: 0.4 }`
+   under `expressions:` in the persona file.
+4. Try each face from the console, e.g. `secretary.avatar.setExpression("sad", 0.45)`,
+   then `secretary.avatar.setExpression("neutral")`.
+   **Check:** the face eases in and back out. If one looks overdone, lower its
+   `weight` in the persona file and restart the app (Ctrl+C, then start it again).
+5. Ask a few questions out loud or typed: say hello, ask about a rejection in
+   the brief, ask something good.
+   **Check:** she answers a hello warmly in a few words before any facts, her
+   face matches the news while she talks, then relaxes about 1.5 s after she
+   stops. No `[happy]`-style tags appear in the chat or get read aloud.
+6. If a tag ever shows up in the chat, or her face never changes, tell me
+   which model you were on. Chunk 2's eval script will measure how reliably
+   each model writes the tag.
+
 ### Optional: Whisper on the GPU
 
 Faster (about 0.2 s per question) but uses about 1 GB more VRAM, which you're

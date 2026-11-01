@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import re
 import wave
 from typing import Protocol
 
@@ -47,14 +48,94 @@ class KokoroSpeaker:
 
     async def synthesize(self, text: str, voice: Voice) -> bytes | None:
         async with self._lock:
-            samples, rate = await asyncio.to_thread(
-                self._kokoro.create,
-                text,
-                voice=resolve_voice(self._kokoro, voice.kokoro_voice),
-                speed=voice.speed,
-                lang=voice.lang,
-            )
+            samples, rate = await asyncio.to_thread(speak, self._kokoro, text, voice)
         return to_wav(samples, rate)
+
+
+def speak(kokoro, text: str, voice: Voice):
+    """Synthesize one sentence with set pauses at its commas and at its end.
+
+    Left to itself, Kokoro's pause at a comma varies a lot (measured: 0.05 s
+    after one comma, 0.4 s after the next in the same sentence). With
+    voice.split_clauses each clause is made on its own, so every comma gets
+    the same clause_pause. Returns (float32 samples, sample rate).
+    """
+    import numpy as np
+
+    style = resolve_voice(kokoro, voice.kokoro_voice)
+    chunks = split_clauses(text) if voice.split_clauses else [text]
+    parts, rate = [], 24000
+    for chunk in chunks:
+        samples, rate = kokoro.create(chunk, voice=style, speed=voice.speed, lang=voice.lang)
+        parts.append(pad_to_pause(samples, rate, pause_after(chunk, voice)))
+    return np.concatenate(parts), rate
+
+
+_CLAUSE_BREAK = re.compile(r"(?<=[,;:])\s+|\s+(?=[\u2013\u2014]\s)")
+
+
+def split_clauses(text: str, min_chars: int = 10) -> list[str]:
+    """Split a sentence after its commas, semicolons, colons and dashes.
+
+    Very short pieces ("Okay," "so,") are kept with their neighbour: on their
+    own they'd sound clipped. Commas inside numbers (1,000) have no space
+    after them, so they never split.
+    """
+    pieces = [p for p in _CLAUSE_BREAK.split(text.strip()) if p]
+    chunks: list[str] = []
+    buf = ""
+    for piece in pieces:
+        buf = f"{buf} {piece}" if buf else piece
+        if len(buf) >= min_chars:
+            chunks.append(buf)
+            buf = ""
+    if buf:
+        if chunks and len(buf) < min_chars:
+            chunks[-1] = f"{chunks[-1]} {buf}"
+        else:
+            chunks.append(buf)
+    return chunks
+
+
+# Speech is made one sentence at a time, and Kokoro trims the silence off each
+# clip, so back to back they leave only about 0.1 s between sentences and the
+# reading sounds rushed. Each clip gets a deliberate pause at its end instead.
+_SENTENCE_END = ".!?\u2026"
+_CLAUSE_END = ",;:\u2013\u2014-"
+
+
+def pause_after(text: str, voice: Voice) -> float:
+    """Seconds of silence wanted after this chunk of speech."""
+    end = text.rstrip().rstrip("\"')]\u201d\u2019")[-1:]
+    if end and end in _CLAUSE_END:
+        return voice.clause_pause
+    return voice.sentence_pause  # a sentence end, or the last words of a reply
+
+
+def trailing_silence(samples, rate: int, quiet_db: float = -40.0) -> float:
+    """How many seconds at the end of the clip are already (near) silent."""
+    import numpy as np
+
+    frame = max(1, rate // 100)  # 10 ms
+    n = len(samples) // frame * frame
+    if n == 0:
+        return 0.0
+    loud = np.sqrt((np.asarray(samples[:n], dtype=np.float32).reshape(-1, frame) ** 2).mean(1))
+    quiet = loud <= loud.max() * 10 ** (quiet_db / 20)
+    if quiet.all():
+        return len(samples) / rate
+    tail = int(np.argmax(~quiet[::-1]))  # quiet frames before the last sound
+    return (tail * frame + len(samples) - n) / rate
+
+
+def pad_to_pause(samples, rate: int, pause: float):
+    """Append silence so the clip ends with `pause` seconds of it (never trims)."""
+    import numpy as np
+
+    missing = pause - trailing_silence(samples, rate)
+    if missing <= 0:
+        return samples
+    return np.concatenate([samples, np.zeros(int(missing * rate), dtype=samples.dtype)])
 
 
 def parse_voice_spec(spec: str) -> list[tuple[str, float]]:

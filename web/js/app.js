@@ -24,10 +24,20 @@ avatar.load("models/avatar.vrm").catch((err) => {
     "No avatar yet: save a .vrm file as web/models/avatar.vrm and reload (see web/models/README.md).";
 });
 
+// The face holds its mood while she talks, then settles back to neutral a
+// moment after she stops or is interrupted.
+const RELAX_AFTER_MS = 1500;
+let relaxTimer = null;
+function holdMood() { clearTimeout(relaxTimer); relaxTimer = null; }
+function relaxSoon(ms = RELAX_AFTER_MS) {
+  holdMood();
+  relaxTimer = setTimeout(() => avatar.setExpression("neutral"), ms);
+}
+
 const player = new SpeechPlayer({
   onLevel: (v) => { avatar.mouth = v; },
-  onSentence: (text) => { els.caption.textContent = text; },
-  onIdle: () => { els.caption.textContent = ""; avatar.mouth = 0; },
+  onSentence: (text) => { holdMood(); els.caption.textContent = text; },
+  onIdle: () => { els.caption.textContent = ""; avatar.mouth = 0; relaxSoon(); },
 });
 
 // ---- connection ----------------------------------------------------------------
@@ -78,6 +88,12 @@ const handlers = {
     addMessage("note", `Reading the ${b.type} brief`);
   },
   say(e) { player.enqueue(e.text, e.audio); },
+  expression(e) {
+    holdMood();
+    avatar.setExpression(e.preset, e.weight);
+    // If no speech follows (text-only mode with nothing queued), don't hold it forever.
+    if (!player.busy) relaxSoon(RELAX_AFTER_MS * 4);
+  },
   // Replies carry an id, so a reply that was interrupted can still be closed out
   // even if a newer one has already started.
   reply_start(e) { replies.set(e.id, addMessage("her", "…")); },
@@ -217,7 +233,8 @@ function scrollChat() { els.messages.scrollTop = els.messages.scrollHeight; }
 function setDot(id, on) { $(id).classList.toggle("on", !!on); $(id).classList.toggle("off", !on); }
 function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 
-// Handy from the browser console while debugging: secretary.avatar.setExpression("happy")
+// Handy from the browser console while debugging:
+//   secretary.avatar.setExpression("happy", 0.6)   secretary.avatar.expressionNames()
 window.secretary = { avatar, player, ptt };
 
 connect();

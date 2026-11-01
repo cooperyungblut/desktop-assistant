@@ -26,6 +26,10 @@ Everything on the PC runs locally: no cloud calls and no running costs.
 - **Accuracy over personality**: the readout is read verbatim (it never passes
   through the local model), and fixed rules in code stop any persona from
   changing facts.
+- **Expressions**: the model opens each reply with a mood tag (`[happy]`,
+  `[sad]`, …) that the app strips from the text and speech and turns into an
+  eased VRM facial expression. The moods are fixed in code; how each one looks
+  is set per persona.
 - **Push-to-talk**: hold V to ask out loud. faster-whisper transcribes on the
   CPU, and talking over the avatar interrupts her.
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
@@ -122,8 +126,8 @@ files are git-ignored. Everything under `samples/` is invented.
 
 ## Roadmap
 
-See [`docs/plan.md`](docs/plan.md): emotion tags mapped to VRM expressions, a transparent always-on-top desktop
-window, a wake word, and allow-listed actions.
+See [`docs/plan.md`](docs/plan.md): a model-accuracy eval script, a
+transparent always-on-top desktop window, a wake word, and allow-listed actions.
 
 ## AI assistance
 

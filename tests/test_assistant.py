@@ -204,3 +204,28 @@ async def test_voice_hints_include_names_from_the_current_brief(env):
     a.voice(b"audio")
     await finish(a)
     assert "Northwind Traders" in t.hints[-1] and "Juniper" in t.hints[-1]
+
+
+async def test_mood_tag_drives_expression_and_is_never_shown(env, fake_model):
+    a, _, _, events = env
+    fake_model.reply = "[sad] Sorry, Contoso passed. The other two are still open."
+    a.ask("any news?")
+    await finish(a)
+
+    exprs = [e for e in events if e["type"] == "expression"]
+    assert exprs[0]["mood"] == "sad" and exprs[0]["preset"] == "sad"
+    shown = "".join(e["text"] for e in events if e["type"] == "reply_token")
+    spoken = " ".join(e["text"] for e in events if e["type"] == "say")
+    assert "[" not in shown and "[" not in spoken
+    assert spoken.startswith("Sorry, Contoso passed.")
+    # History keeps the tag so the model keeps seeing the format.
+    assert a.history[-1].content.startswith("[sad] Sorry")
+
+
+async def test_reply_without_tag_falls_back_to_neutral(env):
+    a, _, _, events = env
+    a.ask("when is it?")
+    await finish(a)
+    exprs = [e for e in events if e["type"] == "expression"]
+    assert [e["mood"] for e in exprs] == ["neutral"]
+    assert exprs[0]["weight"] == 0

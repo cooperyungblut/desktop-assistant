@@ -11,6 +11,7 @@ Event types sent to the UI:
     transcript   {text}         what push-to-talk heard ("" if nothing)
     readout      {brief: {id, type, date, display}}
     say          {seq, text, audio: base64 WAV | None}     one sentence of speech
+    expression   {mood, preset, weight}   the avatar's face for what she's saying
     reply_start  {id}
     reply_token  {id, text}
     reply_end    {id, text}
@@ -30,6 +31,7 @@ from typing import Any
 
 from . import escalations
 from .briefs import Brief
+from .expressions import TagFilter, strip_tags
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .persona import Persona
 from .prompt import Turn, build_messages
@@ -167,6 +169,7 @@ class Assistant:
             }
         )
         await self.send_briefs()
+        await self._express("neutral")
         # The spoken script is read verbatim. It never passes through the local
         # model, so the persona can't distort the facts in the readout.
         for sentence in split_sentences(brief.spoken):
@@ -201,20 +204,38 @@ class Assistant:
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
         splitter = SentenceSplitter()
+        tags = TagFilter()  # pulls "[happy]" etc. out before display and speech
         speech: asyncio.Queue[str | None] = asyncio.Queue()
         speaking = asyncio.create_task(self._speak_queue(speech))
-        reply = []
+        reply: list[str] = []
+        expressed = False
         start = time.perf_counter()
+
+        async def show(text: str, moods: list[str]) -> None:
+            nonlocal expressed
+            for mood in moods:
+                await self._express(mood)
+                expressed = True
+            if not text:
+                return
+            if not expressed:  # the model skipped the tag: fall back to neutral
+                await self._express("neutral")
+                expressed = True
+            reply.append(text)
+            await self._emit({"type": "reply_token", "id": rid, "text": text})
+            for sentence in splitter.feed(text):
+                speech.put_nowait(sentence)
+
         try:
+            first = True
             async for token in self._model.stream_chat(
                 messages, self.persona.sampling.as_options()
             ):
-                if not reply:
+                if first:
                     log.info("First token after %.1f s", time.perf_counter() - start)
-                reply.append(token)
-                await self._emit({"type": "reply_token", "id": rid, "text": token})
-                for sentence in splitter.feed(token):
-                    speech.put_nowait(sentence)
+                    first = False
+                await show(*tags.feed(token))
+            await show(tags.flush(), [])
         except asyncio.CancelledError:
             speaking.cancel()  # interrupted: stop the speech pipeline too
             partial = "".join(reply).strip()
@@ -224,10 +245,10 @@ class Assistant:
             raise
         except LlmUnavailable as exc:
             log.warning("model unavailable: %s", exc)
-            reply = [self.persona.lines.model_unavailable]
+            reply = []
             splitter = SentenceSplitter()  # drop any half-finished sentence
-            speech.put_nowait(reply[0])
-            await self._emit({"type": "reply_token", "id": rid, "text": reply[0]})
+            tags = TagFilter()
+            await show(self.persona.lines.model_unavailable, ["neutral"])
         finally:
             for sentence in splitter.flush():
                 speech.put_nowait(sentence)
@@ -235,13 +256,20 @@ class Assistant:
 
         full = "".join(reply).strip()
         await self._emit({"type": "reply_end", "id": rid, "text": full})
+        if tags.mood:
+            # Keep the tag in history: seeing it in her earlier replies helps a
+            # small model keep using the format.
+            full = f"[{tags.mood}] {full}"
         self.history += [Turn("user", text), Turn("assistant", full)]
         await speaking
 
     async def _escalate(self, text: str) -> None:
         question = escalations.strip_command(text) or text
         context = [
-            (self.persona.user_name if t.role == "user" else self.persona.name, t.content)
+            (
+                self.persona.user_name if t.role == "user" else self.persona.name,
+                strip_tags(t.content),
+            )
             for t in self.history[-4:]
             if not (self.current and t.content == self.current.spoken)  # skip the readout
         ]
@@ -256,11 +284,18 @@ class Assistant:
         await self._emit({"type": "reply_start", "id": rid})
         await self._emit({"type": "reply_end", "id": rid, "text": line})
         self.history += [Turn("user", text), Turn("assistant", line)]
+        await self._express("neutral")
         await self._say(line)
 
     def _next_reply_id(self) -> int:
         self._reply_ids += 1
         return self._reply_ids
+
+    async def _express(self, mood: str) -> None:
+        look = self.persona.expression(mood)
+        await self._emit(
+            {"type": "expression", "mood": mood, "preset": look.preset, "weight": look.weight}
+        )
 
     async def _speak_queue(self, queue: asyncio.Queue[str | None]) -> None:
         while (sentence := await queue.get()) is not None:

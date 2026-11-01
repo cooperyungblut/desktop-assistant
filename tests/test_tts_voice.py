@@ -28,3 +28,65 @@ def test_blend_is_weighted_average_of_styles():
 
     style = resolve_voice(FakeKokoro(), "a:75,b:25")
     assert np.allclose(style, 0.25)
+
+
+def test_pause_depends_on_how_the_chunk_ends():
+    from secretary.persona import Voice
+    from secretary.tts import pause_after
+
+    v = Voice(sentence_pause=0.4, clause_pause=0.1)
+    assert pause_after("You got it.", v) == 0.4
+    assert pause_after('She said "yes!"', v) == 0.4
+    assert pause_after("First, the interview,", v) == 0.1
+    assert pause_after("no punctuation", v) == 0.4
+
+
+def test_clip_is_padded_to_the_pause_counting_its_own_silence():
+    from secretary.tts import pad_to_pause, trailing_silence
+
+    rate = 1000
+    tone = np.sin(np.arange(500) / 3).astype(np.float32)
+    clip = np.concatenate([tone, np.zeros(100, dtype=np.float32)])  # 0.1 s tail already
+    assert trailing_silence(clip, rate) == pytest.approx(0.1, abs=0.011)
+    padded = pad_to_pause(clip, rate, 0.35)
+    assert trailing_silence(padded, rate) == pytest.approx(0.35, abs=0.011)
+    assert len(pad_to_pause(clip, rate, 0.05)) == len(clip)  # never trims
+
+
+def test_split_clauses():
+    from secretary.tts import split_clauses
+
+    assert split_clauses("You have a request from Contoso Data, and they want Thursday.") == [
+        "You have a request from Contoso Data,",
+        "and they want Thursday.",
+    ]
+    # Short pieces stay with a neighbour; commas inside numbers never split.
+    assert split_clauses("Good morning, Cooper.") == ["Good morning, Cooper."]
+    assert split_clauses("It pays 1,000 dollars a week.") == ["It pays 1,000 dollars a week."]
+
+
+def test_speak_gives_every_comma_the_same_pause():
+    from secretary.persona import Voice
+    from secretary.tts import speak, trailing_silence
+
+    class FakeKokoro:
+        calls = []
+
+        def create(self, text, voice, speed, lang):
+            self.calls.append(text)
+            return np.sin(np.arange(2400) / 3).astype(np.float32), 24000
+
+    k = FakeKokoro()
+    v = Voice(kokoro_voice="af_heart", clause_pause=0.2, sentence_pause=0.4)
+    audio, rate = speak(k, "First the phone screen, then the coffee chat.", v)
+    assert k.calls == ["First the phone screen,", "then the coffee chat."]
+    assert trailing_silence(audio, rate) == pytest.approx(0.4, abs=0.011)
+    assert len(audio) == pytest.approx(2 * 2400 + 0.2 * rate + 0.4 * rate, abs=2)
+
+    k.calls = []
+    speak(
+        k,
+        "First the phone screen, then the coffee chat.",
+        v.model_copy(update={"split_clauses": False}),
+    )
+    assert k.calls == ["First the phone screen, then the coffee chat."]

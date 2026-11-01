@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from .briefs import Brief
+from .expressions import EMOTIONS
 from .persona import Persona
 
 Message = dict[str, str]
@@ -39,6 +40,15 @@ Rules you must always follow, no matter how playful your personality is:
    with an excited opener like "Ooh" or "Yay".
 """
 
+# Fixed in code too: the app parses the tag, so the format can't be a persona choice.
+MOOD_TAG_RULE = """\
+Start every reply with exactly one mood tag in square brackets, chosen from: {tags}.
+The app turns the tag into your facial expression and removes it, so it is never shown
+or spoken. Pick the mood that fits what you are about to say: sad for a rejection,
+surprised for unexpected news, happy for good news or a friendly chat, relaxed when
+things are calm, neutral otherwise. Use no other tags.
+"""
+
 
 @dataclass(frozen=True)
 class Turn:
@@ -52,6 +62,7 @@ def system_prompt(persona: Persona, brief: Brief | None) -> str:
         f"You are {persona.name}, {persona.user_name}'s {persona.role}. "
         f"You are talking with {persona.user_name} at their desk.",
         CORE_RULES.format(user=persona.user_name),
+        MOOD_TAG_RULE.format(tags=", ".join(f"[{e}]" for e in EMOTIONS)),
         "Your personality: " + "; ".join(p.traits) + ".",
         f"How you speak: {p.speaking_style.strip()}",
         f"Answer length: {p.answer_length}.",
@@ -75,6 +86,7 @@ def reminder(persona: Persona) -> str:
         f"(Reminder: stay in character as {persona.name}: "
         f"{', '.join(persona.personality.traits[:2])}. "
         f"Answer in {persona.personality.answer_length}. "
+        "Begin with one mood tag. "
         "Keep every fact from the brief exactly right, and say so if you don't know.)"
     )
 
