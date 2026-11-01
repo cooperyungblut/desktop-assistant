@@ -19,7 +19,7 @@ error. Run everything in PowerShell from the repo folder.
    uv sync --python 3.12
    uv run pytest -q
    ```
-   **Check:** `37 passed`.
+   **Check:** the last line says `passed` with no failures.
 3. Config and a fake brief:
    ```powershell
    Copy-Item config.example.yaml config.yaml
@@ -82,3 +82,51 @@ error. Run everything in PowerShell from the repo folder.
 5. After the next real scheduled run: **Check** that the brief file is a real
    `.md` (not `.gdoc`) and that the app picks it up. If it shows a warning in
    the terminal, the message says what's wrong with the format.
+
+## Chunk D: push-to-talk voice input (about 30 min)
+
+1. Get the new code and the speech-recognition packages:
+   ```powershell
+   git checkout main
+   git pull
+   uv sync --extra tts --extra stt
+   ```
+   Always list both extras when you run `uv sync`. Leaving one out uninstalls it.
+2. Start the app: `uv run desk-secretary`. The first start downloads the
+   Whisper `small.en` model (about 480 MB) into `models\whisper`.
+   **Check:** the terminal prints `Whisper small.en ready on cpu (int8)`, and the
+   **mic** dot in the top bar turns green. A warning about symlinks from
+   Hugging Face is harmless.
+3. Click in the page (not in the text box), then **hold V** and ask
+   "When is my coffee chat?". Release when you're done talking. The first time,
+   the browser asks for microphone access: choose **Allow**.
+   **Check:** your words appear as a chat bubble, then she answers out loud.
+   The mic button next to the text box works the same way (press and hold).
+4. While she's talking, hold V and start a new question.
+   **Check:** she stops mid-sentence and answers the new one.
+5. Look for `Transcribed ... in X s` in the terminal.
+   **Check:** X is under about 1.5 s. If it's slower, try `model: base.en`
+   under `stt:` in `config.yaml`, or the GPU option below.
+
+Your `config.yaml` doesn't need an `stt:` section; the defaults are the ones in
+`config.example.yaml`. Add the section only to change them.
+
+### Optional: Whisper on the GPU
+
+Faster (about 0.2 s per question) but uses about 1 GB more VRAM, which you're
+short on while Wallpaper Engine and games are running.
+
+```powershell
+uv sync --extra tts --extra stt --extra stt-gpu   # ~1 GB of CUDA libraries
+```
+
+Then in `config.yaml`:
+
+```yaml
+stt:
+  device: cuda
+  compute_type: int8_float16
+```
+
+**Check:** the terminal says `ready on cuda`. If CUDA fails, the app logs why
+and falls back to the CPU, so speech input keeps working either way.

@@ -29,6 +29,15 @@ class TtsConfig(BaseModel):
     voices_path: Path = Path("models/voices-v1.0.bin")
 
 
+class SttConfig(BaseModel):
+    engine: str = "whisper"  # "whisper" or "none" (typed questions only)
+    model: str = "small.en"
+    device: str = "cpu"  # "cpu" or "cuda"
+    compute_type: str = "int8"  # int8 on CPU; int8_float16 on CUDA
+    language: str = "en"
+    download_dir: Path = Path("models/whisper")
+
+
 class AppConfig(BaseModel):
     secretary_dir: Path = Field(description="Synced folder holding briefs/ and escalations/")
     state_file: Path = Path("data/state.json")
@@ -39,6 +48,7 @@ class AppConfig(BaseModel):
     port: int = 8765
     ollama: OllamaConfig = OllamaConfig()
     tts: TtsConfig = TtsConfig()
+    stt: SttConfig = SttConfig()
 
     @property
     def briefs_dir(self) -> Path:
@@ -63,4 +73,5 @@ def load_config(path: Path) -> AppConfig:
     config.persona_file = resolve(config.persona_file)
     config.tts.model_path = resolve(config.tts.model_path)
     config.tts.voices_path = resolve(config.tts.voices_path)
+    config.stt.download_dir = resolve(config.stt.download_dir)
     return config

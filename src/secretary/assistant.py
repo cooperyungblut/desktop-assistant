@@ -7,7 +7,8 @@ can collect them in a list.
 
 Event types sent to the UI:
     briefs       {briefs: [{id, type, date, handled}], ready: id | None}
-    status       {model: bool, tts: bool, persona: name}
+    status       {model: bool, tts: bool, stt: bool, persona: name}
+    transcript   {text}         what push-to-talk heard ("" if nothing)
     readout      {brief: {id, type, date, display}}
     say          {seq, text, audio: base64 WAV | None}     one sentence of speech
     reply_start  {id}
@@ -33,6 +34,7 @@ from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .persona import Persona
 from .prompt import Turn, build_messages
 from .state import StateStore
+from .stt import NoTranscriber, SttUnavailable, Transcriber
 from .tts import Speaker
 from .watcher import BriefScanner
 
@@ -51,6 +53,7 @@ class Assistant:
         state: StateStore,
         escalations_dir: Path,
         emit: Emit,
+        transcriber: Transcriber | None = None,
         history_turns: int = 12,
     ):
         self.persona = persona
@@ -60,6 +63,7 @@ class Assistant:
         self._state = state
         self._escalations_dir = escalations_dir
         self._emit = emit
+        self._transcriber = transcriber or NoTranscriber()
         self._history_turns = history_turns
 
         self.briefs: dict[str, Brief] = {}
@@ -117,6 +121,10 @@ class Assistant:
     def ask(self, text: str) -> None:
         self._run(self._answer(text))
 
+    def voice(self, audio: bytes) -> None:
+        """Push-to-talk: transcribe, show what was heard, then answer it."""
+        self._run(self._voice(audio))
+
     def stop(self) -> None:
         if self._task and not self._task.done():
             self._task.cancel()
@@ -163,6 +171,19 @@ class Assistant:
         for sentence in split_sentences(brief.spoken):
             await self._say(sentence)
         self.history.append(Turn("assistant", brief.spoken))
+
+    async def _voice(self, audio: bytes) -> None:
+        start = time.perf_counter()
+        try:
+            text = await self._transcriber.transcribe(audio)
+        except SttUnavailable as exc:
+            await self._emit({"type": "transcript", "text": ""})
+            await self._emit({"type": "error", "message": str(exc)})
+            return
+        log.info("Transcribed %d bytes in %.1f s", len(audio), time.perf_counter() - start)
+        await self._emit({"type": "transcript", "text": text})
+        if text:
+            await self._answer(text)
 
     async def _answer(self, text: str) -> None:
         text = text.strip()

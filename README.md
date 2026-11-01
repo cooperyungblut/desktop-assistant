@@ -26,6 +26,8 @@ Everything on the PC runs locally: no cloud calls and no running costs.
 - **Accuracy over personality**: the readout is read verbatim (it never passes
   through the local model), and fixed rules in code stop any persona from
   changing facts.
+- **Push-to-talk**: hold V to ask out loud. faster-whisper transcribes on the
+  CPU, and talking over the avatar interrupts her.
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
 
@@ -46,6 +48,7 @@ flowchart LR
     P["prompt.py<br/>rules + persona + brief"]
     O["Ollama<br/>local LLM (GPU)"]
     K["Kokoro TTS<br/>(ONNX, CPU)"]
+    WH["faster-whisper STT<br/>(CPU)"]
     S["FastAPI<br/>WebSocket /ws"]
     UI["Browser UI<br/>three.js + VRM avatar<br/>lip sync · chat"]
   end
@@ -54,6 +57,7 @@ flowchart LR
   B --> W --> A
   A --> P --> O --> A
   A --> K --> A
+  UI -- push-to-talk audio --> S --> WH --> A
   A -- writes --> E
   A <--> S <--> UI
 ```
@@ -65,6 +69,7 @@ flowchart LR
 | Prompt assembly | `prompt.py` | Rules live in code, not the persona file. A short persona reminder is re-injected before every question, because small models drift. Brief content is wrapped as untrusted data. |
 | Assistant | `assistant.py` | Transport-agnostic. It emits events through a callback, so tests collect them in a list and the server forwards them over a WebSocket. |
 | LLM client | `llm.py` | Raw `httpx` streaming against `/api/chat`. The token stream is cut into sentences so speech starts before the reply finishes. |
+| STT | `stt.py` | faster-whisper on CPU: the GPU is reserved for the LLM. Audio is decoded with PyAV directly. A VAD filter plus a tiny deny-list handles Whisper's "silence hallucinations". |
 | TTS | `tts.py` | `kokoro-onnx` on CPU: no PyTorch install, faster than real time, and it leaves VRAM for the LLM. |
 | Front end | `web/` | Plain ES modules with an import map: no Node, no bundler. Markdown from briefs is sanitized with DOMPurify, since it contains email text. |
 
@@ -76,7 +81,7 @@ Prerequisites: Python 3.11 or 3.12, [uv](https://docs.astral.sh/uv/),
 ```powershell
 git clone https://github.com/cooperyungblut/desktop-assistant.git
 cd desktop-assistant
-uv sync --extra tts                 # Python deps, including Kokoro
+uv sync --extra tts --extra stt     # Python deps, including Kokoro and Whisper
 uv run python scripts/download_models.py   # Kokoro model files (~340 MB)
 ollama pull gemma4:12b              # or any chat model; set it in config.yaml
 Copy-Item config.example.yaml config.yaml
@@ -85,8 +90,9 @@ uv run python scripts/drop_sample.py       # fake brief into data/inbox
 uv run desk-secretary               # opens http://127.0.0.1:8765
 ```
 
-Click **Morning brief ready** (or press Space). Type a follow-up question, or
-start it with `/claude` to save it for the next brief.
+Click **Morning brief ready** (or press Space). Type a follow-up question or
+hold **V** and ask it out loud. Start with `/claude` (or say "check with
+Claude…") to save it for the next brief.
 
 To use the real synced folder, set `secretary_dir` in `config.yaml` (which is
 git-ignored) to the Drive folder that contains `briefs/`.
@@ -116,8 +122,7 @@ files are git-ignored. Everything under `samples/` is invented.
 
 ## Roadmap
 
-See [`docs/plan.md`](docs/plan.md): push-to-talk voice input (faster-whisper),
-emotion tags mapped to VRM expressions, a transparent always-on-top desktop
+See [`docs/plan.md`](docs/plan.md): emotion tags mapped to VRM expressions, a transparent always-on-top desktop
 window, a wake word, and allow-listed actions.
 
 ## AI assistance
