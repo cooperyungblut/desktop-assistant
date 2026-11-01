@@ -21,6 +21,28 @@ uv run python -c "from kokoro_onnx import Kokoro; print(Kokoro('models/kokoro-v1
 
 `voice.speed` is 0.5 to 2.0; 1.0 to 1.1 sounds natural.
 
+## Pauses between sentences
+
+The app speaks one sentence at a time, so speech can start before the whole
+reply exists. Kokoro trims the silence off each clip, which on its own leaves
+only about 0.1 s between sentences and sounds rushed. So each clip gets a set
+pause at its end, in the persona file:
+
+```yaml
+voice:
+  sentence_pause: 0.35   # after . ! ?
+  clause_pause: 0.15     # after a chunk that ends on , : ; or a dash
+```
+
+To compare pauses, `try_voices.py` takes several values and writes one file
+per value, spoken sentence by sentence exactly like the app:
+
+```powershell
+uv run python scripts/try_voices.py "af_heart:80,af_nicole:20" --pause 0 0.25 0.35 0.5
+```
+
+`--pause 0` is how the app sounded before this setting existed.
+
 ## Blending voices
 
 `voice.kokoro_voice` can also be a blend: `"af_heart:70,af_bella:30"`. The app

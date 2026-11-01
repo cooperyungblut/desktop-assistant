@@ -69,13 +69,24 @@ short question in about a second. `device: cuda` is one config line away.
 
 ## Milestone 3: expressions + model eval (~1–2 chunks)
 
-- The model starts each reply with a tag such as `[happy]`, from a fixed set
+Chunk 1 (expressions, plus two tuning items from using Milestone 2):
+
+- [x] The model starts each reply with a tag such as `[happy]`, from a fixed set
   (`neutral, happy, surprised, sad, relaxed`). The app strips it before display
   and speech, validates it against the set, and eases the VRM expression in
   and out. Unknown tags fall back to neutral.
-- Persona file gets an `expressions:` map (emotion → VRM preset + weight).
-- `scripts/eval_models.py`: runs fact-check questions against each candidate
-  model and reports which facts were dropped or changed.
+- [x] Persona file gets an `expressions:` map (emotion → VRM preset + weight).
+- [x] Persona: answer small talk warmly in a few words before the facts.
+- [x] Speech: a set pause after each sentence (`voice.sentence_pause`), since
+  per-sentence clips left only ~0.1 s between sentences.
+- [ ] **Cooper:** Chunk E in the setup guide (try it with the real avatar,
+  pick a pause, tune expression weights).
+
+Chunk 2:
+
+- [ ] `scripts/eval_models.py`: runs fact-check questions against each candidate
+  model and reports which facts were dropped or changed. Also checks that
+  replies start with a valid mood tag.
 
 ## Milestone 4: desktop presence (~2 chunks, spike first)
 

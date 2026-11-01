@@ -1,8 +1,11 @@
-// Renders a VRM model with three.js and drives its face: blinking, idle motion
-// and a mouth value the speech player sets every frame.
+// Renders a VRM model with three.js and drives its face: blinking, idle motion,
+// a mood expression that eases in and out, and a mouth value the speech player
+// sets every frame.
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
+
+const MOODS = ["happy", "angry", "sad", "relaxed", "surprised"];
 
 export class Avatar {
   constructor(canvas) {
@@ -24,6 +27,10 @@ export class Avatar {
     this.mouth = 0; // 0..1, set by the speech player
     this._nextBlink = 2;
     this._blinkT = -1;
+    // Mood expressions: each preset's weight eases toward its target every frame.
+    this._exprTarget = {};
+    this._exprNow = {};
+    this._warned = new Set();
 
     new ResizeObserver(() => this._resize()).observe(canvas);
     this._resize();
@@ -48,14 +55,24 @@ export class Avatar {
     this._frame();
   }
 
-  setExpression(name, weight = 1) {
-    // Milestone 2: emotion tags from the model map onto these preset names
-    // (happy, angry, sad, relaxed, surprised).
-    const em = this.vrm?.expressionManager;
-    if (!em) return;
-    for (const preset of ["happy", "angry", "sad", "relaxed", "surprised"]) {
-      em.setValue(preset, preset === name ? weight : 0);
+  // Show one mood preset (happy, sad, relaxed, surprised, angry) at `weight`,
+  // easing out whatever was showing before. "neutral" or weight 0 relaxes the face.
+  setExpression(name, weight = 0.6) {
+    for (const preset of MOODS) this._exprTarget[preset] = 0;
+    if (name === "neutral" || !weight) return;
+    if (this.vrm && !this.vrm.expressionManager?.getExpression(name)) {
+      // e.g. VRM 0.x models have no "surprised"; map that mood to another
+      // preset in the persona file's expressions: section.
+      if (!this._warned.has(name)) console.warn(`This avatar has no "${name}" expression.`);
+      this._warned.add(name);
+      return;
     }
+    this._exprTarget[name] = Math.max(0, Math.min(1, weight));
+  }
+
+  // Which expressions this model has, for picking presets in the persona file.
+  expressionNames() {
+    return Object.keys(this.vrm?.expressionManager?.expressionMap ?? {});
   }
 
   // Lower the arms out of the T-pose. Normalized bones share one convention
@@ -95,6 +112,7 @@ export class Avatar {
       const em = this.vrm.expressionManager;
       em?.setValue("aa", this.mouth);
       em?.setValue("blink", this._blink(dt));
+      this._easeExpressions(em, dt);
 
       // Idle motion: slow breathing and a little head drift.
       const h = this.vrm.humanoid;
@@ -104,6 +122,22 @@ export class Avatar {
       this.vrm.update(dt);
     }
     this.renderer.render(this.scene, this.camera);
+  }
+
+  _easeExpressions(em, dt) {
+    if (!em) return;
+    for (const preset of MOODS) {
+      const now = this._exprNow[preset] ?? 0;
+      const target = this._exprTarget[preset] ?? 0;
+      if (now === target) continue;
+      // Ease in over about 0.3 s and out over about 0.6 s: faces light up
+      // faster than they settle.
+      const rate = target > now ? 10 : 5;
+      let next = now + (target - now) * Math.min(1, rate * dt);
+      if (Math.abs(target - next) < 0.005) next = target;
+      this._exprNow[preset] = next;
+      em.setValue(preset, next);
+    }
   }
 
   _blink(dt) {
