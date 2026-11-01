@@ -36,6 +36,21 @@ MAX_VOICE_BYTES = 5_000_000  # about 5 minutes of Opus; push-to-talk clips are t
 WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 
 
+class LocalStaticFiles(StaticFiles):
+    """Static files the browser re-checks on every load.
+
+    Without a Cache-Control header, browsers may reuse a cached index.html for
+    hours, so after a `git pull` you could get the old page with the new
+    scripts. "no-cache" still allows the cache, but revalidates it (a cheap
+    304 on localhost).
+    """
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 class Hub:
     """Fan events out to every connected browser tab."""
 
@@ -146,7 +161,7 @@ def create_app(config: AppConfig) -> FastAPI:
         finally:
             hub.clients.discard(ws)
 
-    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+    app.mount("/", LocalStaticFiles(directory=WEB_DIR, html=True), name="web")
     return app
 
 
