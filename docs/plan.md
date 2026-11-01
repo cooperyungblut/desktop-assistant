@@ -30,7 +30,7 @@ Pick by testing, not by leaderboard: Milestone 3 adds a small script that asks
 each model the same questions about the sample briefs and checks that the
 facts survive.
 
-## Milestone 1: weekend MVP ✅ (code complete)
+## Milestone 1: weekend MVP ✅
 
 A fake brief lands in the folder, the indicator shows, I click, the avatar
 reads it aloud with lip sync, and I can type follow-up questions answered in
@@ -44,8 +44,8 @@ persona.
 - [x] Escalation writer + "answered" marking
 - [x] Web UI: VRM avatar, blink/idle, amplitude lip sync, chat, brief panel
 - [x] Tests (37) + CI on Windows and Linux + privacy check
-- [ ] **Cooper:** run it on Windows (chunk A and B in the setup guide)
-- [ ] **Cooper:** update the three scheduled tasks to write the new format
+- [x] Run it on Windows (setup guide chunks A and B)
+- [x] Scheduled tasks write the new format; real briefs sync and parse
 - [ ] Record a demo GIF with sample data
 
 ## Milestone 2: push-to-talk voice input (~2 chunks)
