@@ -50,11 +50,37 @@ class KokoroSpeaker:
             samples, rate = await asyncio.to_thread(
                 self._kokoro.create,
                 text,
-                voice=voice.kokoro_voice,
+                voice=resolve_voice(self._kokoro, voice.kokoro_voice),
                 speed=voice.speed,
                 lang=voice.lang,
             )
         return to_wav(samples, rate)
+
+
+def parse_voice_spec(spec: str) -> list[tuple[str, float]]:
+    """ "af_heart" -> [("af_heart", 1.0)]; "af_heart:70, af_bella:30" -> weights summing to 1."""
+    parts = []
+    for item in spec.split(","):
+        name, _, weight = item.strip().partition(":")
+        if not name:
+            raise ValueError(f"bad voice spec {spec!r}")
+        try:
+            w = float(weight) if weight else 1.0
+        except ValueError:
+            raise ValueError(f"bad weight in voice spec {spec!r}") from None
+        if w <= 0:
+            raise ValueError(f"weights must be positive in voice spec {spec!r}")
+        parts.append((name.strip(), w))
+    total = sum(w for _, w in parts)
+    return [(name, w / total) for name, w in parts]
+
+
+def resolve_voice(kokoro, spec: str):
+    """A plain voice name passes through; a blend becomes a weighted average style."""
+    parts = parse_voice_spec(spec)
+    if len(parts) == 1:
+        return parts[0][0]
+    return sum(kokoro.get_voice_style(name) * w for name, w in parts)
 
 
 def to_wav(samples, rate: int) -> bytes:
