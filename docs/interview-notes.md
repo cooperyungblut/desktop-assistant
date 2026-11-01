@@ -55,3 +55,44 @@ typed follow-ups using a local LLM, in a configurable persona.
 **What I'd improve next.** Voice input (faster-whisper), emotion tags mapped to
 VRM expressions, and an eval script that checks which local model keeps facts
 straight.
+
+## Milestone 2: push-to-talk voice input
+
+**What it does.** Hold V (or a mic button) to talk. Releasing it sends the
+clip to the backend, Whisper transcribes it, the text appears as your chat
+bubble, and from there it is exactly a typed question.
+
+**The flow.**
+1. `PushToTalk` (web/js/mic.js) opens the mic once and keeps it open, so later
+   presses start instantly. It records with `MediaRecorder` while the key is
+   held, plus 200 ms after release so the last word isn't clipped. Taps under
+   300 ms are ignored.
+2. The clip goes over the existing WebSocket as base64 (a few seconds of
+   Opus is ~30 KB, so a separate upload endpoint isn't worth it).
+3. `decode_audio` uses PyAV to turn WebM/Opus into 16 kHz mono float32, and
+   faster-whisper transcribes it in a worker thread with a VAD filter.
+4. `Assistant._voice` emits the transcript, then calls the same `_answer`
+   used for typed questions, inside the same cancellable task.
+
+**Key decisions.**
+- *Reuse one path.* Voice is just another way to produce text. Escalation,
+  persona, history and streaming speech all work unchanged, and they're
+  already tested.
+- *CPU, not GPU, for Whisper.* A resource-budget call: the LLM needs the VRAM,
+  CUDA on Windows adds ~1 GB of DLLs, and the CPU is fast enough for short
+  clips. The GPU is a config option with an automatic fallback, and the
+  fallback is tested.
+- *Barge-in.* Pressing to talk stops her speech and cancels the in-flight
+  answer, because that's how a conversation works.
+- *Whisper hallucinations.* Whisper was trained on subtitles, so silence can
+  come out as "Thanks for watching!". The VAD filter removes most of it, and a
+  tiny deny-list catches the rest without throwing away real phrases like
+  "thank you".
+
+**A bug the end-to-end test caught.** Unit tests with a fake Whisper model
+passed, but running the real page in headless Chromium with a fake
+microphone showed faster-whisper's own audio decoder crashing against the
+current PyAV release (it passes an option PyAV removed). The fix was to decode
+with PyAV directly, which also removed a dependency on library internals. The
+test suite now encodes real Opus audio with PyAV, so this can't regress
+silently. Mocks prove your logic; only a real run proves your integration.

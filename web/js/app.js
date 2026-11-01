@@ -3,13 +3,14 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import { Avatar } from "./avatar.js";
 import { SpeechPlayer } from "./audio.js";
+import { PushToTalk, blobToBase64 } from "./mic.js";
 
 const $ = (id) => document.getElementById(id);
 const els = {
   ready: $("ready"), readyLabel: $("ready-label"), caption: $("caption"),
   briefTitle: $("brief-title"), briefBody: $("brief-body"), history: $("history"),
   messages: $("messages"), form: $("ask-form"), input: $("ask-input"),
-  askClaude: $("ask-claude"), stop: $("stop"), persona: $("persona-name"),
+  askClaude: $("ask-claude"), stop: $("stop"), persona: $("persona-name"), mic: $("mic"),
   note: $("avatar-note"),
 };
 
@@ -49,6 +50,8 @@ const handlers = {
     document.title = `${e.persona} · Desk Secretary`;
     setDot("dot-model", e.model);
     setDot("dot-tts", e.tts);
+    setDot("dot-stt", e.stt);
+    els.mic.disabled = !e.stt;
   },
   briefs(e) {
     readyId = e.ready;
@@ -90,6 +93,18 @@ const handlers = {
     if (el) el.textContent = e.text;
     replies.delete(e.id);
   },
+  transcript(e) {
+    const el = pendingVoice ?? (e.text ? addMessage("you", "") : null);
+    pendingVoice = null;
+    if (!el) return;
+    if (e.text) {
+      el.className = "you";
+      el.textContent = e.text;
+    } else {
+      el.className = "note";
+      el.textContent = "Didn't catch that. Hold V a little longer and try again?";
+    }
+  },
   escalated(e) { addMessage("note", `Saved for Claude (${e.id}): “${e.question}”`); },
   error(e) { addMessage("note", `⚠ ${e.message}`); },
 };
@@ -115,6 +130,41 @@ function ask(text) {
 
 function stopTalking() { player.stop(); send({ type: "stop" }); }
 
+// ---- push-to-talk ------------------------------------------------------------
+
+let pendingVoice = null; // chat bubble waiting for its transcript
+
+const ptt = new PushToTalk({
+  onWaiting() { els.caption.textContent = "Starting microphone…"; },
+  onStart() {
+    player.unlock();
+    stopTalking(); // talking over her interrupts her, like a real conversation
+    els.mic.classList.add("live");
+    els.caption.textContent = "Listening…";
+  },
+  onStop() {
+    els.mic.classList.remove("live");
+    if (["Listening…", "Starting microphone…"].includes(els.caption.textContent)) {
+      els.caption.textContent = "";
+    }
+  },
+  async onClip(blob) {
+    pendingVoice = addMessage("you pending", "🎙 …");
+    send({ type: "voice", audio: await blobToBase64(blob) });
+  },
+  onError(message) { addMessage("note", `⚠ ${message}`); },
+});
+
+els.mic.addEventListener("pointerdown", (e) => {
+  if (els.mic.disabled) return;
+  els.mic.setPointerCapture(e.pointerId);
+  ptt.press();
+});
+for (const type of ["pointerup", "pointercancel"]) {
+  els.mic.addEventListener(type, () => ptt.release());
+}
+window.addEventListener("blur", () => ptt.release()); // never get stuck recording
+
 els.ready.addEventListener("click", () => startBrief());
 els.history.addEventListener("change", () => {
   if (els.history.value) startBrief(els.history.value);
@@ -127,8 +177,14 @@ els.askClaude.addEventListener("click", () => {
 });
 els.stop.addEventListener("click", stopTalking);
 
-// Space starts the waiting brief (or stops speech); Esc stops. Ignored while typing.
+// Space starts the waiting brief (or stops speech); Esc stops; hold V to talk.
+// All ignored while typing in the question box.
 document.addEventListener("keydown", (e) => {
+  if (e.code === "KeyV" && e.target !== els.input && !els.mic.disabled) {
+    e.preventDefault();
+    if (!e.repeat) ptt.press();
+    return;
+  }
   if (e.target === els.input) {
     if (e.key === "Escape") stopTalking();
     return;
@@ -141,6 +197,10 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "Escape") {
     stopTalking();
   }
+});
+
+document.addEventListener("keyup", (e) => {
+  if (e.code === "KeyV") ptt.release();
 });
 
 // ---- helpers -------------------------------------------------------------------
@@ -158,6 +218,6 @@ function setDot(id, on) { $(id).classList.toggle("on", !!on); $(id).classList.to
 function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 
 // Handy from the browser console while debugging: secretary.avatar.setExpression("happy")
-window.secretary = { avatar, player };
+window.secretary = { avatar, player, ptt };
 
 connect();

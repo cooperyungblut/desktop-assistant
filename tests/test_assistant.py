@@ -140,3 +140,52 @@ async def test_interrupted_reply_is_closed_out(env, persona):
     ends = [e["text"] for e in events if e["type"] == "reply_end"]
     assert ends == ["Let me check (stopped)"]
     a.stop()
+
+
+class FakeTranscriber:
+    available = True
+
+    def __init__(self, text):
+        self.text = text
+
+    async def load(self):
+        pass
+
+    async def transcribe(self, audio):
+        return self.text
+
+
+async def test_voice_question_is_transcribed_then_answered(env, fake_model):
+    a, briefs, _, events = env
+    a._transcriber = FakeTranscriber("When is my coffee chat?")
+    a.voice(b"audio")
+    await finish(a)
+    types = [e["type"] for e in events]
+    assert types.index("transcript") < types.index("reply_start")
+    assert events[types.index("transcript")]["text"] == "When is my coffee chat?"
+    assert fake_model.requests[-1][-1]["content"] == "When is my coffee chat?"
+
+
+async def test_voice_can_escalate(env, fake_model):
+    a, _, escs, _ = env
+    a._transcriber = FakeTranscriber("Check with Claude whether Dana replied.")
+    a.voice(b"audio")
+    await finish(a)
+    assert fake_model.requests == []
+    assert len(list(escs.glob("esc-*.md"))) == 1
+
+
+async def test_nothing_heard_does_not_call_the_model(env, fake_model):
+    a, _, _, events = env
+    a._transcriber = FakeTranscriber("")
+    a.voice(b"audio")
+    await finish(a)
+    assert fake_model.requests == []
+    assert events == [{"type": "transcript", "text": ""}]
+
+
+async def test_voice_without_stt_reports_an_error(env, fake_model):
+    a, _, _, events = env  # default transcriber: speech input off
+    a.voice(b"audio")
+    await finish(a)
+    assert [e["type"] for e in events] == ["transcript", "error"]

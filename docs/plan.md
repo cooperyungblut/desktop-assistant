@@ -43,22 +43,29 @@ persona.
 - [x] Kokoro TTS, sentence-by-sentence streaming
 - [x] Escalation writer + "answered" marking
 - [x] Web UI: VRM avatar, blink/idle, amplitude lip sync, chat, brief panel
-- [x] Tests (37) + CI on Windows and Linux + privacy check
+- [x] Tests + CI on Windows and Linux + privacy check
 - [x] Run it on Windows (setup guide chunks A and B)
 - [x] Scheduled tasks write the new format; real briefs sync and parse
 - [ ] Record a demo GIF with sample data
 
-## Milestone 2: push-to-talk voice input (~2 chunks)
+## Milestone 2: push-to-talk voice input ✅ (code complete)
 
-- Hold a key (or the mic button) to record in the browser (`MediaRecorder`),
-  send audio over the WebSocket, transcribe with faster-whisper on the GPU,
-  then treat the text as a typed question.
-- Model: `small.en` with `compute_type="int8_float16"`. That's fast and accurate
-  enough for short questions. Load once at startup.
-- Windows gotcha: faster-whisper needs the CUDA 12 cuBLAS and cuDNN 9 DLLs.
-  `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12` and add them to PATH at
-  startup, or fall back to CPU `int8` (still OK for short clips).
-- Tests: the audio → text → ask path with a fake transcriber.
+- [x] Hold **V** (or the mic button) to record in the browser with `MediaRecorder`;
+      the clip goes over the WebSocket as base64 WebM/Opus
+- [x] Decode with PyAV to 16 kHz mono, transcribe with faster-whisper `small.en`
+      (CPU int8 by default, CUDA optional with automatic CPU fallback)
+- [x] VAD filter + a small filter for Whisper's "silence hallucinations"
+- [x] The transcript goes through the same path as a typed question, so
+      "check with Claude…" escalates by voice too
+- [x] Talking over her interrupts her (barge-in)
+- [x] Tests with a fake Whisper model and real PyAV-encoded Opus; an end-to-end
+      run in headless Chromium with a fake microphone
+- [ ] **Cooper:** run setup Chunk D on Windows
+
+Decision: Whisper runs on the **CPU** by default. The chat model already uses
+most of the GPU (13.6 of 16.4 GB in use during testing), CUDA on Windows needs
+an extra ~1 GB of cuBLAS/cuDNN DLLs, and `small.en` on a desktop CPU handles a
+short question in about a second. `device: cuda` is one config line away.
 
 ## Milestone 3: expressions + model eval (~1–2 chunks)
 

@@ -15,13 +15,16 @@ dependencies = [
 
 [project.optional-dependencies]
 # Kept optional so CI and tests never download speech models.
-tts = ["kokoro-onnx>=0.4", "numpy>=1.26", "soundfile>=0.12"]
+tts = ["kokoro-onnx>=0.4", "numpy>=1.26"]
+stt = ["faster-whisper>=1.1"]
+# Only for stt.device: cuda on Windows. Large downloads (~1 GB).
+stt-gpu = ["nvidia-cublas-cu12", "nvidia-cudnn-cu12>=9,<10"]
 
 [project.scripts]
 desk-secretary = "secretary.__main__:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6", "numpy>=1.26", "av>=12"]
 
 [build-system]
 requires = ["hatchling"]

@@ -27,3 +27,11 @@ tts:
   engine: kokoro       # "none" disables speech (text-only mode)
   model_path: models/kokoro-v1.0.onnx
   voices_path: models/voices-v1.0.bin
+
+# Push-to-talk speech input (Milestone 2). Needs: uv sync --extra tts --extra stt
+stt:
+  engine: whisper      # "none" disables the mic button
+  model: small.en      # base.en is faster, medium.en more accurate
+  device: cpu          # "cuda" saves ~1 s per question but costs ~1 GB VRAM
+  compute_type: int8   # use int8_float16 with cuda
+  download_dir: models/whisper

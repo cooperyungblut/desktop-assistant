@@ -80,3 +80,8 @@ body {
 button { white-space: nowrap; flex: none; font: inherit; padding: 8px 14px; border-radius: 10px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
 button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
 select { font: inherit; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+
+.mic { display: grid; place-items: center; padding: 8px 10px; }
+.mic:disabled { opacity: .4; cursor: not-allowed; }
+.mic.live { background: var(--bad); color: #fff; border-color: var(--bad); animation: pulse 1s infinite; }
+.messages .pending { opacity: .6; }
