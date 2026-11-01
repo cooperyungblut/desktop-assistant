@@ -36,8 +36,8 @@ lines:
   model_unavailable: "Hmm, my brain isn't answering right now. Is Ollama running?"
 
 voice:
-  kokoro_voice: af_heart   # see docs/voices.md for options, e.g. af_bella, af_nicole
-  speed: 1.05
+  kokoro_voice: "af_heart:80,af_nicole:20"   # a name or a blend; see docs/voices.md
+  speed: 1.1
   lang: en-us
 
 # Passed straight to Ollama's "options".
