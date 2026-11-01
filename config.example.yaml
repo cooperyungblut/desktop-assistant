@@ -21,7 +21,7 @@ ollama:
   url: http://127.0.0.1:11434
   model: gemma4:12b    # check the exact tag at ollama.com/library; any chat model works
   keep_alive: 30m      # keep the model in VRAM between questions
-  think: null          # set to false for reasoning models (Qwen3, Qwen3.5) to skip slow "thinking"
+  think: false         # thinking models (Gemma 4, Qwen3) otherwise reason silently for seconds first
 
 tts:
   engine: kokoro       # "none" disables speech (text-only mode)

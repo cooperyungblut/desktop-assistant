@@ -20,8 +20,8 @@ follows a system prompt well, and leaves headroom at Q4. Alternatives worth
 trying, since switching is one line in `config.yaml`:
 
 - **Qwen3.5 9B** (or Qwen3 14B): stronger at strict instruction following.
-  These are reasoning models, so set `think: false` or every answer starts with
-  seconds of hidden "thinking".
+  These are reasoning models. Keep `think: false` (the default) or every answer
+  starts with seconds of hidden "thinking". Gemma 4 can think too.
 - **Ministral 3 14B**: good conversational tone, about 8 GB at Q4.
 
 Avoid 20B+ models here. They fit alone but crowd out Whisper and the avatar.

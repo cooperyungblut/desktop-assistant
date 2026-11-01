@@ -17,9 +17,10 @@ class OllamaConfig(BaseModel):
     url: str = "http://127.0.0.1:11434"
     model: str = "gemma4:12b"
     keep_alive: str = "30m"
-    # Reasoning models (Qwen3, Qwen3.5) "think" before answering, which adds seconds
-    # of latency; set this to False for them. None leaves the flag out entirely.
-    think: bool | None = None
+    # Thinking models (Gemma 4, Qwen3, Qwen3.5) reason silently before answering,
+    # which adds many seconds before the first word. Off by default for a voice
+    # assistant. None leaves the flag out and uses the model's own default.
+    think: bool | None = False
     timeout_seconds: float = 120.0
 
 
