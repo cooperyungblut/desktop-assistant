@@ -167,15 +167,20 @@ let pendingVoice = null; // chat bubble waiting for its transcript
 
 const ptt = new PushToTalk({
   onWaiting() { els.caption.textContent = "Starting microphone…"; },
-  onStart() {
+  onStart(mode) {
     player.unlock();
     stopTalking(); // talking over her interrupts her, like a real conversation
     els.mic.classList.add("live");
-    els.caption.textContent = "Listening…";
+    els.mic.setAttribute("aria-pressed", "true");
+    els.caption.textContent = mode === "toggle"
+      ? "Listening… (click the mic or pause to finish)"
+      : "Listening…";
   },
   onStop() {
     els.mic.classList.remove("live");
-    if (["Listening…", "Starting microphone…"].includes(els.caption.textContent)) {
+    els.mic.setAttribute("aria-pressed", "false");
+    if (els.caption.textContent.startsWith("Listening…")
+        || els.caption.textContent === "Starting microphone…") {
       els.caption.textContent = "";
     }
   },
@@ -186,15 +191,14 @@ const ptt = new PushToTalk({
   onError(message) { addMessage("note", `⚠ ${message}`); },
 });
 
-els.mic.addEventListener("pointerdown", (e) => {
-  if (els.mic.disabled) return;
-  els.mic.setPointerCapture(e.pointerId);
-  ptt.press();
+// The mic button is a toggle: click to talk, click again (or just stop talking
+// for a few seconds) to send. Holding V still works as push-to-talk.
+els.mic.addEventListener("click", () => {
+  if (!els.mic.disabled) ptt.toggle();
 });
-for (const type of ["pointerup", "pointercancel"]) {
-  els.mic.addEventListener(type, () => ptt.release());
-}
-window.addEventListener("blur", () => ptt.release()); // never get stuck recording
+// Switching windows ends a held V (its keyup would never arrive). A toggled
+// recording keeps going and ends on silence.
+window.addEventListener("blur", () => { if (ptt.mode === "hold") ptt.release(); });
 
 els.ready.addEventListener("click", () => startBrief());
 els.history.addEventListener("change", () => {
@@ -231,7 +235,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 document.addEventListener("keyup", (e) => {
-  if (e.code === "KeyV") ptt.release();
+  if (e.code === "KeyV" && ptt.mode === "hold") ptt.release();
 });
 
 // ---- helpers -------------------------------------------------------------------
