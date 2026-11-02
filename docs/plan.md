@@ -85,9 +85,12 @@ Chunk 1 (expressions, plus two tuning items from using Milestone 2):
 
 Chunk 2:
 
-- [ ] `scripts/eval_models.py`: runs fact-check questions against each candidate
-  model and reports which facts were dropped or changed. Also checks that
-  replies start with a valid mood tag.
+- [x] `scripts/eval_models.py`: runs fact-check questions (`evals/cases.yaml`)
+  against each candidate model and reports which facts were dropped or
+  changed, whether it admits what the brief doesn't say, mood-tag use, and
+  speed.
+- [ ] **Cooper:** Chunk F in the setup guide (run it on gemma4:12b and one
+  or two alternatives).
 
 ## Milestone 4: desktop presence (~2 chunks, spike first)
 

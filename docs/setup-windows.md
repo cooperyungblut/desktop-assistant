@@ -172,3 +172,30 @@ stt:
 
 **Check:** the terminal says `ready on cuda`. If CUDA fails, the app logs why
 and falls back to the CPU, so speech input keeps working either way.
+
+## Chunk F: compare models (about 30 min, mostly waiting)
+
+1. Get the new code: `git pull` (no new packages).
+2. Run the eval on the model you use now. Ollama must be running; close the
+   app first so the two don't compete for the GPU.
+   ```powershell
+   uv run python scripts/eval_models.py --runs 3 -v
+   ```
+   It asks 15 questions about the sample briefs, 3 times each, and prints a
+   dot per passed answer and an `x` per failed one, then a table:
+   - **facts**: answers with every required fact and nothing changed or invented
+   - **unknown**: questions the brief can't answer where she admitted it
+   - **tag** / **mood**: replies with a mood tag, and with one that fits
+   - **first** / **total**: median seconds to the first word / whole reply
+
+   With `-v` each failure shows the answer, so you can tell a real mistake
+   from a check that's too strict. Send me those lines if a check looks wrong.
+3. Optional: pull one or two alternatives and compare them in one run:
+   ```powershell
+   ollama pull qwen3.5:9b
+   uv run python scripts/eval_models.py gemma4:12b qwen3.5:9b --runs 3
+   ```
+   Check the exact tags on ollama.com/library first. Each 8-12B model is a
+   5-8 GB download. Results are also saved in `data\evals\`.
+4. If another model wins clearly on facts and is still fast, switch
+   `ollama: model:` in `config.yaml`.

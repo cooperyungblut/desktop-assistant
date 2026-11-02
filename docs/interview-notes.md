@@ -161,3 +161,15 @@ has), configurable per persona. Listening showed the bigger problem was at
 commas: Kokoro's comma pauses ranged from 0.05 s to 0.4 s within a single
 reply. The fix synthesizes each clause separately and joins them with a fixed
 short pause, keeping very short pieces together so they don't sound clipped.
+
+**Evaluating models instead of guessing.** `scripts/eval_models.py` asks each
+candidate model the same questions about the sample briefs, through the exact
+prompt the app uses, and scores the answers: required facts present (each fact
+allows a few phrasings, like "ten" or "10"), no changed or invented facts, an
+honest "I don't know" when the brief doesn't say, a valid mood tag that fits
+the news, and time to first word. Each question runs several times because
+answers vary at temperature 0.7. The scoring lives in the package
+(`secretary/evaluation.py`) with unit tests, so the eval itself is tested.
+The checks are deliberately simple string matching: transparent, free, and
+easy to tune when a check turns out too strict. The trade-off is that it
+can't judge tone, which is still checked by ear.

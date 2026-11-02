@@ -32,6 +32,8 @@ Everything on the PC runs locally: no cloud calls and no running costs.
   is set per persona.
 - **Voice input**: hold V to ask out loud, or click the mic button, talk, and pause (it sends after 3 s of silence). faster-whisper transcribes on the
   CPU, and talking over the avatar interrupts her.
+- **Model eval**: `scripts/eval_models.py` scores local models on keeping the
+  brief's facts right, admitting what it doesn't know, mood tags and speed.
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
 
@@ -126,8 +128,8 @@ files are git-ignored. Everything under `samples/` is invented.
 
 ## Roadmap
 
-See [`docs/plan.md`](docs/plan.md): a model-accuracy eval script, a
-transparent always-on-top desktop window, a wake word, and allow-listed actions.
+See [`docs/plan.md`](docs/plan.md): a transparent always-on-top desktop
+window, a wake word, and allow-listed actions.
 
 ## AI assistance
 
