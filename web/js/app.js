@@ -264,6 +264,8 @@ if (shellApi) {
   document.addEventListener("mouseleave", () => setInteractive(false));
 
   shellApi.onMoving((on) => document.documentElement.classList.toggle("moving", on));
+  shellApi.onAvatarWidth((px) =>
+    document.documentElement.style.setProperty("--avatar-w", `${px}px`));
   shellApi.onChat((on) => {
     document.documentElement.classList.toggle("chat", on);
     if (on) els.input.focus();

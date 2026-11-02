@@ -11,5 +11,6 @@ contextBridge.exposeInMainWorld("desktopShell", {
   // tray and hotkey commands: "talk", "brief"
   onCommand: (fn) => ipcRenderer.on("shell:command", (_e, name) => fn(name)),
   onMoving: (fn) => ipcRenderer.on("shell:moving", (_e, on) => fn(on)),
+  onAvatarWidth: (fn) => ipcRenderer.on("shell:avatar-width", (_e, px) => fn(px)),
   onChat: (fn) => ipcRenderer.on("shell:chat", (_e, on) => fn(on)),
 });

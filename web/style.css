@@ -90,12 +90,15 @@ select { font: inherit; padding: 4px 6px; border-radius: 8px; border: 1px solid 
    The chat and brief panel stay in the browser page. */
 .move-hint, .close { display: none; }
 html.desktop, html.desktop body { background: transparent; overflow: hidden; }
-html.desktop .layout { grid-template-columns: 1fr; grid-template-rows: 1fr; height: 100vh; }
+/* Her stage has a fixed width (--avatar-w, set by desktop/main.js) and is
+   anchored to the right edge, so opening the chat panel, which widens the
+   window to the left, never moves or resizes her. */
+html.desktop .layout { display: block; position: relative; height: 100vh; }
+html.desktop .stage { position: absolute; top: 0; right: 0; bottom: 0; width: var(--avatar-w, 100vw); }
 html.desktop .side, html.desktop .topbar { display: none; }
-/* Chat panel: the window widens to her left (desktop/main.js). */
-html.desktop.chat .layout { grid-template-columns: 380px minmax(0, 1fr); }
 html.desktop.chat .side {
-  display: grid; grid-template-columns: minmax(0, 1fr); order: -1; margin: 8px 0 8px 8px;
+  display: grid; grid-template-columns: minmax(0, 1fr); position: absolute;
+  top: 8px; bottom: 8px; right: var(--avatar-w, 100vw); width: 372px;
   border: 1px solid var(--line);
   border-radius: 14px; overflow: hidden; box-shadow: 0 8px 30px rgb(0 0 0 / .35);
 }

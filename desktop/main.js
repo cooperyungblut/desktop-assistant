@@ -94,6 +94,7 @@ function createWindow() {
 
   win.once("ready-to-show", () => win.showInactive());
   win.webContents.once("did-finish-load", logGpu); // the GPU process is up by then
+  win.webContents.on("did-finish-load", sendAvatarWidth);
   win.on("moved", saveSettings);
   win.on("closed", () => { win = null; });
 
@@ -151,15 +152,24 @@ function setSize(name) {
     const s = SIZES[name];
     const width = s.width + (chatOpen ? CHAT_WIDTH : 0);
     // Grow or shrink around the bottom-right corner, where she usually sits.
+    sendAvatarWidth(s.width);
     win.setBounds({ x: b.x + b.width - width, y: b.y + b.height - s.height, width, height: s.height });
   }
   saveSettings();
   buildTrayMenu();
 }
 
+// Her part of the window. The page pins her stage to this width at the right
+// edge, so the window can grow to the left without moving her.
+function sendAvatarWidth(width = win && win.getBounds().width - (chatOpen ? CHAT_WIDTH : 0)) {
+  if (!win) return;
+  win.webContents.send("shell:avatar-width", width);
+}
+
 // The chat panel (brief + messages + text box) widens the window to the left.
 function setChat(on) {
   if (!win || on === chatOpen) return;
+  sendAvatarWidth(); // pin her before the window changes size
   const b = win.getBounds();
   const dx = on ? CHAT_WIDTH : -CHAT_WIDTH;
   chatOpen = on;
