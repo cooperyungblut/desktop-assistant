@@ -11,7 +11,7 @@ Event types sent to the UI:
     transcript   {text}         what push-to-talk heard ("" if nothing)
     readout      {brief: {id, type, date, display}}
     say          {seq, text, audio: base64 WAV | None}     one sentence of speech
-    expression   {mood, preset, weight, talk_weight}   the avatar's face for what she says
+    expression   {mood, faces, talk_faces}   the avatar's face for what she says
     speech_done  {}             all speech for the current action has been sent
     reply_start  {id}
     reply_token  {id, text}
@@ -301,9 +301,8 @@ class Assistant:
             {
                 "type": "expression",
                 "mood": mood,
-                "preset": look.preset,
-                "weight": look.weight,
-                "talk_weight": look.talking,
+                "faces": look.faces(),
+                "talk_faces": look.talk_faces(),
             }
         )
 

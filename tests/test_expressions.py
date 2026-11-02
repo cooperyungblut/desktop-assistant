@@ -87,8 +87,29 @@ def test_prompt_asks_for_a_mood_tag(persona):
     assert "[happy]" in msgs[0]["content"] and "mood tag" in msgs[-2]["content"]
 
 
-def test_talk_weight_defaults_to_half(persona):
+def test_talking_face_defaults_to_half():
     from secretary.persona import Expression
 
-    assert Expression(preset="happy", weight=0.6).talking == pytest.approx(0.3)
-    assert Expression(preset="happy", weight=0.6, talk_weight=0.1).talking == 0.1
+    e = Expression(preset="happy", weight=0.6)
+    assert e.faces() == {"happy": 0.6}
+    assert e.talk_faces() == pytest.approx({"happy": 0.3})
+    assert Expression(preset="happy", weight=0.6, talk_weight=0.1).talk_faces() == {"happy": 0.1}
+    assert Expression(preset="neutral", weight=0).faces() == {}
+
+
+def test_mix_of_presets():
+    from secretary.persona import Expression
+
+    e = Expression(mix={"relaxed": 0.5, "happy": 0.15}, talk_scale=0.4)
+    assert e.faces() == {"relaxed": 0.5, "happy": 0.15}
+    assert e.talk_faces() == pytest.approx({"relaxed": 0.2, "happy": 0.06})
+
+
+@pytest.mark.parametrize("mix", [{"joy": 0.5}, {"happy": 1.5}])
+def test_bad_mix_is_rejected(mix):
+    from pydantic import ValidationError
+
+    from secretary.persona import Expression
+
+    with pytest.raises(ValidationError):
+        Expression(mix=mix)

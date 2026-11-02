@@ -6,6 +6,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin, VRMUtils } from "@pixiv/three-vrm";
 
 const MOODS = ["happy", "angry", "sad", "relaxed", "surprised"];
+const halve = (faces) => Object.fromEntries(Object.entries(faces).map(([k, w]) => [k, w / 2]));
 
 export class Avatar {
   constructor(canvas) {
@@ -65,22 +66,29 @@ export class Avatar {
     this._frame();
   }
 
-  // Show one mood preset (happy, sad, relaxed, surprised, angry) at `weight`,
-  // or at `talkWeight` while she's speaking, easing out whatever was showing
-  // before. "neutral" or weight 0 relaxes the face.
-  setExpression(name, weight = 0.6, talkWeight = weight / 2) {
+  // Show a face made of one or more presets, e.g. { relaxed: 0.5, happy: 0.15 },
+  // and a (usually weaker) version while she's speaking. Whatever was showing
+  // before eases out. An empty object relaxes the face to neutral.
+  setFaces(faces = {}, talkFaces = halve(faces)) {
     for (const preset of MOODS) { this._exprTarget[preset] = 0; this._exprTalking[preset] = 0; }
-    if (name === "neutral" || !weight) return;
-    if (this.vrm && !this.vrm.expressionManager?.getExpression(name)) {
-      // e.g. VRM 0.x models have no "surprised"; map that mood to another
-      // preset in the persona file's expressions: section.
-      if (!this._warned.has(name)) console.warn(`This avatar has no "${name}" expression.`);
-      this._warned.add(name);
-      return;
+    const clamp = (w) => (Number.isFinite(w) ? Math.max(0, Math.min(1, w)) : 0);
+    for (const [name, weight] of Object.entries(faces)) {
+      if (!MOODS.includes(name)) continue; // "neutral" and unknown names: nothing to show
+      if (this.vrm && !this.vrm.expressionManager?.getExpression(name)) {
+        // e.g. VRM 0.x models have no "surprised"; map that mood to another
+        // preset in the persona file's expressions: section.
+        if (!this._warned.has(name)) console.warn(`This avatar has no "${name}" expression.`);
+        this._warned.add(name);
+        continue;
+      }
+      this._exprTarget[name] = clamp(weight);
+      this._exprTalking[name] = clamp(talkFaces[name] ?? 0);
     }
-    const clamp = (w) => Math.max(0, Math.min(1, w));
-    this._exprTarget[name] = clamp(weight);
-    this._exprTalking[name] = clamp(talkWeight);
+  }
+
+  // One preset at `weight` (and `talkWeight` while speaking). "neutral" relaxes.
+  setExpression(name, weight = 0.6, talkWeight = weight / 2) {
+    this.setFaces({ [name]: weight }, { [name]: talkWeight });
   }
 
   // Which expressions this model has, for picking presets in the persona file.

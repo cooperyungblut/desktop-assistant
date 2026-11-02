@@ -138,9 +138,11 @@ Your `config.yaml` doesn't need an `stt:` section; the defaults are the ones in
    is missing (VRM 0.x models), set `surprised: { preset: happy, weight: 0.4 }`
    under `expressions:` in the persona file.
 4. Try each face from the console, e.g. `secretary.avatar.setExpression("sad", 0.45)`,
-   then `secretary.avatar.setExpression("neutral")`.
+   then `secretary.avatar.setExpression("neutral")`. To try a mix of presets:
+   `secretary.avatar.setFaces({ relaxed: 0.5, happy: 0.15 })`.
    **Check:** the face eases in and back out. If one looks overdone, lower its
-   `weight` in the persona file and restart the app (Ctrl+C, then start it again).
+   `weight` in the persona file, or use a `mix:` (see the comments there), and
+   restart the app (Ctrl+C, then start it again).
 5. Ask a few questions out loud or typed: say hello, ask about a rejection in
    the brief, ask something good.
    **Check:** she answers a hello warmly in a few words before any facts, her

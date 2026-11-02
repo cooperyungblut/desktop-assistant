@@ -46,25 +46,57 @@ class Voice(BaseModel):
 VRM_PRESETS = ("neutral", "happy", "angry", "sad", "relaxed", "surprised")
 
 
+def _check_preset(name: str) -> str:
+    if name not in VRM_PRESETS:
+        raise ValueError(f"unknown preset {name!r}; use one of {', '.join(VRM_PRESETS)}")
+    return name
+
+
 class Expression(BaseModel):
-    """How one mood looks: a VRM expression preset and how strongly to apply it."""
+    """How one mood looks on the avatar.
+
+    Either one VRM preset at a weight:   { preset: happy, weight: 0.4 }
+    or a mix of presets:                 { mix: { relaxed: 0.5, happy: 0.15 } }
+    A mix helps when a model's own preset looks wrong on its own; for example a
+    VRoid "happy" is often too big, while relaxed plus a touch of happy looks
+    natural.
+    """
 
     preset: str = "neutral"
     weight: float = Field(default=0.6, ge=0.0, le=1.0)
-    # Strength while she's speaking. Many smiles open the mouth, which fights
-    # with lip sync, so the default is half of `weight`.
+    mix: dict[str, float] | None = None
+    # Strength while she's speaking, as a fraction of the above. Many smiles
+    # open the mouth, which fights with lip sync, so the default is half.
+    talk_scale: float = Field(default=0.5, ge=0.0, le=1.0)
+    # Older form: an absolute weight while speaking (single preset only).
     talk_weight: float | None = Field(default=None, ge=0.0, le=1.0)
-
-    @property
-    def talking(self) -> float:
-        return self.weight / 2 if self.talk_weight is None else self.talk_weight
 
     @field_validator("preset")
     @classmethod
     def _known_preset(cls, v: str) -> str:
-        if v not in VRM_PRESETS:
-            raise ValueError(f"preset must be one of {', '.join(VRM_PRESETS)}")
+        return _check_preset(v)
+
+    @field_validator("mix")
+    @classmethod
+    def _known_mix(cls, v: dict[str, float] | None) -> dict[str, float] | None:
+        if v is None:
+            return v
+        for name, w in v.items():
+            _check_preset(name)
+            if not 0.0 <= w <= 1.0:
+                raise ValueError(f"weight for {name!r} must be between 0 and 1")
         return v
+
+    def faces(self) -> dict[str, float]:
+        """VRM preset -> weight while she's quiet. "neutral" means no preset."""
+        faces = dict(self.mix) if self.mix is not None else {self.preset: self.weight}
+        return {k: v for k, v in faces.items() if k != "neutral" and v > 0}
+
+    def talk_faces(self) -> dict[str, float]:
+        """VRM preset -> weight while she's speaking."""
+        if self.mix is None and self.talk_weight is not None:
+            return {k: self.talk_weight for k in self.faces()}
+        return {k: v * self.talk_scale for k, v in self.faces().items()}
 
 
 DEFAULT_EXPRESSIONS: dict[str, Expression] = {

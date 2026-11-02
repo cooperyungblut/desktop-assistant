@@ -140,6 +140,15 @@ VRM expression, holds it while she talks, and relaxes after she stops.
   speech engine, which would read them aloud.
 - *Tags stay in the history.* The model sees its own earlier replies with
   their tags, which makes it more likely to keep using the format.
+- *Tuned on the real avatar.* On Cooper's avatar the built-in "happy" preset
+  squints the eyes and opens the mouth. At any strength it looked either
+  odd or not happy at all, and with lip sync opening the mouth again on top it
+  looked alarming. Three fixes: mood presets scale the lip-sync mouth down by
+  their own weight (VRM's "blend" mouth override); each face drops to half
+  strength while she talks; and a mood can be a mix of presets, so "happy" is
+  now mostly "relaxed" with a touch of "happy". The face also holds through
+  the gaps between sentences: the server sends `speech_done` when a reply's
+  speech is finished, and only then does the face relax.
 - *Readouts stay neutral.* The brief readout is read verbatim and never goes
   through the model, so there's no mood to pick. That's on purpose: the face
   shouldn't editorialize the facts.
