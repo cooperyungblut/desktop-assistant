@@ -285,6 +285,9 @@ edges of her hair), the GPU line, and the idle CPU number.
    (Ctrl+Alt+C, or the next free one) or **Chat** in the tray menu.
    **Check:** the brief and chat open to her left, and you can type straight
    away. Close it with × or the same hotkey.
+   To put the chat on her other side, right-click the tray dot, then
+   **Chat side** → **Right of her** (she slides over only if the chat
+   wouldn't fit on the screen). It remembers your choice.
 4. Type or say (Ctrl+Alt+J) "read me this morning's brief".
    **Check:** she reads it word for word. Then try "read yesterday's evening
    brief": she should say she doesn't have one (unless you do).
