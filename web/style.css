@@ -85,3 +85,29 @@ select { font: inherit; padding: 4px 6px; border-radius: 8px; border: 1px solid 
 .mic:disabled { opacity: .4; cursor: not-allowed; }
 .mic.live { background: var(--bad); color: #fff; border-color: var(--bad); animation: pulse 1s infinite; }
 .messages .pending { opacity: .6; }
+
+/* Desktop window (?desktop, see desktop/): just her, on a transparent page.
+   The chat and brief panel stay in the browser page. */
+.move-hint { display: none; }
+html.desktop, html.desktop body { background: transparent; overflow: hidden; }
+html.desktop .layout { grid-template-columns: 1fr; grid-template-rows: 1fr; height: 100vh; }
+html.desktop .side, html.desktop .topbar { display: none; }
+html.desktop .stage { background: none; }
+html.desktop .caption:not(:empty) {
+  left: 50%; right: auto; transform: translateX(-50%); width: max-content; max-width: calc(100% - 24px);
+  bottom: 10px; padding: 6px 12px; border-radius: 12px; font-size: 15px;
+  background: rgb(30 27 39 / .82); color: #ece9f5; text-shadow: none;
+}
+html.desktop .ready { bottom: 64px; }
+html.desktop .avatar-note { color: #ece9f5; background: rgb(30 27 39 / .82); padding: 8px; border-radius: 12px; }
+html.desktop.moving .stage {
+  -webkit-app-region: drag; cursor: move;
+  outline: 2px dashed var(--accent); outline-offset: -2px; border-radius: 12px;
+  background: rgb(138 92 246 / .08);
+}
+html.desktop.moving .move-hint {
+  display: flex; align-items: center; gap: 8px; position: absolute; top: 10px; left: 50%;
+  transform: translateX(-50%); padding: 4px 4px 4px 12px; border-radius: 12px; font-size: 13px;
+  background: rgb(30 27 39 / .82); color: #ece9f5; white-space: nowrap;
+}
+html.desktop.moving .move-hint button { -webkit-app-region: no-drag; padding: 4px 10px; }

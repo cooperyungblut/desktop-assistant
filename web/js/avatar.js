@@ -9,7 +9,9 @@ const MOODS = ["happy", "angry", "sad", "relaxed", "surprised"];
 const halve = (faces) => Object.fromEntries(Object.entries(faces).map(([k, w]) => [k, w / 2]));
 
 export class Avatar {
-  constructor(canvas) {
+  // idleFps: draw at most this many frames a second while she isn't talking
+  // (0 = every frame). Lip sync always runs at full rate.
+  constructor(canvas, { idleFps = 0 } = {}) {
     // alpha: true now so the later transparent desktop window needs no changes here.
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -34,6 +36,8 @@ export class Avatar {
     this.talking = false;    // set by the page while speech plays
     this._exprNow = {};
     this._warned = new Set();
+    this.idleFps = idleFps;
+    this._lastDraw = -Infinity;
 
     new ResizeObserver(() => this._resize()).observe(canvas);
     this._resize();
@@ -126,6 +130,14 @@ export class Avatar {
   }
 
   _tick() {
+    // Idle cap: skip this display frame if the last one was drawn too recently.
+    // The timer isn't updated on skipped frames, so motion speed is unchanged.
+    if (this.idleFps > 0 && !this.talking && this.vrm) {
+      const now = performance.now();
+      // A little slack, so 30 fps on a 60 Hz screen keeps every other frame.
+      if (now - this._lastDraw < 1000 / this.idleFps - 2) return;
+      this._lastDraw = now;
+    }
     this.timer.update();
     const dt = Math.min(this.timer.getDelta(), 0.1);
     const t = this.timer.getElapsed();

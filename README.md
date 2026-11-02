@@ -34,6 +34,10 @@ Everything on the PC runs locally: no cloud calls and no running costs.
   CPU, and talking over the avatar interrupts her.
 - **Model eval**: `scripts/eval_models.py` scores local models on keeping the
   brief's facts right, admitting what it doesn't know, mood tags and speed.
+- **Desktop window** (spike): an Electron shell shows just the avatar in a
+  frameless, transparent, always-on-top window on the desktop. Clicks pass
+  through her except on her buttons, and global hotkeys talk or read a brief
+  from any app. It renders on the GPU and drops to 30 fps while she's idle.
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
 
@@ -78,6 +82,7 @@ flowchart LR
 | STT | `stt.py` | faster-whisper on CPU: the GPU is reserved for the LLM. Audio is decoded with PyAV directly. A VAD filter plus a tiny deny-list handles Whisper's "silence hallucinations". |
 | TTS | `tts.py` | `kokoro-onnx` on CPU: no PyTorch install, faster than real time, and it leaves VRAM for the LLM. |
 | Front end | `web/` | Plain ES modules with an import map: no Node, no bundler. Markdown from briefs is sanitized with DOMPurify, since it contains email text. |
+| Desktop shell | `desktop/` | Electron, because transparent, frameless, click-through windows are reliable on Windows there. It only loads the app's page with `?desktop` (avatar-only layout), so the Python app stays the single source of truth. The page gets three calls through a preload bridge, never Node. |
 
 ## Quick start (Windows, PowerShell)
 
@@ -100,6 +105,15 @@ Click **Morning brief ready** (or press Space). Type a follow-up question or
 hold **V** and ask it out loud. Start with `/claude` (or say "check with
 Claude…") to save it for the next brief.
 
+To put her on the desktop instead of a browser tab (needs [Node.js](https://nodejs.org) LTS),
+start the app with `uv run desk-secretary --no-browser`, then in a second terminal:
+
+```powershell
+cd desktop
+npm install    # once
+npm start
+```
+
 To use the real synced folder, set `secretary_dir` in `config.yaml` (which is
 git-ignored) to the Drive folder that contains `briefs/`.
 
@@ -114,6 +128,7 @@ Edit [`personas/juniper.yaml`](personas/juniper.yaml), or copy it and point
 uv run pytest           # tests (no models or GPU needed)
 uv run ruff check .     # lint
 uv run ruff format .    # format
+cd desktop; npm test    # desktop shell helpers
 ```
 
 CI runs lint and tests on Windows and Linux, plus a privacy check that fails
@@ -128,8 +143,8 @@ files are git-ignored. Everything under `samples/` is invented.
 
 ## Roadmap
 
-See [`docs/plan.md`](docs/plan.md): a transparent always-on-top desktop
-window, a wake word, and allow-listed actions.
+See [`docs/plan.md`](docs/plan.md): the desktop window beyond the spike,
+a wake word, and allow-listed actions.
 
 ## AI assistance
 

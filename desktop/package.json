@@ -1,0 +1,16 @@
+{
+  "name": "desk-secretary-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Transparent, always-on-top desktop window for the Desk Secretary avatar",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "check": "node --check main.js && node --check preload.js && node --check shell.js"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "44.8.0"
+  }
+}

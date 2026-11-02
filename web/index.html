@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Desk Secretary</title>
   <link rel="stylesheet" href="style.css">
+  <!-- ?desktop: avatar-only layout for the transparent desktop window (desktop/).
+       Set before first paint so the full layout never flashes. -->
+  <script>
+    if (new URLSearchParams(location.search).has("desktop")) document.documentElement.classList.add("desktop");
+  </script>
   <!-- No build step: modules load straight from a CDN, pinned to exact versions. -->
   <script type="importmap">
   {
@@ -40,6 +45,11 @@
       </button>
 
       <p id="caption" class="caption" aria-live="polite"></p>
+
+      <div class="move-hint">
+        Drag to move her
+        <button type="button" id="move-done">Done</button>
+      </div>
     </section>
 
     <aside class="side">

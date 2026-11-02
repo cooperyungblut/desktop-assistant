@@ -67,7 +67,7 @@ most of the GPU (13.6 of 16.4 GB in use during testing), CUDA on Windows needs
 an extra ~1 GB of cuBLAS/cuDNN DLLs, and `small.en` on a desktop CPU handles a
 short question in about a second. `device: cuda` is one config line away.
 
-## Milestone 3: expressions + model eval (~1–2 chunks)
+## Milestone 3: expressions + model eval ✅
 
 Chunk 1 (expressions, plus two tuning items from using Milestone 2):
 
@@ -80,7 +80,7 @@ Chunk 1 (expressions, plus two tuning items from using Milestone 2):
 - [x] Speech: a set pause after each sentence (`voice.sentence_pause`), since
   per-sentence clips left only ~0.1 s between sentences, and after each comma
   (`voice.clause_pause`), since Kokoro's own comma pauses ranged 0.05–0.4 s.
-- [ ] **Cooper:** Chunk E in the setup guide (try it with the real avatar,
+- [x] **Cooper:** Chunk E in the setup guide (try it with the real avatar,
   pick a pause, tune expression weights).
 
 Chunk 2:
@@ -89,8 +89,10 @@ Chunk 2:
   against each candidate model and reports which facts were dropped or
   changed, whether it admits what the brief doesn't say, mood-tag use, and
   speed.
-- [ ] **Cooper:** Chunk F in the setup guide (run it on gemma4:12b and one
-  or two alternatives).
+- [x] **Cooper:** Chunk F in the setup guide (run it on gemma4:12b and one
+  or two alternatives). gemma4:12b scored 100% on every check over 3 runs,
+  0.4 s to the first word. The eval is at its ceiling, so it needs harder
+  cases before it can rank models.
 
 ## Milestone 4: desktop presence (~2 chunks, spike first)
 
@@ -109,6 +111,25 @@ Frameless, transparent, always-on-top window with the avatar on the desktop.
 - The UI is already a plain web page with a transparent WebGL canvas
   (`alpha: true`), so any of the three just loads `http://127.0.0.1:8765`.
 - Global hotkey moves into the desktop shell at this point.
+
+Spike (chunk 1):
+
+- [x] `desktop/`: Electron window, frameless, transparent, always-on-top,
+  loading the app's page with `?desktop` (avatar, caption and brief button only)
+- [x] Renders on the GPU (Electron's default; the startup log shows the GPU
+  status) and draws at most 30 fps while she's idle, full rate while talking
+- [x] Click-through except over her buttons (`setIgnoreMouseEvents` with
+  forwarded mouse moves); move mode to drag her; size presets; position saved
+- [x] Global hotkeys: Ctrl+Alt+Space talk, Ctrl+Alt+B brief, Ctrl+Alt+M move,
+  Ctrl+Alt+H hide; tray menu with the same plus Quit
+- [ ] **Cooper:** Chunk G in the setup guide (transparency, GPU, CPU use)
+
+Chunk 2 (after the spike checks out):
+
+- A way to type or see the chat from the desktop window (a small pop-out panel)
+- Hold-to-talk from any app (needs a keyboard hook; Electron's global
+  shortcuts only see presses, not releases)
+- Start the Python app from the shell, so one launch starts everything
 
 ## Milestone 5: wake word (~1–2 chunks)
 
