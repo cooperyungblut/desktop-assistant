@@ -2,8 +2,8 @@
 
     uv run python scripts/try_voices.py af_heart af_bella "af_heart:70,af_bella:30"
     uv run python scripts/try_voices.py "af_heart:50,bf_emma:50" --text "Hi Cooper!"
-    uv run python scripts/try_voices.py "af_heart:80,af_nicole:20" --pause 0.25 0.35 0.5
-    uv run python scripts/try_voices.py "af_heart:80,af_nicole:20" --comma off 0.1 0.15 0.2
+    uv run python scripts/try_voices.py af_heart --pause 0.25 0.35 0.5
+    uv run python scripts/try_voices.py af_heart --comma off 0.1 0.15 0.2
 
 Like the app, the text is spoken one sentence at a time with --pause seconds of
 silence after each sentence (voice.sentence_pause in the persona file) and

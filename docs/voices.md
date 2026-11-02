@@ -45,7 +45,7 @@ To compare pauses, `try_voices.py` takes several values and writes one file
 per value, spoken sentence by sentence exactly like the app:
 
 ```powershell
-uv run python scripts/try_voices.py "af_heart:80,af_nicole:20" --pause 0 0.25 0.35 0.5
+uv run python scripts/try_voices.py af_heart --pause 0 0.25 0.35 0.5
 ```
 
 `--pause 0` is how the app sounded before this setting existed. For commas,
@@ -56,6 +56,11 @@ uv run python scripts/try_voices.py "af_heart:80,af_nicole:20" --pause 0 0.25 0.
 `voice.kokoro_voice` can also be a blend: `"af_heart:70,af_bella:30"`. The app
 averages the voices' style vectors by weight (weights are relative, so 70/30
 and 7/3 are the same). Quote it in YAML because of the colon.
+
+In practice blends can blur some pronunciations: averaging style vectors
+mixes how the voices say certain sounds, not just their timbre. Juniper
+tried an 80/20 heart/nicole blend and went back to plain `af_heart`, so
+listen to longer sentences with names and numbers before settling on one.
 
 To audition voices and blends before choosing, save samples as WAV files:
 
