@@ -74,17 +74,27 @@ function pickHotkey(keys, tryRegister) {
   return { key: null, taken };
 }
 
-// The window always has room for the chat panel beside her ("left" or
-// "right"), empty and click-through while the panel is closed. Resizing a
-// window on Windows shows the old frame at the new position for a moment, so
-// opening the panel must not resize it. Settings store her part only.
-function withChatRoom(avatar, chatWidth, side = "left") {
-  const x = side === "right" ? avatar.x : avatar.x - chatWidth;
-  return { ...avatar, x, width: avatar.width + chatWidth };
+// The window always has room for the chat panel on both sides of her, empty
+// and click-through while the panel is closed. Resizing a window on Windows
+// shows the old frame at the new position for a moment, so neither opening
+// the panel nor switching its side may resize or move the window. Settings
+// store her part only.
+function withChatRoom(avatar, chatWidth) {
+  return { ...avatar, x: avatar.x - chatWidth, width: avatar.width + 2 * chatWidth };
 }
-function avatarPart(window, chatWidth, side = "left") {
-  const x = side === "right" ? window.x : window.x + chatWidth;
-  return { ...window, x, width: window.width - chatWidth };
+function avatarPart(window, chatWidth) {
+  return { ...window, x: window.x + chatWidth, width: window.width - 2 * chatWidth };
+}
+
+// Which side of her the chat panel shows on: the chosen side when it fits on
+// her screen, else the other side when that fits, else the chosen one anyway.
+function chatSideFor(avatar, area, preferred, chatWidth) {
+  const fits = {
+    left: avatar.x - chatWidth >= area.x,
+    right: avatar.x + avatar.width + chatWidth <= area.x + area.width,
+  };
+  const other = preferred === "right" ? "left" : "right";
+  return fits[preferred] || !fits[other] ? preferred : other;
 }
 
 // Slide a window back inside a screen's work area (it keeps its size).
@@ -99,5 +109,5 @@ function fitInside(b, area) {
 
 module.exports = {
   DEFAULT_URL, SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey,
-  withChatRoom, avatarPart, fitInside,
+  withChatRoom, avatarPart, chatSideFor, fitInside,
 };

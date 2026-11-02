@@ -130,9 +130,10 @@ Chunk 2:
 
 - [x] Chat panel inside her window (hotkey or tray): the brief, the chat and
   the text box open to her left. One window, because every connected page
-  plays her speech. The panel goes left or right of her (tray menu); the window
-  always keeps room for it, because resizing a window on Windows briefly
-  shows the old frame at the new position.
+  plays her speech. The panel goes left or right of her (tray menu), and
+  flips to her other side near a screen edge. The window always keeps room
+  for it on both sides, because resizing or moving a window on Windows
+  briefly shows the old frame at the new position.
 - [x] "Read me this morning's brief" (typed or spoken) reads that brief
   verbatim; matched in code like `/claude`, never decided by the model
 - [x] One launch: `npm start` starts the Python app if it isn't running and

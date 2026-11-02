@@ -264,8 +264,9 @@ if (shellApi) {
   document.addEventListener("mouseleave", () => setInteractive(false));
 
   shellApi.onMoving((on) => document.documentElement.classList.toggle("moving", on));
-  shellApi.onLayout(({ avatarWidth, chatSide }) => {
+  shellApi.onLayout(({ avatarWidth, room, chatSide }) => {
     document.documentElement.style.setProperty("--avatar-w", `${avatarWidth}px`);
+    document.documentElement.style.setProperty("--room", `${room}px`);
     document.documentElement.classList.toggle("chat-right", chatSide === "right");
   });
   shellApi.onChat((on) => {

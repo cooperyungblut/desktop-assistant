@@ -17,7 +17,7 @@ const {
 } = require("electron");
 const {
   SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey,
-  withChatRoom, avatarPart, fitInside,
+  withChatRoom, avatarPart, chatSideFor, fitInside,
 } = require("./shell.js");
 
 // The avatar is WebGL, so the window must render on the GPU. Electron does by
@@ -36,9 +36,11 @@ let waitingLogged = false;
 let backend = null; // the Python app, when this shell started it
 const CHAT_WIDTH = 380; // room for the chat panel beside her
 let settings = { size: "medium", bounds: null, chatSide: "left" };
-// Window bounds <-> her part of the window, for the current chat side.
-const toWindow = (avatar) => withChatRoom(avatar, CHAT_WIDTH, settings.chatSide);
-const toAvatar = (window) => avatarPart(window, CHAT_WIDTH, settings.chatSide);
+let shownSide = null; // where the chat panel shows now (chatSide, unless no room)
+let sentWidth = null;
+// Window bounds <-> her part of the window (chat room on both sides).
+const toWindow = (avatar) => withChatRoom(avatar, CHAT_WIDTH);
+const toAvatar = (window) => avatarPart(window, CHAT_WIDTH);
 const workAreaFor = (b) => screen.getDisplayMatching(b).workArea;
 
 // ---- settings --------------------------------------------------------------
@@ -68,8 +70,7 @@ function startBounds() {
   const avatar = saved && onScreen(saved, areas)
     ? saved
     : defaultBounds(screen.getPrimaryDisplay().workArea, SIZES[settings.size]);
-  const b = toWindow(avatar);
-  return fitInside(b, workAreaFor(b)); // e.g. chat room past the screen edge
+  return toWindow(avatar); // the chat room may hang past the screen edge
 }
 
 // ---- window ----------------------------------------------------------------
@@ -99,7 +100,8 @@ function createWindow() {
 
   win.once("ready-to-show", () => win.showInactive());
   win.webContents.once("did-finish-load", logGpu); // the GPU process is up by then
-  win.webContents.on("did-finish-load", () => sendLayout());
+  win.webContents.on("did-finish-load", () => sendLayout(undefined, true));
+  win.on("move", () => sendLayout()); // flip the chat side at a screen edge
   win.on("moved", saveSettings);
   win.on("closed", () => { win = null; });
 
@@ -156,35 +158,38 @@ function setSize(name) {
     const a = toAvatar(win.getBounds());
     const s = SIZES[name];
     // Grow or shrink around her bottom-right corner, where she usually sits.
-    const b = toWindow({ x: a.x + a.width - s.width, y: a.y + a.height - s.height, ...s });
-    sendLayout(s.width);
-    win.setBounds(fitInside(b, workAreaFor(b)));
+    const grown = { x: a.x + a.width - s.width, y: a.y + a.height - s.height, ...s };
+    const avatar = fitInside(grown, workAreaFor(grown)); // keep her on screen
+    sendLayout(avatar);
+    win.setBounds(toWindow(avatar));
   }
   saveSettings();
   buildTrayMenu();
 }
 
-// Her part of the window: the page pins her stage to this width at one edge,
-// and the chat panel (when open) uses the room on the other side.
-function sendLayout(width = win && toAvatar(win.getBounds()).width) {
+// Her part of the window: the page pins her stage to this width in the
+// middle, and the chat panel (when open) uses the room on one side: the side
+// chosen in the tray menu, or the other one while she is too close to that
+// screen edge. Checked on every move, so it flips back once there is room.
+function sendLayout(avatar = win && toAvatar(win.getBounds()), force = false) {
   if (!win) return;
-  win.webContents.send("shell:layout", { avatarWidth: width, chatSide: settings.chatSide });
+  const side = chatSideFor(avatar, workAreaFor(avatar), settings.chatSide, CHAT_WIDTH);
+  if (!force && side === shownSide && avatar.width === sentWidth) return;
+  shownSide = side;
+  sentWidth = avatar.width;
+  win.webContents.send("shell:layout", { avatarWidth: avatar.width, room: CHAT_WIDTH, chatSide: side });
 }
-
-// Moving the chat room to her other side resizes the window once; she stays
-// put unless the room would end up off the screen.
+// The window already has room on both sides, so switching only changes the
+// page: she and the window stay put.
 function setChatSide(side) {
   if (!win || side === settings.chatSide) return;
-  const avatar = toAvatar(win.getBounds());
   settings.chatSide = side;
-  const b = toWindow(avatar);
-  sendLayout(avatar.width);
-  win.setBounds(fitInside(b, workAreaFor(b)));
+  sendLayout();
   saveSettings();
   buildTrayMenu();
 }
 
-// The chat panel (brief + messages + text box) shows in the room to her left.
+// The chat panel (brief + messages + text box) shows in the room beside her.
 // The window never changes size for it, so she can't jump.
 function setChat(on) {
   if (!win || on === chatOpen) return;

@@ -286,8 +286,10 @@ edges of her hair), the GPU line, and the idle CPU number.
    **Check:** the brief and chat open to her left, and you can type straight
    away. Close it with × or the same hotkey.
    To put the chat on her other side, right-click the tray dot, then
-   **Chat side** → **Right of her** (she slides over only if the chat
-   wouldn't fit on the screen). It remembers your choice.
+   **Chat side** → **Right of her**. It remembers your choice. She never
+   moves for the panel: near a screen edge where your side has no room, the
+   panel shows on her other side, and goes back once you move her away
+   from the edge.
 4. Type or say (Ctrl+Alt+J) "read me this morning's brief".
    **Check:** she reads it word for word. Then try "read yesterday's evening
    brief": she should say she doesn't have one (unless you do).
