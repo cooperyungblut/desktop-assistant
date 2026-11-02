@@ -39,7 +39,7 @@ lines:
   model_unavailable: "Hmm, my brain isn't answering right now. Is Ollama running?"
 
 voice:
-  kokoro_voice: "af_heart:80,af_nicole:20"   # a name or a blend; see docs/voices.md
+  kokoro_voice: af_heart   # a name or a blend; see docs/voices.md (blends can blur pronunciation)
   speed: 1.1
   lang: en-us
   sentence_pause: 0.35   # seconds of silence after each sentence
@@ -60,7 +60,7 @@ voice:
 expressions:
   neutral:   { preset: neutral, weight: 0 }
   happy:     { mix: { relaxed: 0.5, happy: 0.15 } }   # this model's own "happy" alone looked off
-  surprised: { preset: surprised, weight: 0.5 }
+  surprised: { mix: { surprised: 0.5, relaxed: 0.6 } }   # surprised alone read as scared
   sad:       { preset: sad, weight: 0.45 }
   relaxed:   { preset: relaxed, weight: 0.5 }
 

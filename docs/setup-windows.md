@@ -122,7 +122,7 @@ Your `config.yaml` doesn't need an `stt:` section; the defaults are the ones in
    (Add `--extra stt-gpu` too if you use Whisper on the GPU.)
 2. Pick a sentence pause. Make samples, then play them from File Explorer:
    ```powershell
-   uv run python scripts/try_voices.py "af_heart:80,af_nicole:20" --pause 0 0.25 0.35 0.5
+   uv run python scripts/try_voices.py af_heart --pause 0 0.25 0.35 0.5
    explorer data\voice-samples
    ```
    `pause0ms` is the old sound. Put the one you like in
