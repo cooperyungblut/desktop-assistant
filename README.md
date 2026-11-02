@@ -11,7 +11,8 @@ character.
 
 Everything on the PC runs locally: no cloud calls and no running costs.
 
-> 📽️ _Demo GIF goes here (recorded with fake sample briefs)._
+https://github.com/user-attachments/assets/f6dc1b93-f154-4ee3-8c28-ec2f78aa97e9
+
 
 ## Features
 
