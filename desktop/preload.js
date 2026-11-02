@@ -7,7 +7,9 @@ contextBridge.exposeInMainWorld("desktopShell", {
   // buttons and pass through everywhere else
   setInteractive: (on) => ipcRenderer.send("shell:interactive", !!on),
   setMoving: (on) => ipcRenderer.send("shell:moving", !!on),
+  setChat: (on) => ipcRenderer.send("shell:chat", !!on),
   // tray and hotkey commands: "talk", "brief"
   onCommand: (fn) => ipcRenderer.on("shell:command", (_e, name) => fn(name)),
   onMoving: (fn) => ipcRenderer.on("shell:moving", (_e, on) => fn(on)),
+  onChat: (fn) => ipcRenderer.on("shell:chat", (_e, on) => fn(on)),
 });

@@ -122,14 +122,22 @@ Spike (chunk 1):
   forwarded mouse moves); move mode to drag her; size presets; position saved
 - [x] Global hotkeys: Ctrl+Alt+Space talk, Ctrl+Alt+B brief, Ctrl+Alt+M move,
   Ctrl+Alt+H hide; tray menu with the same plus Quit
-- [ ] **Cooper:** Chunk G in the setup guide (transparency, GPU, CPU use)
+- [x] **Cooper:** Chunk G in the setup guide. Clean transparency, WebGL on
+  the NVIDIA GPU, about 1.4% CPU while idle, click-through works. Another app
+  held Ctrl+Alt+Space/B/M, so hotkeys now fall back to free ones (PR #18).
 
-Chunk 2 (after the spike checks out):
+Chunk 2:
 
-- A way to type or see the chat from the desktop window (a small pop-out panel)
-- Hold-to-talk from any app (needs a keyboard hook; Electron's global
-  shortcuts only see presses, not releases)
-- Start the Python app from the shell, so one launch starts everything
+- [x] Chat panel inside her window (hotkey or tray): the brief, the chat and
+  the text box open to her left. One window, because every connected page
+  plays her speech.
+- [x] "Read me this morning's brief" (typed or spoken) reads that brief
+  verbatim; matched in code like `/claude`, never decided by the model
+- [x] One launch: `npm start` starts the Python app if it isn't running and
+  stops it on Quit
+- [ ] **Cooper:** Chunk H in the setup guide
+- [ ] Later: hold-to-talk from any app (needs a native keyboard hook;
+  Electron's global shortcuts only see presses, not releases)
 
 ## Milestone 5: wake word (~1–2 chunks)
 

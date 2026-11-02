@@ -97,6 +97,28 @@ async def test_questions_use_newest_brief_before_any_readout(env, fake_model):
     assert a.ready_brief().id == "2026-11-02_morning"
 
 
+async def test_asking_for_a_brief_reads_it_verbatim(env, fake_model):
+    a, briefs, _, events = env
+    shutil.copy(SAMPLES / "2026-11-02_morning.md", briefs)
+    await a.poll()
+    a.ask("Can you read the sample brief?")
+    await finish(a)
+    assert fake_model.requests == []  # never through the model
+    assert any(e["type"] == "readout" for e in events)
+    assert a.current.id == "2026-11-02_morning"
+
+
+async def test_asking_for_a_missing_brief_says_so(env, fake_model):
+    a, briefs, _, events = env
+    shutil.copy(SAMPLES / "2026-11-02_morning.md", briefs)
+    await a.poll()
+    a.ask("read yesterday's evening brief")
+    await finish(a)
+    assert fake_model.requests == []
+    said = [e["text"] for e in events if e["type"] == "say"]
+    assert said == ["I don't have an evening brief from yesterday."]
+
+
 async def test_escalation_writes_file_without_calling_model(env, fake_model):
     a, briefs, escs, events = env
     shutil.copy(SAMPLES / "2026-11-02_morning.md", briefs)
