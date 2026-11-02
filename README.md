@@ -30,16 +30,36 @@ Everything on the PC runs locally: no cloud calls and no running costs.
   `[sad]`, …) that the app strips from the text and speech and turns into an
   eased VRM facial expression. The moods are fixed in code; how each one looks
   is set per persona.
-- **Voice input**: hold V to ask out loud, or click the mic button, talk, and pause (it sends after 3 s of silence). faster-whisper transcribes on the
-  CPU, and talking over the avatar interrupts her.
+- **Voice input**: hold V to ask out loud, or click the mic button, talk, and
+  pause (it sends after 3 s of silence). faster-whisper transcribes on the
+  GPU (CPU works too), with names from the current brief as hints, and
+  talking over the avatar interrupts her.
 - **Model eval**: `scripts/eval_models.py` scores local models on keeping the
   brief's facts right, admitting what it doesn't know, mood tags and speed.
-- **Desktop window** (spike): an Electron shell shows just the avatar in a
+- **Desktop window**: an Electron shell shows just the avatar in a
   frameless, transparent, always-on-top window on the desktop. Clicks pass
   through her except on her buttons, global hotkeys talk or read a brief
-  from any app, and a chat panel opens beside her. It renders on the GPU and drops to 30 fps while she's idle.
+  from any app, and a chat panel opens on either side of her (it flips sides
+  at a screen edge, and she never moves for it). It renders on the GPU and
+  drops to 30 fps while she's idle. "Read me this morning's brief" works
+  typed or spoken.
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
+
+## Results
+
+Measured on my PC (RTX 4070 Ti Super, 16 GB), with `gemma4:12b` in Ollama:
+
+| | |
+|---|---|
+| First word of a reply | about 0.4 s (was 7–35 s until hidden "thinking" was turned off) |
+| Speech to text | 0.3–0.6 s per question (Whisper `small.en` on the GPU) |
+| Model eval | 100% on facts kept, "I don't know" and mood tags (15 cases × 3 runs) |
+| Desktop window, idle | about 1.4% CPU, WebGL on the GPU, 30 fps cap |
+| Tests | 118 Python (pytest) + desktop shell helpers (node), on Windows and Linux CI |
+
+The stories behind these numbers are in
+[`docs/interview-notes.md`](docs/interview-notes.md).
 
 ## Architecture
 
@@ -82,7 +102,7 @@ flowchart LR
 | STT | `stt.py` | faster-whisper on CPU: the GPU is reserved for the LLM. Audio is decoded with PyAV directly. A VAD filter plus a tiny deny-list handles Whisper's "silence hallucinations". |
 | TTS | `tts.py` | `kokoro-onnx` on CPU: no PyTorch install, faster than real time, and it leaves VRAM for the LLM. |
 | Front end | `web/` | Plain ES modules with an import map: no Node, no bundler. Markdown from briefs is sanitized with DOMPurify, since it contains email text. |
-| Desktop shell | `desktop/` | Electron, because transparent, frameless, click-through windows are reliable on Windows there. It only loads the app's page with `?desktop` (avatar-only layout), so the Python app stays the single source of truth. The page gets three calls through a preload bridge, never Node. |
+| Desktop shell | `desktop/` | Electron, because transparent, frameless, click-through windows are reliable on Windows there. It only loads the app's page with `?desktop` (avatar-only layout), so the Python app stays the single source of truth. The page gets a few narrow calls through a preload bridge, never Node. |
 
 ## Quick start (Windows, PowerShell)
 
@@ -142,8 +162,9 @@ files are git-ignored. Everything under `samples/` is invented.
 
 ## Roadmap
 
-See [`docs/plan.md`](docs/plan.md): the desktop window beyond the spike,
-a wake word, and allow-listed actions.
+Milestones 1–4 are done. Next up, in [`docs/plan.md`](docs/plan.md): a wake
+word, allow-listed actions, an offline Wikipedia she can look things up in,
+and watching the screen to comment on a game.
 
 ## AI assistance
 

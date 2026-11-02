@@ -173,3 +173,51 @@ answers vary at temperature 0.7. The scoring lives in the package
 The checks are deliberately simple string matching: transparent, free, and
 easy to tune when a check turns out too strict. The trade-off is that it
 can't judge tone, which is still checked by ear.
+
+## Milestone 4: desktop presence
+
+**What it does.** Juniper sits on the desktop instead of in a browser tab: a
+transparent, frameless, always-on-top window with just her in it. Clicks go
+through to whatever is behind her except on her buttons. Global hotkeys and a
+tray icon talk to her, replay the brief, open a chat panel beside her, move
+her, or hide her. One `npm start` also starts the Python app and stops it on
+Quit.
+
+**How it works.**
+1. `desktop/` is a small Electron shell. It loads the same page the browser
+   uses, with `?desktop=1`, which switches the page to an avatar-only layout
+   on a transparent background. The Python app didn't change for it.
+2. Click-through: the window ignores mouse clicks but still receives mouse
+   moves, so the page reports whether the pointer is over something
+   clickable and the shell turns clicks back on only then.
+3. A preload script exposes a few narrow calls (`setChat`, `setMoving`, ...)
+   to the page. The page has no Node access, and only the app's own origin
+   may use the microphone or load in the window.
+4. Hotkeys come with fallback lists. On Cooper's PC another app already held
+   Ctrl+Alt+Space, B and M, so the shell takes the first free key from each
+   list, prints what it got, and lets settings.json override the order.
+5. Voice commands that must be exact are matched in code, not left to the
+   model: "read me this morning's brief" finds that brief and reads it word
+   for word, like the `/claude` escalation.
+
+**Key decisions.**
+- *Spike before committing.* An hour proving transparency, GPU rendering and
+  click-through on the real avatar came first. Electron won over Tauri
+  (Rust toolchain, click-through edge cases) and pywebview (weak transparency
+  on Windows).
+- *GPU on, frame rate capped.* Cooper keeps hardware acceleration off in his
+  browser, where the avatar cost about 70% CPU. In Electron it renders on the
+  NVIDIA GPU and draws at 30 fps while idle (full rate while talking): about
+  1.4% CPU at idle.
+- *One window, not two.* The server sends her speech to every connected page,
+  so a separate chat window would play it twice. The chat panel lives inside
+  her window instead.
+- *Never resize the window.* Opening the chat first grew the window, and on
+  Windows a move plus resize shows the old frame at the new spot for a
+  moment, so she jittered. The fix was to keep empty, click-through room for
+  the chat on both sides of her all the time. Opening the chat, or flipping it
+  to her other side at a screen edge, is now a page change only: the window
+  never moves, so she can't.
+- *Spike results in numbers.* The setup guide's checks asked for the GPU
+  report line and Task Manager CPU, so "it works" came with evidence.
+
