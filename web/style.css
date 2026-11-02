@@ -90,21 +90,22 @@ select { font: inherit; padding: 4px 6px; border-radius: 8px; border: 1px solid 
    The chat and brief panel stay in the browser page. */
 .move-hint, .close { display: none; }
 html.desktop, html.desktop body { background: transparent; overflow: hidden; }
-/* Her stage has a fixed width (--avatar-w, set by desktop/main.js) at one
-   edge of the window, and the chat panel uses the room beside her (left by
-   default, .chat-right for the right). The window never changes size when
-   the panel opens, so she can't move. */
+/* Her stage has a fixed width (--avatar-w, set by desktop/main.js) in the
+   middle of the window, with room for the chat panel (--room) on both sides.
+   The panel uses the left room by default, .chat-right for the right. The
+   window never changes size or moves for the panel, so she can't jump. */
 html.desktop .layout { display: block; position: relative; height: 100vh; }
-html.desktop .stage { position: absolute; top: 0; right: 0; bottom: 0; width: var(--avatar-w, 100vw); }
-html.desktop.chat-right .stage { right: auto; left: 0; }
+html.desktop .stage {
+  position: absolute; top: 0; bottom: 0; left: var(--room, 0px); width: var(--avatar-w, 100vw);
+}
 html.desktop .side, html.desktop .topbar { display: none; }
 html.desktop.chat .side {
   display: grid; grid-template-columns: minmax(0, 1fr); position: absolute;
-  top: 8px; bottom: 8px; right: var(--avatar-w, 100vw); width: 372px;
+  top: 8px; bottom: 8px; left: 8px; width: calc(var(--room, 380px) - 8px);
   border: 1px solid var(--line);
   border-radius: 14px; overflow: hidden; box-shadow: 0 8px 30px rgb(0 0 0 / .35);
 }
-html.desktop.chat-right.chat .side { right: auto; left: var(--avatar-w, 100vw); }
+html.desktop.chat-right.chat .side { left: calc(var(--room, 380px) + var(--avatar-w, 100vw)); }
 html.desktop.chat .close { display: inline-block; padding: 2px 10px; font-size: 18px; line-height: 1; }
 html.desktop.chat .brief-head { padding: 8px 10px 8px 14px; }
 html.desktop.chat .brief-head h2 { font-size: 14px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
