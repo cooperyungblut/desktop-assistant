@@ -74,6 +74,18 @@ function pickHotkey(keys, tryRegister) {
   return { key: null, taken };
 }
 
+// The window always has room for the chat panel to her left, empty and
+// click-through while the panel is closed. Resizing a window on Windows shows
+// the old frame at the new position for a moment, so opening the panel must
+// not resize it. Settings store her part ("avatar bounds") only.
+function withChatRoom(avatar, chatWidth) {
+  return { ...avatar, x: avatar.x - chatWidth, width: avatar.width + chatWidth };
+}
+function avatarPart(window, chatWidth) {
+  return { ...window, x: window.x + chatWidth, width: window.width - chatWidth };
+}
+
 module.exports = {
   DEFAULT_URL, SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey,
+  withChatRoom, avatarPart,
 };

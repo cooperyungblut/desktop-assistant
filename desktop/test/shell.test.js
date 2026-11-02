@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { appUrl, sameOrigin, defaultBounds, onScreen } = require("../shell.js");
-const { candidateKeys, pickHotkey } = require("../shell.js");
+const { candidateKeys, pickHotkey, withChatRoom, avatarPart } = require("../shell.js");
 
 test("loads the app's page in the desktop layout", () => {
   assert.equal(appUrl(), "http://127.0.0.1:8765/?desktop=1");
@@ -42,4 +42,11 @@ test("your own hotkey from settings goes first", () => {
   assert.deepEqual(candidateKeys("Control+Alt+T", ["X", "Y"]), ["Control+Alt+T", "X", "Y"]);
   assert.deepEqual(candidateKeys(["Y", ""], ["X", "Y"]), ["Y", "X"]);
   assert.deepEqual(candidateKeys(undefined, ["X"]), ["X"]);
+});
+
+test("the chat room is added to her left and taken off again", () => {
+  const avatar = { x: 1504, y: 480, width: 400, height: 560 };
+  const win = withChatRoom(avatar, 380);
+  assert.deepEqual(win, { x: 1124, y: 480, width: 780, height: 560 });
+  assert.deepEqual(avatarPart(win, 380), avatar);
 });

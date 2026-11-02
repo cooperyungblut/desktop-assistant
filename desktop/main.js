@@ -17,6 +17,7 @@ const {
 } = require("electron");
 const {
   SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey,
+  withChatRoom, avatarPart,
 } = require("./shell.js");
 
 // The avatar is WebGL, so the window must render on the GPU. Electron does by
@@ -33,7 +34,7 @@ let moving = false;
 let chatOpen = false;
 let waitingLogged = false;
 let backend = null; // the Python app, when this shell started it
-const CHAT_WIDTH = 380; // the chat panel opens to her left
+const CHAT_WIDTH = 380; // room for the chat panel, to her left
 let settings = { size: "medium", bounds: null };
 
 // ---- settings --------------------------------------------------------------
@@ -48,11 +49,7 @@ function loadSettings() {
 }
 
 function saveSettings() {
-  if (win) {
-    // Remember where she sits, not the chat panel's extra width.
-    const b = win.getBounds();
-    settings.bounds = chatOpen ? { ...b, x: b.x + CHAT_WIDTH, width: b.width - CHAT_WIDTH } : b;
-  }
+  if (win) settings.bounds = avatarPart(win.getBounds(), CHAT_WIDTH); // where she sits
   try {
     fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(settings, null, 2));
   } catch (err) {
@@ -63,8 +60,10 @@ function saveSettings() {
 function startBounds() {
   const areas = screen.getAllDisplays().map((d) => d.workArea);
   const saved = settings.bounds;
-  if (saved && onScreen(saved, areas)) return saved;
-  return defaultBounds(screen.getPrimaryDisplay().workArea, SIZES[settings.size]);
+  const avatar = saved && onScreen(saved, areas)
+    ? saved
+    : defaultBounds(screen.getPrimaryDisplay().workArea, SIZES[settings.size]);
+  return withChatRoom(avatar, CHAT_WIDTH);
 }
 
 // ---- window ----------------------------------------------------------------
@@ -94,7 +93,7 @@ function createWindow() {
 
   win.once("ready-to-show", () => win.showInactive());
   win.webContents.once("did-finish-load", logGpu); // the GPU process is up by then
-  win.webContents.on("did-finish-load", sendAvatarWidth);
+  win.webContents.on("did-finish-load", () => sendAvatarWidth());
   win.on("moved", saveSettings);
   win.on("closed", () => { win = null; });
 
@@ -120,7 +119,7 @@ function createWindow() {
 
 function waitingPage() {
   const html = `<!doctype html><meta charset="utf-8"><body style="margin:0;height:100vh;
-    display:grid;place-items:end center;background:transparent;font:14px system-ui,sans-serif">
+    display:grid;place-items:end end;background:transparent;font:14px system-ui,sans-serif">
     <p style="margin:24px;padding:10px 14px;border-radius:12px;background:#1e1b27e6;color:#ece9f5">
     Waiting for the app at ${URL_TO_LOAD.replace(/[?].*/, "")}…<br>
     ${backend ? "It's starting (the first start takes a moment)." : "Start it with <code>uv run desk-secretary --no-browser</code>."}</p>`;
@@ -148,32 +147,29 @@ function setMoving(on) {
 function setSize(name) {
   settings.size = name;
   if (win) {
-    const b = win.getBounds();
+    const a = avatarPart(win.getBounds(), CHAT_WIDTH);
     const s = SIZES[name];
-    const width = s.width + (chatOpen ? CHAT_WIDTH : 0);
     // Grow or shrink around the bottom-right corner, where she usually sits.
     sendAvatarWidth(s.width);
-    win.setBounds({ x: b.x + b.width - width, y: b.y + b.height - s.height, width, height: s.height });
+    win.setBounds(withChatRoom(
+      { x: a.x + a.width - s.width, y: a.y + a.height - s.height, ...s }, CHAT_WIDTH));
   }
   saveSettings();
   buildTrayMenu();
 }
 
-// Her part of the window. The page pins her stage to this width at the right
-// edge, so the window can grow to the left without moving her.
-function sendAvatarWidth(width = win && win.getBounds().width - (chatOpen ? CHAT_WIDTH : 0)) {
+// Her part of the window: the page pins her stage to this width at the right
+// edge, and the chat panel (when open) uses the room to her left.
+function sendAvatarWidth(width = win && avatarPart(win.getBounds(), CHAT_WIDTH).width) {
   if (!win) return;
   win.webContents.send("shell:avatar-width", width);
 }
 
-// The chat panel (brief + messages + text box) widens the window to the left.
+// The chat panel (brief + messages + text box) shows in the room to her left.
+// The window never changes size for it, so she can't jump.
 function setChat(on) {
   if (!win || on === chatOpen) return;
-  sendAvatarWidth(); // pin her before the window changes size
-  const b = win.getBounds();
-  const dx = on ? CHAT_WIDTH : -CHAT_WIDTH;
   chatOpen = on;
-  win.setBounds({ ...b, x: b.x - dx, width: b.width + dx });
   win.webContents.send("shell:chat", on);
   if (on) {
     if (!win.isVisible()) win.showInactive();
