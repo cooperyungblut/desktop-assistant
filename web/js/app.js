@@ -99,7 +99,7 @@ const handlers = {
   expression(e) {
     holdMood();
     morePending = true;
-    avatar.setExpression(e.preset, e.weight, e.talk_weight);
+    avatar.setFaces(e.faces, e.talk_faces);
   },
   speech_done() {
     morePending = false;
@@ -250,6 +250,8 @@ function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 
 // Handy from the browser console while debugging:
 //   secretary.avatar.setExpression("happy", 0.6, 0.3)   (weight, then weight while talking)
+//   secretary.avatar.setFaces({ relaxed: 0.5, happy: 0.15 })   (a mix; half while talking)
+//   secretary.avatar.setExpression("neutral")   back to a resting face
 //   secretary.avatar.expressionNames()
 window.secretary = { avatar, player, ptt };
 

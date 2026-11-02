@@ -213,7 +213,7 @@ async def test_mood_tag_drives_expression_and_is_never_shown(env, fake_model):
     await finish(a)
 
     exprs = [e for e in events if e["type"] == "expression"]
-    assert exprs[0]["mood"] == "sad" and exprs[0]["preset"] == "sad"
+    assert exprs[0]["mood"] == "sad" and exprs[0]["faces"] == {"sad": 0.45}
     shown = "".join(e["text"] for e in events if e["type"] == "reply_token")
     spoken = " ".join(e["text"] for e in events if e["type"] == "say")
     assert "[" not in shown and "[" not in spoken
@@ -228,4 +228,4 @@ async def test_reply_without_tag_falls_back_to_neutral(env):
     await finish(a)
     exprs = [e for e in events if e["type"] == "expression"]
     assert [e["mood"] for e in exprs] == ["neutral"]
-    assert exprs[0]["weight"] == 0
+    assert exprs[0]["faces"] == {} and exprs[0]["talk_faces"] == {}
