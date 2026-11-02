@@ -24,13 +24,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import datetime as dt
 import logging
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from . import escalations
+from . import commands, escalations
 from .briefs import Brief
 from .expressions import TagFilter, strip_tags
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
@@ -207,6 +208,9 @@ class Assistant:
         if escalations.wants_escalation(text):
             await self._escalate(text)
             return
+        if (req := commands.brief_request(text)) is not None:
+            await self._read_requested(req)
+            return
 
         messages = build_messages(
             self.persona,
@@ -276,6 +280,20 @@ class Assistant:
             full = f"[{tags.mood}] {full}"
         self.history += [Turn("user", text), Turn("assistant", full)]
         await speaking
+        await self._emit({"type": "speech_done"})
+
+    async def _read_requested(self, req: commands.BriefRequest) -> None:
+        """ "Read me this morning's brief": read it out verbatim, never via the model."""
+        brief = commands.find_brief(req, self.briefs.values(), dt.date.today())
+        if brief is not None:
+            await self._read_brief(brief.id)
+            return
+        line = f"I don't have {commands.describe(req)}."
+        rid = self._next_reply_id()
+        await self._emit({"type": "reply_start", "id": rid})
+        await self._emit({"type": "reply_end", "id": rid, "text": line})
+        await self._express("neutral")
+        await self._say(line)
         await self._emit({"type": "speech_done"})
 
     async def _escalate(self, text: str) -> None:
