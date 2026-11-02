@@ -94,7 +94,7 @@ Chunk 2:
   0.4 s to the first word. The eval is at its ceiling, so it needs harder
   cases before it can rank models.
 
-## Milestone 4: desktop presence (~2 chunks, spike first)
+## Milestone 4: desktop presence ✅
 
 Frameless, transparent, always-on-top window with the avatar on the desktop.
 
@@ -138,9 +138,13 @@ Chunk 2:
   verbatim; matched in code like `/claude`, never decided by the model
 - [x] One launch: `npm start` starts the Python app if it isn't running and
   stops it on Quit
-- [ ] **Cooper:** Chunk H in the setup guide
-- [ ] Later: hold-to-talk from any app (needs a native keyboard hook;
-  Electron's global shortcuts only see presses, not releases)
+- [x] **Cooper:** Chunk H in the setup guide. Worked; the avatar jumped
+  when the chat opened, fixed by never resizing the window (PRs #20, #21),
+  then the chat side option and edge flip (PRs #22, #23).
+- Moved to Later options: hold-to-talk from any app. The talk hotkey
+  already works from any app as a toggle (it sends after a pause), and a
+  hold needs a native keyboard hook because Electron's global shortcuts
+  only see presses, not releases.
 
 ## Milestone 5: wake word (~1–2 chunks)
 
@@ -164,3 +168,4 @@ Chunk 2:
 - Direct Claude API escalation with a hard monthly spending cap.
 - Custom VRoid Studio avatar.
 - Package as a single installer.
+- Hold-to-talk from any app (native keyboard hook in the desktop shell).
