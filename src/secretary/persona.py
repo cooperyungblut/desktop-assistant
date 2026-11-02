@@ -51,6 +51,13 @@ class Expression(BaseModel):
 
     preset: str = "neutral"
     weight: float = Field(default=0.6, ge=0.0, le=1.0)
+    # Strength while she's speaking. Many smiles open the mouth, which fights
+    # with lip sync, so the default is half of `weight`.
+    talk_weight: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @property
+    def talking(self) -> float:
+        return self.weight / 2 if self.talk_weight is None else self.talk_weight
 
     @field_validator("preset")
     @classmethod

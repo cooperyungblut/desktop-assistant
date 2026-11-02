@@ -48,13 +48,15 @@ voice:
 
 # How each mood tag looks on the avatar. The moods are fixed (the model picks
 # one per reply); the preset is a VRM expression name and the weight is how
-# strongly to show it (0 to 1). Faces vary a lot between models: if one looks
-# overdone, lower its weight. VRM 0.x models have no "surprised"; map it to
+# strongly to show it (0 to 1). talk_weight is the strength while she's
+# speaking (default: half of weight), because many smiles open the mouth and
+# fight with lip sync. Faces vary a lot between models: if one looks overdone,
+# lower its weight. VRM 0.x models have no "surprised"; map it to
 # another preset. In the browser console, secretary.avatar.expressionNames()
 # lists what your model has.
 expressions:
   neutral:   { preset: neutral, weight: 0 }
-  happy:     { preset: happy, weight: 0.6 }
+  happy:     { preset: happy, weight: 0.4, talk_weight: 0.2 }
   surprised: { preset: surprised, weight: 0.5 }
   sad:       { preset: sad, weight: 0.45 }
   relaxed:   { preset: relaxed, weight: 0.5 }

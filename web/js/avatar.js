@@ -28,7 +28,9 @@ export class Avatar {
     this._nextBlink = 2;
     this._blinkT = -1;
     // Mood expressions: each preset's weight eases toward its target every frame.
-    this._exprTarget = {};
+    this._exprTarget = {};   // weight while quiet
+    this._exprTalking = {};  // weight while speaking (usually lower)
+    this.talking = false;    // set by the page while speech plays
     this._exprNow = {};
     this._warned = new Set();
 
@@ -49,6 +51,14 @@ export class Avatar {
     VRMUtils.rotateVRM0(vrm); // VRM 0.x models face the other way
     vrm.scene.traverse((o) => { o.frustumCulled = false; });
 
+    // Many models' smiles open the mouth. Lip sync opening it again on top looks
+    // wrong, so a mood expression scales the lip-sync mouth down by its own
+    // weight (VRM's "blend" mouth override) instead of stacking with it.
+    for (const preset of MOODS) {
+      const ex = vrm.expressionManager?.getExpression(preset);
+      if (ex && ex.overrideMouth === "none") ex.overrideMouth = "blend";
+    }
+
     this.scene.add(vrm.scene);
     this.vrm = vrm;
     this._restPose();
@@ -56,9 +66,10 @@ export class Avatar {
   }
 
   // Show one mood preset (happy, sad, relaxed, surprised, angry) at `weight`,
-  // easing out whatever was showing before. "neutral" or weight 0 relaxes the face.
-  setExpression(name, weight = 0.6) {
-    for (const preset of MOODS) this._exprTarget[preset] = 0;
+  // or at `talkWeight` while she's speaking, easing out whatever was showing
+  // before. "neutral" or weight 0 relaxes the face.
+  setExpression(name, weight = 0.6, talkWeight = weight / 2) {
+    for (const preset of MOODS) { this._exprTarget[preset] = 0; this._exprTalking[preset] = 0; }
     if (name === "neutral" || !weight) return;
     if (this.vrm && !this.vrm.expressionManager?.getExpression(name)) {
       // e.g. VRM 0.x models have no "surprised"; map that mood to another
@@ -67,7 +78,9 @@ export class Avatar {
       this._warned.add(name);
       return;
     }
-    this._exprTarget[name] = Math.max(0, Math.min(1, weight));
+    const clamp = (w) => Math.max(0, Math.min(1, w));
+    this._exprTarget[name] = clamp(weight);
+    this._exprTalking[name] = clamp(talkWeight);
   }
 
   // Which expressions this model has, for picking presets in the persona file.
@@ -128,7 +141,7 @@ export class Avatar {
     if (!em) return;
     for (const preset of MOODS) {
       const now = this._exprNow[preset] ?? 0;
-      const target = this._exprTarget[preset] ?? 0;
+      const target = (this.talking ? this._exprTalking : this._exprTarget)[preset] ?? 0;
       if (now === target) continue;
       // Ease in over about 0.3 s and out over about 0.6 s: faces light up
       // faster than they settle.

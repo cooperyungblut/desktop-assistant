@@ -51,7 +51,7 @@ async def test_new_brief_shows_ready_then_handled(env):
     await finish(a)
     types = [e["type"] for e in events]
     assert "readout" in types and types.count("say") >= 5
-    assert events[-1]["type"] == "say"
+    assert [e["type"] for e in events[-2:]] == ["say", "speech_done"]
     assert a.ready_brief() is None
 
 
@@ -80,7 +80,7 @@ async def test_follow_up_uses_brief_and_history(env, fake_model):
     sent = fake_model.requests[-1]
     assert "<brief>" in sent[0]["content"]
     assert sent[1]["role"] == "assistant" and sent[1]["content"].startswith("Heads up")
-    assert events[-2]["type"] == "reply_end" or events[-1]["type"] == "say"
+    assert [e["type"] for e in events[-2:]] == ["say", "speech_done"]
     assert a.history[-1].content == "It's at ten. Have fun!"
 
 
