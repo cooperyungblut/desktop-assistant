@@ -58,6 +58,7 @@ const player = new SpeechPlayer({
 
 let ws;
 let readyId = null;
+let newestId = null; // newest brief, read or not
 const replies = new Map(); // reply id -> chat bubble
 
 function connect() {
@@ -79,6 +80,7 @@ const handlers = {
   },
   briefs(e) {
     readyId = e.ready;
+    newestId = e.briefs[0]?.id ?? null;
     els.ready.hidden = !readyId;
     if (readyId) {
       const b = e.briefs.find((x) => x.id === readyId);
@@ -268,8 +270,11 @@ if (shellApi) {
   shellApi.onCommand((name) => {
     if (name === "talk" && !els.mic.disabled) ptt.toggle();
     else if (name === "brief") {
+      // The waiting brief, or else the newest one again (the desktop window
+      // has no history list).
       if (player.busy) stopTalking();
-      else if (readyId) startBrief();
+      else if (readyId || newestId) startBrief(readyId || newestId);
+      else flash("No briefs yet.");
     }
   });
 }

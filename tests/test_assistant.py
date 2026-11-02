@@ -84,6 +84,19 @@ async def test_follow_up_uses_brief_and_history(env, fake_model):
     assert a.history[-1].content == "It's at ten. Have fun!"
 
 
+async def test_questions_use_newest_brief_before_any_readout(env, fake_model):
+    # After a restart nothing has been read out in this session, but the brief
+    # was already read earlier: questions should still be about it.
+    a, briefs, _, _ = env
+    shutil.copy(SAMPLES / "2026-11-02_morning.md", briefs)
+    await a.poll()
+    a.ask("when is the coffee chat?")
+    await finish(a)
+    assert "<brief>" in fake_model.requests[-1][0]["content"]
+    assert a.current is None  # nothing was read out or marked handled
+    assert a.ready_brief().id == "2026-11-02_morning"
+
+
 async def test_escalation_writes_file_without_calling_model(env, fake_model):
     a, briefs, escs, events = env
     shutil.copy(SAMPLES / "2026-11-02_morning.md", briefs)

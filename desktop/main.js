@@ -165,7 +165,7 @@ const command = (name) => win?.webContents.send("shell:command", name);
 const HOTKEYS = {
   talk: { label: "Talk (toggle the mic)", run: () => command("talk"),
     keys: ["Control+Alt+Space", "Control+Alt+J", "Control+Alt+Shift+Space"] },
-  brief: { label: "Read the new brief / stop", run: () => command("brief"),
+  brief: { label: "Read the brief / stop", run: () => command("brief"),
     keys: ["Control+Alt+B", "Control+Alt+K", "Control+Alt+Shift+B"] },
   move: { label: "Move mode on/off", run: () => setMoving(!moving),
     keys: ["Control+Alt+M", "Control+Alt+U", "Control+Alt+Shift+M"] },
@@ -193,7 +193,7 @@ function buildTrayMenu() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Talk", ...keyFor("talk"), click: () => command("talk") },
-    { label: "Read the new brief / stop", ...keyFor("brief"), click: () => command("brief") },
+    { label: "Read the brief (new, else latest) / stop", ...keyFor("brief"), click: () => command("brief") },
     { type: "separator" },
     { label: "Move mode", type: "checkbox", checked: moving, ...keyFor("move"), click: () => setMoving(!moving) },
     {

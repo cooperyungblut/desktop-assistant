@@ -246,7 +246,8 @@ browser. The Python app still does all the work; the window just shows her.
      press Ctrl+Alt+M again). She opens there next time.
    - **Ctrl+Alt+Space**: talk. Ask "When is my coffee chat?" and pause; it
      sends after 3 s. The first time, Windows may ask for mic access.
-   - **Ctrl+Alt+B**: read the new brief, or stop her mid-sentence.
+   - **Ctrl+Alt+B**: read the new brief (or the latest one again), or stop
+     her mid-sentence.
    - **Ctrl+Alt+H**: hide or show her.
    Right-click the tray dot for sizes (small, medium, large) and **Quit**.
    If another app already uses one of these, she takes the next free one
