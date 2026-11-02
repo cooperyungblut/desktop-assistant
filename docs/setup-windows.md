@@ -155,8 +155,8 @@ Your `config.yaml` doesn't need an `stt:` section; the defaults are the ones in
 
 ### Optional: Whisper on the GPU
 
-Faster (about 0.2 s per question) but uses about 1 GB more VRAM, which you're
-short on while Wallpaper Engine and games are running.
+Faster (about 0.2 s per question) but uses about 1 GB more VRAM, which can be tight on a 16 GB card
+while other GPU-heavy apps or games are running.
 
 ```powershell
 uv sync --extra tts --extra stt --extra stt-gpu   # ~1 GB of CUDA libraries
