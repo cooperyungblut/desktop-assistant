@@ -24,6 +24,9 @@ web/models/*
 /escalations/
 *.brief.md
 
+# Desktop shell (Electron): npm install puts it here
+desktop/node_modules/
+
 # OS / editor
 .DS_Store
 Thumbs.db

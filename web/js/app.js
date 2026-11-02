@@ -16,7 +16,13 @@ const els = {
 
 // ---- avatar + speech ---------------------------------------------------------
 
-const avatar = new Avatar($("avatar"));
+// The desktop window (desktop/, loads ?desktop) shows only the avatar and
+// caps idle drawing to save GPU; ?fps=N overrides the cap (0 = no cap).
+const params = new URLSearchParams(location.search);
+const DESKTOP = params.has("desktop");
+const idleFps = params.has("fps") ? Number(params.get("fps")) || 0 : DESKTOP ? 30 : 0;
+
+const avatar = new Avatar($("avatar"), { idleFps });
 avatar.load("models/avatar.vrm").catch((err) => {
   console.warn(err);
   els.note.hidden = false;
@@ -127,9 +133,11 @@ const handlers = {
     if (e.text) {
       el.className = "you";
       el.textContent = e.text;
+      if (DESKTOP) flash(`You: ${e.text}`);
     } else {
       el.className = "note";
       el.textContent = "Didn't catch that. Hold V a little longer and try again?";
+      if (DESKTOP) flash("Didn't catch that. Try again?");
     }
   },
   escalated(e) { addMessage("note", `Saved for Claude (${e.id}): “${e.question}”`); },
@@ -238,6 +246,45 @@ document.addEventListener("keyup", (e) => {
   if (e.code === "KeyV" && ptt.mode === "hold") ptt.release();
 });
 
+// ---- desktop window ----------------------------------------------------------
+
+// window.desktopShell comes from desktop/preload.js; it's missing in a browser.
+const shellApi = window.desktopShell;
+if (shellApi) {
+  // Clicks pass through the window except over something clickable. Electron
+  // forwards mouse moves even while ignoring clicks, so this keeps up.
+  let interactive = false;
+  const setInteractive = (on) => {
+    if (on !== interactive) shellApi.setInteractive((interactive = on));
+  };
+  document.addEventListener("mousemove", (e) =>
+    setInteractive(!!e.target.closest?.("button:not([hidden]), select, input, [data-hit]")));
+  document.addEventListener("mouseleave", () => setInteractive(false));
+
+  shellApi.onMoving((on) => document.documentElement.classList.toggle("moving", on));
+  $("move-done").addEventListener("click", () => shellApi.setMoving(false));
+
+  // Global hotkeys and the tray menu (desktop/main.js).
+  shellApi.onCommand((name) => {
+    if (name === "talk" && !els.mic.disabled) ptt.toggle();
+    else if (name === "brief") {
+      if (player.busy) stopTalking();
+      else if (readyId) startBrief();
+    }
+  });
+}
+
+// With no chat panel on the desktop, notes and what you said flash in the caption.
+let flashTimer = null;
+function flash(text, ms = 4000) {
+  if (player.busy) return;
+  els.caption.textContent = text;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => {
+    if (els.caption.textContent === text) els.caption.textContent = "";
+  }, ms);
+}
+
 // ---- helpers -------------------------------------------------------------------
 
 function addMessage(kind, text) {
@@ -245,6 +292,7 @@ function addMessage(kind, text) {
   li.className = kind;
   li.textContent = text;
   els.messages.append(li);
+  if (DESKTOP && kind === "note") flash(text);
   scrollChat();
   return li;
 }

@@ -199,3 +199,63 @@ and falls back to the CPU, so speech input keeps working either way.
    5-8 GB download. Results are also saved in `data\evals\`.
 4. If another model wins clearly on facts and is still fast, switch
    `ollama: model:` in `config.yaml`.
+
+## Chunk G: desktop window spike (about 30 min)
+
+This puts Juniper on the desktop in her own transparent window, outside the
+browser. The Python app still does all the work; the window just shows her.
+
+1. Install Node.js once (Electron runs on it), then **open a new PowerShell**
+   so `npm` is on the PATH:
+   ```powershell
+   winget install OpenJS.NodeJS.LTS
+   ```
+   **Check:** `npm -v` prints a version.
+2. Get the new code and install the desktop shell (about 100 MB, once):
+   ```powershell
+   git checkout main
+   git pull
+   cd desktop
+   npm install
+   cd ..
+   ```
+3. Start the app as usual in this terminal, and drop a sample brief:
+   ```powershell
+   uv run python scripts/drop_sample.py
+   uv run desk-secretary --no-browser
+   ```
+   `--no-browser` skips the browser tab. Keep to one page at a time (tab or
+   desktop window), or both will talk.
+4. In a **second** PowerShell, from the repo folder:
+   ```powershell
+   cd desktop
+   npm start
+   ```
+   **Check:** she appears in the bottom-right corner over your desktop, with
+   no box or background around her, and stays on top when you click other
+   windows. A purple dot appears in the tray (the ^ by the clock).
+5. Look at the second terminal.
+   **Check:** it says `GPU: webgl enabled, compositing enabled`. If it says
+   `disabled_software` or `unavailable_software`, she's drawn on the CPU:
+   send me the line, plus what the tray menu's **GPU report** shows at the top.
+6. Click **Sample Morning brief ready**.
+   **Check:** she reads it, captions show under her, and clicking anywhere
+   else on her (not the button) clicks through to whatever is behind her.
+7. Try the hotkeys from any other app:
+   - **Ctrl+Alt+M**: move mode. Drag her anywhere, then click **Done** (or
+     press Ctrl+Alt+M again). She opens there next time.
+   - **Ctrl+Alt+Space**: talk. Ask "When is my coffee chat?" and pause; it
+     sends after 3 s. The first time, Windows may ask for mic access.
+   - **Ctrl+Alt+B**: read the new brief, or stop her mid-sentence.
+   - **Ctrl+Alt+H**: hide or show her.
+   Right-click the tray dot for sizes (small, medium, large) and **Quit**.
+   If the terminal says a hotkey "is taken by another app", tell me which.
+8. CPU and GPU cost: with her idle on the desktop, open Task Manager
+   (Ctrl+Shift+Esc), **Processes** tab, and find **Electron**.
+   **Check:** CPU is a few percent at most, and the GPU column shows a little
+   use. She draws at most 30 frames a second while idle and full rate while
+   talking. To compare, start her with no cap:
+   `npx electron . --url="http://127.0.0.1:8765/?fps=0"`.
+
+Send me what you see: whether the transparency looks clean (especially the
+edges of her hair), the GPU line, and the idle CPU number.

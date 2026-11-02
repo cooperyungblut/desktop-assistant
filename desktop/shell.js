@@ -1,0 +1,53 @@
+// Small pure helpers for main.js, kept apart so `node --test` can check them
+// without starting Electron.
+
+const DEFAULT_URL = "http://127.0.0.1:8765/";
+
+// Window sizes offered in the tray menu (CSS pixels). Transparent windows on
+// Windows can't be resized by dragging an edge, so the menu picks one.
+const SIZES = {
+  small: { width: 300, height: 420 },
+  medium: { width: 400, height: 560 },
+  large: { width: 520, height: 720 },
+};
+
+// The page the window loads: the app's own page in its avatar-only layout.
+// `--url=...` on the command line (or SECRETARY_URL) points it elsewhere.
+function appUrl(argv = [], env = {}) {
+  const arg = argv.find((a) => a.startsWith("--url="));
+  const url = new URL(arg ? arg.slice("--url=".length) : env.SECRETARY_URL || DEFAULT_URL);
+  url.searchParams.set("desktop", "1");
+  return url.toString();
+}
+
+// Only the app's own page may use the microphone (and only it is loaded).
+function sameOrigin(a, b) {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
+}
+
+// Default spot: bottom-right corner of the work area (above the taskbar).
+function defaultBounds(workArea, size, margin = 16) {
+  return {
+    x: workArea.x + workArea.width - size.width - margin,
+    y: workArea.y + workArea.height - size.height,
+    width: size.width,
+    height: size.height,
+  };
+}
+
+// A saved position can end up off-screen (a monitor unplugged, resolution
+// changed). Keep at least `keep` pixels of the window on some display, or
+// fall back to the default spot on the primary one.
+function onScreen(bounds, workAreas, keep = 80) {
+  return workAreas.some((a) =>
+    bounds.x + bounds.width - keep >= a.x &&
+    bounds.x + keep <= a.x + a.width &&
+    bounds.y + keep <= a.y + a.height &&
+    bounds.y >= a.y - keep);
+}
+
+module.exports = { DEFAULT_URL, SIZES, appUrl, sameOrigin, defaultBounds, onScreen };
