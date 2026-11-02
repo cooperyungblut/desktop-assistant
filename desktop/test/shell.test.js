@@ -1,7 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { appUrl, sameOrigin, defaultBounds, onScreen } = require("../shell.js");
-const { candidateKeys, pickHotkey, withChatRoom, avatarPart } = require("../shell.js");
+const {
+  candidateKeys, pickHotkey, withChatRoom, avatarPart, fitInside,
+} = require("../shell.js");
 
 test("loads the app's page in the desktop layout", () => {
   assert.equal(appUrl(), "http://127.0.0.1:8765/?desktop=1");
@@ -49,4 +51,21 @@ test("the chat room is added to her left and taken off again", () => {
   const win = withChatRoom(avatar, 380);
   assert.deepEqual(win, { x: 1124, y: 480, width: 780, height: 560 });
   assert.deepEqual(avatarPart(win, 380), avatar);
+});
+
+test("the chat room can be on her right instead", () => {
+  const avatar = { x: 1000, y: 480, width: 400, height: 560 };
+  const win = withChatRoom(avatar, 380, "right");
+  assert.deepEqual(win, { x: 1000, y: 480, width: 780, height: 560 });
+  assert.deepEqual(avatarPart(win, 380, "right"), avatar);
+});
+
+test("a window past the screen edge slides back inside", () => {
+  const area = { x: 0, y: 0, width: 1920, height: 1040 };
+  assert.deepEqual(fitInside({ x: 1504, y: 480, width: 780, height: 560 }, area),
+    { x: 1140, y: 480, width: 780, height: 560 });
+  assert.deepEqual(fitInside({ x: -50, y: 600, width: 780, height: 560 }, area),
+    { x: 0, y: 480, width: 780, height: 560 });
+  const inside = { x: 100, y: 100, width: 780, height: 560 };
+  assert.deepEqual(fitInside(inside, area), inside);
 });

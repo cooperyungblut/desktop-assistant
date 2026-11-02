@@ -74,18 +74,30 @@ function pickHotkey(keys, tryRegister) {
   return { key: null, taken };
 }
 
-// The window always has room for the chat panel to her left, empty and
-// click-through while the panel is closed. Resizing a window on Windows shows
-// the old frame at the new position for a moment, so opening the panel must
-// not resize it. Settings store her part ("avatar bounds") only.
-function withChatRoom(avatar, chatWidth) {
-  return { ...avatar, x: avatar.x - chatWidth, width: avatar.width + chatWidth };
+// The window always has room for the chat panel beside her ("left" or
+// "right"), empty and click-through while the panel is closed. Resizing a
+// window on Windows shows the old frame at the new position for a moment, so
+// opening the panel must not resize it. Settings store her part only.
+function withChatRoom(avatar, chatWidth, side = "left") {
+  const x = side === "right" ? avatar.x : avatar.x - chatWidth;
+  return { ...avatar, x, width: avatar.width + chatWidth };
 }
-function avatarPart(window, chatWidth) {
-  return { ...window, x: window.x + chatWidth, width: window.width - chatWidth };
+function avatarPart(window, chatWidth, side = "left") {
+  const x = side === "right" ? window.x : window.x + chatWidth;
+  return { ...window, x, width: window.width - chatWidth };
+}
+
+// Slide a window back inside a screen's work area (it keeps its size).
+function fitInside(b, area) {
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+  return {
+    ...b,
+    x: clamp(b.x, area.x, area.x + area.width - b.width),
+    y: clamp(b.y, area.y, area.y + area.height - b.height),
+  };
 }
 
 module.exports = {
   DEFAULT_URL, SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey,
-  withChatRoom, avatarPart,
+  withChatRoom, avatarPart, fitInside,
 };
