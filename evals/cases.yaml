@@ -1,0 +1,115 @@
+# Fact-check cases for scripts/eval_models.py. Every brief they use is a
+# made-up sample from samples/briefs/, so this file is safe to commit.
+#
+# Each case asks one question about one brief, the way the app does (the brief
+# in the system prompt, its spoken readout as her first turn). Checks:
+#   must:          every group must match; a group is a list of alternatives
+#                  (any one is enough). Matching ignores case and punctuation.
+#   must_not:      none of these may appear (a changed or invented fact).
+#   unknown: true  the answer isn't in the brief: she must say she doesn't know.
+#   moods:         acceptable mood tags; leave out to accept any valid tag.
+
+cases:
+  # ---- morning brief -------------------------------------------------------
+  - id: contoso-slots
+    brief: 2026-11-02_morning
+    question: When can I do the Contoso phone screen?
+    must:
+      - [tuesday, tue, nov 3, november 3, november third]
+      - [wednesday, wed, nov 4, november 4, november fourth]
+      - [one, "1"]
+      - [four, "4"]
+
+  - id: contoso-recruiter
+    brief: 2026-11-02_morning
+    question: Who's the recruiter at Contoso?
+    must:
+      - [dana]
+    must_not: [lee park, sam ortiz]
+
+  - id: contoso-length
+    brief: 2026-11-02_morning
+    question: How long is the Contoso call?
+    must:
+      - [thirty, "30", half an hour, half hour]
+    must_not: [an hour long, one hour, sixty, "60", forty five, "45"]
+
+  - id: fabrikam-ask
+    brief: 2026-11-02_morning
+    question: What does Fabrikam want from me?
+    must:
+      - [two references, 2 references, two refs, couple of references, pair of references]
+      - [friday]
+
+  - id: northwind-outcome
+    brief: 2026-11-02_morning
+    question: Did Northwind pick me?
+    must:
+      - [not selected, "weren't selected", "wasn't selected", passed, "didn't", did not, "no ", "no,", "no."]
+    must_not: [congratulations, you got the job, you got it, offer, interview invite from northwind]
+    moods: [sad, neutral, relaxed]
+
+  - id: coffee-chat
+    brief: 2026-11-02_morning
+    question: When is my coffee chat, and who is it with?
+    must:
+      - [ten, "10"]
+      - [sam]
+    must_not: [ten thirty, "10:30"]
+
+  - id: meetup-time
+    brief: 2026-11-02_morning
+    question: When is the tech meetup?
+    must:
+      - [thursday]
+      - [six thirty, "6:30", "630", six-thirty]
+
+  - id: shortlist-count
+    brief: 2026-11-02_morning
+    question: How many new jobs are on the shortlist?
+    must:
+      - [three, "3"]
+
+  - id: woodgrove-location
+    brief: 2026-11-02_morning
+    question: Where is the Woodgrove job?
+    must:
+      - [dallas]
+
+  - id: unknown-salary
+    brief: 2026-11-02_morning
+    question: How much does the Contoso job pay?
+    unknown: true
+    must_not: ["$", dollars, " k ", per hour, a year]
+
+  - id: unknown-interviewer
+    brief: 2026-11-02_morning
+    question: Who will interview me at Fabrikam?
+    unknown: true
+
+  - id: small-talk
+    brief: 2026-11-02_morning
+    question: Hey Juniper, how's it going?
+    moods: [happy, relaxed]
+
+  # ---- afternoon brief ---------------------------------------------------------
+  - id: contoso-technical
+    brief: 2026-11-02_afternoon
+    question: Is the Contoso phone screen technical?
+    must:
+      - [non-technical, nontechnical, not technical, "isn't technical", "not a technical", "won't be technical"]
+
+  - id: sam-referral
+    brief: 2026-11-02_afternoon
+    question: What did Sam say?
+    must:
+      - [referral, refer]
+      - [woodgrove]
+
+  # ---- evening brief -------------------------------------------------------
+  - id: tomorrow-morning
+    brief: 2026-11-02_evening
+    question: What's on my calendar tomorrow morning?
+    must:
+      - [nine thirty, "9:30", half past nine]
+      - [coach]
