@@ -36,8 +36,8 @@ Everything on the PC runs locally: no cloud calls and no running costs.
   brief's facts right, admitting what it doesn't know, mood tags and speed.
 - **Desktop window** (spike): an Electron shell shows just the avatar in a
   frameless, transparent, always-on-top window on the desktop. Clicks pass
-  through her except on her buttons, and global hotkeys talk or read a brief
-  from any app. It renders on the GPU and drops to 30 fps while she's idle.
+  through her except on her buttons, global hotkeys talk or read a brief
+  from any app, and a chat panel opens beside her. It renders on the GPU and drops to 30 fps while she's idle.
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
 
@@ -105,13 +105,12 @@ Click **Morning brief ready** (or press Space). Type a follow-up question or
 hold **V** and ask it out loud. Start with `/claude` (or say "check with
 Claude…") to save it for the next brief.
 
-To put her on the desktop instead of a browser tab (needs [Node.js](https://nodejs.org) LTS),
-start the app with `uv run desk-secretary --no-browser`, then in a second terminal:
+To put her on the desktop instead of a browser tab (needs [Node.js](https://nodejs.org) LTS):
 
 ```powershell
 cd desktop
 npm install    # once
-npm start
+npm start      # starts the app too, and stops it when you quit her
 ```
 
 To use the real synced folder, set `secretary_dir` in `config.yaml` (which is

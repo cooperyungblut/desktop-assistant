@@ -264,6 +264,11 @@ if (shellApi) {
   document.addEventListener("mouseleave", () => setInteractive(false));
 
   shellApi.onMoving((on) => document.documentElement.classList.toggle("moving", on));
+  shellApi.onChat((on) => {
+    document.documentElement.classList.toggle("chat", on);
+    if (on) els.input.focus();
+  });
+  $("chat-close").addEventListener("click", () => shellApi.setChat(false));
   $("move-done").addEventListener("click", () => shellApi.setMoving(false));
 
   // Global hotkeys and the tray menu (desktop/main.js).

@@ -2,13 +2,15 @@
 // always-on-top window on the desktop. The Python app still does all the work;
 // this window just loads its page in the avatar-only layout.
 //
-//   Start the app first (uv run desk-secretary), then: npm start
+//   npm start            (also starts the Python app if it isn't running)
+//   npm start -- --no-app   (window only; you start the app yourself)
 //
 // Clicks pass through the window to whatever is behind it, except on her
 // buttons. Move mode (hotkey or tray icon) lets you drag her around. The
 // terminal lists which hotkeys she got.
 
 const fs = require("node:fs");
+const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const {
   app, BrowserWindow, Menu, Tray, globalShortcut, ipcMain, nativeImage, screen, session, shell,
@@ -28,7 +30,10 @@ const SETTINGS_FILE = () => path.join(app.getPath("userData"), "settings.json");
 let win = null;
 let tray = null;
 let moving = false;
+let chatOpen = false;
 let waitingLogged = false;
+let backend = null; // the Python app, when this shell started it
+const CHAT_WIDTH = 380; // the chat panel opens to her left
 let settings = { size: "medium", bounds: null };
 
 // ---- settings --------------------------------------------------------------
@@ -43,7 +48,11 @@ function loadSettings() {
 }
 
 function saveSettings() {
-  if (win) settings.bounds = win.getBounds();
+  if (win) {
+    // Remember where she sits, not the chat panel's extra width.
+    const b = win.getBounds();
+    settings.bounds = chatOpen ? { ...b, x: b.x + CHAT_WIDTH, width: b.width - CHAT_WIDTH } : b;
+  }
   try {
     fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(settings, null, 2));
   } catch (err) {
@@ -113,7 +122,7 @@ function waitingPage() {
     display:grid;place-items:end center;background:transparent;font:14px system-ui,sans-serif">
     <p style="margin:24px;padding:10px 14px;border-radius:12px;background:#1e1b27e6;color:#ece9f5">
     Waiting for the app at ${URL_TO_LOAD.replace(/[?].*/, "")}…<br>
-    Start it with <code>uv run desk-secretary</code>.</p>`;
+    ${backend ? "It's starting (the first start takes a moment)." : "Start it with <code>uv run desk-secretary --no-browser</code>."}</p>`;
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
@@ -140,10 +149,26 @@ function setSize(name) {
   if (win) {
     const b = win.getBounds();
     const s = SIZES[name];
+    const width = s.width + (chatOpen ? CHAT_WIDTH : 0);
     // Grow or shrink around the bottom-right corner, where she usually sits.
-    win.setBounds({ x: b.x + b.width - s.width, y: b.y + b.height - s.height, ...s });
+    win.setBounds({ x: b.x + b.width - width, y: b.y + b.height - s.height, width, height: s.height });
   }
   saveSettings();
+  buildTrayMenu();
+}
+
+// The chat panel (brief + messages + text box) widens the window to the left.
+function setChat(on) {
+  if (!win || on === chatOpen) return;
+  const b = win.getBounds();
+  const dx = on ? CHAT_WIDTH : -CHAT_WIDTH;
+  chatOpen = on;
+  win.setBounds({ ...b, x: b.x - dx, width: b.width + dx });
+  win.webContents.send("shell:chat", on);
+  if (on) {
+    if (!win.isVisible()) win.showInactive();
+    win.focus(); // so you can type straight away
+  }
   buildTrayMenu();
 }
 
@@ -171,6 +196,8 @@ const HOTKEYS = {
     keys: ["Control+Alt+M", "Control+Alt+U", "Control+Alt+Shift+M"] },
   hide: { label: "Hide / show", run: () => toggleVisible(),
     keys: ["Control+Alt+H", "Control+Alt+Shift+H"] },
+  chat: { label: "Chat panel open/close", run: () => setChat(!chatOpen),
+    keys: ["Control+Alt+C", "Control+Alt+I", "Control+Alt+Shift+C"] },
 };
 const activeKeys = {}; // action -> the hotkey that registered
 
@@ -194,6 +221,7 @@ function buildTrayMenu() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Talk", ...keyFor("talk"), click: () => command("talk") },
     { label: "Read the brief (new, else latest) / stop", ...keyFor("brief"), click: () => command("brief") },
+    { label: "Chat", type: "checkbox", checked: chatOpen, ...keyFor("chat"), click: () => setChat(!chatOpen) },
     { type: "separator" },
     { label: "Move mode", type: "checkbox", checked: moving, ...keyFor("move"), click: () => setMoving(!moving) },
     {
@@ -251,6 +279,46 @@ async function logGpu() {
   }
 }
 
+// ---- the Python app ----------------------------------------------------------
+
+async function appRunning() {
+  try {
+    const res = await fetch(new URL("/", URL_TO_LOAD), { signal: AbortSignal.timeout(1500) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// One launch starts everything: if the app isn't already running, start it
+// from the repo folder and stop it again on Quit. Its log shows in this terminal.
+async function startBackend() {
+  if (process.argv.includes("--no-app") || (await appRunning())) return;
+  const root = path.resolve(__dirname, "..");
+  console.log("Starting the app: uv run desk-secretary --no-browser");
+  const child = spawn("uv", ["run", "desk-secretary", "--no-browser"], {
+    cwd: root, stdio: "inherit", windowsHide: true,
+  });
+  backend = child;
+  child.on("error", (err) => {
+    console.warn(`Couldn't start the app (${err.message}). Start it yourself: uv run desk-secretary --no-browser`);
+    if (backend === child) backend = null;
+  });
+  child.on("exit", (code) => {
+    if (backend === child) console.log(`The app stopped (exit code ${code}).`);
+    if (backend === child) backend = null;
+  });
+}
+
+function stopBackend() {
+  const child = backend;
+  backend = null;
+  if (!child?.pid) return;
+  // On Windows "uv run" starts Python as its own child: end the whole tree.
+  if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+  else child.kill();
+}
+
 // ---- start -----------------------------------------------------------------
 
 if (!app.requestSingleInstanceLock()) {
@@ -271,8 +339,9 @@ if (!app.requestSingleInstanceLock()) {
 
     ipcMain.on("shell:interactive", (_e, on) => setClickThrough(!on));
     ipcMain.on("shell:moving", (_e, on) => setMoving(!!on));
+    ipcMain.on("shell:chat", (_e, on) => setChat(!!on));
 
-    createWindow();
+    startBackend().finally(createWindow);
     tray = new Tray(trayIcon());
     tray.setToolTip("Juniper");
     tray.on("click", toggleVisible);
@@ -280,6 +349,9 @@ if (!app.requestSingleInstanceLock()) {
     registerHotkeys();
   });
 
-  app.on("will-quit", () => globalShortcut.unregisterAll());
+  app.on("will-quit", () => {
+    globalShortcut.unregisterAll();
+    stopBackend();
+  });
   app.on("window-all-closed", () => app.quit());
 }

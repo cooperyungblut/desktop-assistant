@@ -264,3 +264,30 @@ browser. The Python app still does all the work; the window just shows her.
 
 Send me what you see: whether the transparency looks clean (especially the
 edges of her hair), the GPU line, and the idle CPU number.
+
+## Chunk H: one launch, chat panel, "read the brief" (about 15 min)
+
+1. Get the new code. Stop the app and her window first (Ctrl+C in each terminal):
+   ```powershell
+   git checkout main
+   git pull
+   ```
+2. From now on one terminal is enough:
+   ```powershell
+   cd desktop
+   npm start
+   ```
+   **Check:** the terminal says `Starting the app: uv run desk-secretary --no-browser`,
+   then shows the app's usual log, and she appears. (If the app is already
+   running in another terminal, she just uses it. `npm start -- --no-app`
+   never starts it.)
+3. Open the chat panel: the hotkey the terminal lists for "Chat panel"
+   (Ctrl+Alt+C, or the next free one) or **Chat** in the tray menu.
+   **Check:** the brief and chat open to her left, and you can type straight
+   away. Close it with × or the same hotkey.
+4. Type or say (Ctrl+Alt+J) "read me this morning's brief".
+   **Check:** she reads it word for word. Then try "read yesterday's evening
+   brief": she should say she doesn't have one (unless you do).
+5. Quit from the tray.
+   **Check:** the terminal returns to the prompt, and `http://127.0.0.1:8765`
+   no longer opens in the browser (the app stopped too).
