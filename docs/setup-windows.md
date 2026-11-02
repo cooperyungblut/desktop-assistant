@@ -249,7 +249,11 @@ browser. The Python app still does all the work; the window just shows her.
    - **Ctrl+Alt+B**: read the new brief, or stop her mid-sentence.
    - **Ctrl+Alt+H**: hide or show her.
    Right-click the tray dot for sizes (small, medium, large) and **Quit**.
-   If the terminal says a hotkey "is taken by another app", tell me which.
+   If another app already uses one of these, she takes the next free one
+   (Ctrl+Alt+J talk, Ctrl+Alt+K brief, Ctrl+Alt+U move, then the same with
+   Shift). The terminal lists the hotkeys she got, and the tray menu shows
+   them too. To pick your own, open the tray's **Settings file**, add e.g.
+   `"hotkeys": { "talk": "Control+Alt+T" }`, save, and restart her.
 8. CPU and GPU cost: with her idle on the desktop, open Task Manager
    (Ctrl+Shift+Esc), **Processes** tab, and find **Electron**.
    **Check:** CPU is a few percent at most, and the GPU column shows a little

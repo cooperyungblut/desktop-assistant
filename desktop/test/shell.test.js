@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { appUrl, sameOrigin, defaultBounds, onScreen } = require("../shell.js");
+const { candidateKeys, pickHotkey } = require("../shell.js");
 
 test("loads the app's page in the desktop layout", () => {
   assert.equal(appUrl(), "http://127.0.0.1:8765/?desktop=1");
@@ -26,4 +27,19 @@ test("a position on an unplugged monitor is rejected", () => {
   assert.ok(onScreen({ x: 1500, y: 480, width: 400, height: 560 }, areas));
   assert.ok(!onScreen({ x: 2200, y: 300, width: 400, height: 560 }, areas)); // second monitor gone
   assert.ok(!onScreen({ x: 100, y: 1100, width: 400, height: 560 }, areas));
+});
+
+test("a taken hotkey falls back to the next one", () => {
+  const free = new Set(["Control+Alt+J"]);
+  const r = pickHotkey(["Control+Alt+Space", "Control+Alt+J", "Control+Alt+X"], (k) => free.has(k));
+  assert.deepEqual(r, { key: "Control+Alt+J", taken: ["Control+Alt+Space"] });
+  assert.deepEqual(pickHotkey(["A"], () => false), { key: null, taken: ["A"] });
+  assert.deepEqual(pickHotkey(["Bad", "B"], (k) => { if (k === "Bad") throw new Error(); return true; }),
+    { key: "B", taken: ["Bad"] });
+});
+
+test("your own hotkey from settings goes first", () => {
+  assert.deepEqual(candidateKeys("Control+Alt+T", ["X", "Y"]), ["Control+Alt+T", "X", "Y"]);
+  assert.deepEqual(candidateKeys(["Y", ""], ["X", "Y"]), ["Y", "X"]);
+  assert.deepEqual(candidateKeys(undefined, ["X"]), ["X"]);
 });

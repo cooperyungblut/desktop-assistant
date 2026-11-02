@@ -5,14 +5,17 @@
 //   Start the app first (uv run desk-secretary), then: npm start
 //
 // Clicks pass through the window to whatever is behind it, except on her
-// buttons. Ctrl+Alt+M (or the tray icon) toggles move mode to drag her around.
+// buttons. Move mode (hotkey or tray icon) lets you drag her around. The
+// terminal lists which hotkeys she got.
 
 const fs = require("node:fs");
 const path = require("node:path");
 const {
   app, BrowserWindow, Menu, Tray, globalShortcut, ipcMain, nativeImage, screen, session, shell,
 } = require("electron");
-const { SIZES, appUrl, sameOrigin, defaultBounds, onScreen } = require("./shell.js");
+const {
+  SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey,
+} = require("./shell.js");
 
 // The avatar is WebGL, so the window must render on the GPU. Electron does by
 // default (unlike a browser with hardware acceleration turned off); never call
@@ -151,33 +154,48 @@ function toggleVisible() {
   buildTrayMenu();
 }
 
-// Commands for the page (see shellCommand in web/js/app.js).
+// Commands for the page (see onCommand in web/js/app.js).
 const command = (name) => win?.webContents.send("shell:command", name);
 
 // ---- tray + hotkeys --------------------------------------------------------
 
+// Each action tries its hotkeys in order and keeps the first one no other app
+// has taken. "hotkeys" in settings.json can put your own first, e.g.
+//   "hotkeys": { "talk": "Control+Alt+T" }
 const HOTKEYS = {
-  "Control+Alt+Space": ["Talk (toggle the mic)", () => command("talk")],
-  "Control+Alt+B": ["Read the new brief / stop", () => command("brief")],
-  "Control+Alt+M": ["Move mode on/off", () => setMoving(!moving)],
-  "Control+Alt+H": ["Hide / show", toggleVisible],
+  talk: { label: "Talk (toggle the mic)", run: () => command("talk"),
+    keys: ["Control+Alt+Space", "Control+Alt+J", "Control+Alt+Shift+Space"] },
+  brief: { label: "Read the new brief / stop", run: () => command("brief"),
+    keys: ["Control+Alt+B", "Control+Alt+K", "Control+Alt+Shift+B"] },
+  move: { label: "Move mode on/off", run: () => setMoving(!moving),
+    keys: ["Control+Alt+M", "Control+Alt+U", "Control+Alt+Shift+M"] },
+  hide: { label: "Hide / show", run: () => toggleVisible(),
+    keys: ["Control+Alt+H", "Control+Alt+Shift+H"] },
 };
+const activeKeys = {}; // action -> the hotkey that registered
 
 function registerHotkeys() {
-  for (const [accel, [label, fn]] of Object.entries(HOTKEYS)) {
-    if (!globalShortcut.register(accel, fn)) {
-      console.warn(`Hotkey ${accel} (${label}) is taken by another app.`);
-    }
+  for (const [action, hk] of Object.entries(HOTKEYS)) {
+    const keys = candidateKeys(settings.hotkeys?.[action], hk.keys);
+    const { key, taken } = pickHotkey(keys, (k) => globalShortcut.register(k, hk.run));
+    activeKeys[action] = key;
+    if (taken.length) console.warn(`Hotkey ${taken.join(", ")} is taken by another app.`);
+    if (key) console.log(`${hk.label}: ${key}`);
+    else console.warn(`${hk.label}: no free hotkey; use the tray menu.`);
   }
 }
+
+// Shows the hotkey next to a tray item without registering it twice.
+const keyFor = (action) => (activeKeys[action]
+  ? { accelerator: activeKeys[action], registerAccelerator: false } : {});
 
 function buildTrayMenu() {
   if (!tray) return;
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: "Talk", accelerator: "Control+Alt+Space", registerAccelerator: false, click: () => command("talk") },
-    { label: "Read the new brief / stop", accelerator: "Control+Alt+B", registerAccelerator: false, click: () => command("brief") },
+    { label: "Talk", ...keyFor("talk"), click: () => command("talk") },
+    { label: "Read the new brief / stop", ...keyFor("brief"), click: () => command("brief") },
     { type: "separator" },
-    { label: "Move mode", type: "checkbox", checked: moving, accelerator: "Control+Alt+M", registerAccelerator: false, click: () => setMoving(!moving) },
+    { label: "Move mode", type: "checkbox", checked: moving, ...keyFor("move"), click: () => setMoving(!moving) },
     {
       label: "Size",
       submenu: Object.keys(SIZES).map((name) => ({
@@ -185,12 +203,13 @@ function buildTrayMenu() {
         checked: settings.size === name, click: () => setSize(name),
       })),
     },
-    { label: win?.isVisible() ? "Hide" : "Show", accelerator: "Control+Alt+H", registerAccelerator: false, click: toggleVisible },
+    { label: win?.isVisible() ? "Hide" : "Show", ...keyFor("hide"), click: toggleVisible },
     { type: "separator" },
     { label: "Open full page in browser (chat, brief)", click: () => shell.openExternal(URL_TO_LOAD.replace(/[?].*/, "")) },
     { label: "Reload", click: () => win?.reload() },
     { label: "Developer tools", click: () => win?.webContents.openDevTools({ mode: "detach" }) },
     { label: "GPU report", click: openGpuReport },
+    { label: "Settings file (custom hotkeys)", click: () => { saveSettings(); shell.openPath(SETTINGS_FILE()); } },
     { type: "separator" },
     { label: "Quit", click: () => app.quit() },
   ]));
