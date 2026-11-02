@@ -30,7 +30,7 @@ Everything on the PC runs locally: no cloud calls and no running costs.
   `[sad]`, …) that the app strips from the text and speech and turns into an
   eased VRM facial expression. The moods are fixed in code; how each one looks
   is set per persona.
-- **Push-to-talk**: hold V to ask out loud. faster-whisper transcribes on the
+- **Voice input**: hold V to ask out loud, or click the mic button, talk, and pause (it sends after 3 s of silence). faster-whisper transcribes on the
   CPU, and talking over the avatar interrupts her.
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.

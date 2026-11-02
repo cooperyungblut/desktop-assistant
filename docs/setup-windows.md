@@ -101,7 +101,8 @@ error. Run everything in PowerShell from the repo folder.
    "When is my coffee chat?". Release when you're done talking. The first time,
    the browser asks for microphone access: choose **Allow**.
    **Check:** your words appear as a chat bubble, then she answers out loud.
-   The mic button next to the text box works the same way (press and hold).
+   The mic button next to the text box is a toggle: click it, talk, then
+   click it again or just pause for 3 seconds and it sends what you said.
 4. While she's talking, hold V and start a new question.
    **Check:** she stops mid-sentence and answers the new one.
 5. Look for `Transcribed ... in X s` in the terminal.
