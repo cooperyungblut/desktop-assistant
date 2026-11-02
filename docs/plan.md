@@ -169,3 +169,12 @@ Chunk 2:
 - Custom VRoid Studio avatar.
 - Package as a single installer.
 - Hold-to-talk from any app (native keyboard hook in the desktop shell).
+- Local Wikipedia she can look things up in, so she can answer general
+  questions, still in character. Likely an offline dump (Kiwix ZIM or a
+  trimmed text export) with a small local search index, and the matching
+  passages added to the prompt like the brief is. Must say "I don't know"
+  when the article doesn't cover it, same as the brief rules.
+- Live screen watching with commentary, up to a gaming partner that reacts
+  to what's happening. Needs a local vision model on the 16 GB GPU next to
+  the chat model, so it's a VRAM budget question first; screenshots stay on
+  the PC.
