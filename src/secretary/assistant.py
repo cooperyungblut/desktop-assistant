@@ -84,6 +84,14 @@ class Assistant:
         unhandled = [b for b in self.briefs.values() if not self._state.is_handled(b.id)]
         return max(unhandled, key=lambda b: b.generated_at, default=None)
 
+    def context_brief(self) -> Brief | None:
+        """The brief questions are about: the one read out in this session, or
+        else the newest one, so she knows today's brief after a restart (or when
+        it was read out earlier in another window)."""
+        if self.current is not None:
+            return self.current
+        return max(self.briefs.values(), key=lambda b: b.generated_at, default=None)
+
     async def poll(self) -> None:
         new = self._scanner.scan()
         for brief in new:
@@ -181,7 +189,7 @@ class Assistant:
     async def _voice(self, audio: bytes) -> None:
         start = time.perf_counter()
         try:
-            hints = speech_hints(self.current, self.persona)
+            hints = speech_hints(self.context_brief(), self.persona)
             text = await self._transcriber.transcribe(audio, hints)
         except SttUnavailable as exc:
             await self._emit({"type": "transcript", "text": ""})
@@ -201,7 +209,11 @@ class Assistant:
             return
 
         messages = build_messages(
-            self.persona, self.current, self.history, text, history_turns=self._history_turns
+            self.persona,
+            self.context_brief(),
+            self.history,
+            text,
+            history_turns=self._history_turns,
         )
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})

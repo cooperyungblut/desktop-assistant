@@ -50,4 +50,30 @@ function onScreen(bounds, workAreas, keep = 80) {
     bounds.y >= a.y - keep);
 }
 
-module.exports = { DEFAULT_URL, SIZES, appUrl, sameOrigin, defaultBounds, onScreen };
+// Hotkeys to try for one action: the user's own choice (a string or a list
+// from settings.json) first, then the defaults, without repeats.
+function candidateKeys(custom, defaults) {
+  const mine = [].concat(custom ?? []).filter((k) => typeof k === "string" && k.trim());
+  return [...new Set([...mine, ...defaults])];
+}
+
+// Global hotkeys are first come, first served on Windows: registering one that
+// another app holds fails. Take the first one that works.
+function pickHotkey(keys, tryRegister) {
+  const taken = [];
+  for (const key of keys) {
+    let ok = false;
+    try {
+      ok = tryRegister(key);
+    } catch {
+      ok = false; // an invalid accelerator string in settings.json
+    }
+    if (ok) return { key, taken };
+    taken.push(key);
+  }
+  return { key: null, taken };
+}
+
+module.exports = {
+  DEFAULT_URL, SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey,
+};
