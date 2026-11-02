@@ -46,7 +46,7 @@ persona.
 - [x] Tests + CI on Windows and Linux + privacy check
 - [x] Run it on Windows (setup guide chunks A and B)
 - [x] Scheduled tasks write the new format; real briefs sync and parse
-- [ ] Record a demo GIF with sample data
+- [x] Record a demo GIF with sample data (video in the README)
 
 ## Milestone 2: push-to-talk voice input ✅ (code complete)
 
