@@ -24,10 +24,12 @@ avatar.load("models/avatar.vrm").catch((err) => {
     "No avatar yet: save a .vrm file as web/models/avatar.vrm and reload (see web/models/README.md).";
 });
 
-// The face holds its mood while she talks, then settles back to neutral a
-// moment after she stops or is interrupted.
+// The face holds its mood for the whole reply, including the gaps while the
+// next sentence is still being made, and settles back to neutral a moment
+// after the last sentence (or right after an interruption).
 const RELAX_AFTER_MS = 1500;
 let relaxTimer = null;
+let morePending = false; // the server hasn't said "speech_done" for this reply yet
 function holdMood() { clearTimeout(relaxTimer); relaxTimer = null; }
 function relaxSoon(ms = RELAX_AFTER_MS) {
   holdMood();
@@ -36,8 +38,14 @@ function relaxSoon(ms = RELAX_AFTER_MS) {
 
 const player = new SpeechPlayer({
   onLevel: (v) => { avatar.mouth = v; },
-  onSentence: (text) => { holdMood(); els.caption.textContent = text; },
-  onIdle: () => { els.caption.textContent = ""; avatar.mouth = 0; relaxSoon(); },
+  onSentence: (text) => { holdMood(); avatar.talking = true; els.caption.textContent = text; },
+  onIdle: () => {
+    els.caption.textContent = "";
+    avatar.mouth = 0;
+    if (morePending) return; // just a gap between sentences: keep the talking face
+    avatar.talking = false;
+    relaxSoon();
+  },
 });
 
 // ---- connection ----------------------------------------------------------------
@@ -90,9 +98,12 @@ const handlers = {
   say(e) { player.enqueue(e.text, e.audio); },
   expression(e) {
     holdMood();
-    avatar.setExpression(e.preset, e.weight);
-    // If no speech follows (text-only mode with nothing queued), don't hold it forever.
-    if (!player.busy) relaxSoon(RELAX_AFTER_MS * 4);
+    morePending = true;
+    avatar.setExpression(e.preset, e.weight, e.talk_weight);
+  },
+  speech_done() {
+    morePending = false;
+    if (!player.busy) { avatar.talking = false; relaxSoon(); }
   },
   // Replies carry an id, so a reply that was interrupted can still be closed out
   // even if a newer one has already started.
@@ -144,7 +155,11 @@ function ask(text) {
   els.input.value = "";
 }
 
-function stopTalking() { player.stop(); send({ type: "stop" }); }
+function stopTalking() {
+  morePending = false;
+  player.stop(); // its onIdle relaxes the face
+  send({ type: "stop" });
+}
 
 // ---- push-to-talk ------------------------------------------------------------
 
@@ -234,7 +249,8 @@ function setDot(id, on) { $(id).classList.toggle("on", !!on); $(id).classList.to
 function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 
 // Handy from the browser console while debugging:
-//   secretary.avatar.setExpression("happy", 0.6)   secretary.avatar.expressionNames()
+//   secretary.avatar.setExpression("happy", 0.6, 0.3)   (weight, then weight while talking)
+//   secretary.avatar.expressionNames()
 window.secretary = { avatar, player, ptt };
 
 connect();

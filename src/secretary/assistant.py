@@ -11,7 +11,8 @@ Event types sent to the UI:
     transcript   {text}         what push-to-talk heard ("" if nothing)
     readout      {brief: {id, type, date, display}}
     say          {seq, text, audio: base64 WAV | None}     one sentence of speech
-    expression   {mood, preset, weight}   the avatar's face for what she's saying
+    expression   {mood, preset, weight, talk_weight}   the avatar's face for what she says
+    speech_done  {}             all speech for the current action has been sent
     reply_start  {id}
     reply_token  {id, text}
     reply_end    {id, text}
@@ -175,6 +176,7 @@ class Assistant:
         for sentence in split_sentences(brief.spoken):
             await self._say(sentence)
         self.history.append(Turn("assistant", brief.spoken))
+        await self._emit({"type": "speech_done"})
 
     async def _voice(self, audio: bytes) -> None:
         start = time.perf_counter()
@@ -262,6 +264,7 @@ class Assistant:
             full = f"[{tags.mood}] {full}"
         self.history += [Turn("user", text), Turn("assistant", full)]
         await speaking
+        await self._emit({"type": "speech_done"})
 
     async def _escalate(self, text: str) -> None:
         question = escalations.strip_command(text) or text
@@ -286,6 +289,7 @@ class Assistant:
         self.history += [Turn("user", text), Turn("assistant", line)]
         await self._express("neutral")
         await self._say(line)
+        await self._emit({"type": "speech_done"})
 
     def _next_reply_id(self) -> int:
         self._reply_ids += 1
@@ -294,7 +298,13 @@ class Assistant:
     async def _express(self, mood: str) -> None:
         look = self.persona.expression(mood)
         await self._emit(
-            {"type": "expression", "mood": mood, "preset": look.preset, "weight": look.weight}
+            {
+                "type": "expression",
+                "mood": mood,
+                "preset": look.preset,
+                "weight": look.weight,
+                "talk_weight": look.talking,
+            }
         )
 
     async def _speak_queue(self, queue: asyncio.Queue[str | None]) -> None:

@@ -85,3 +85,10 @@ def test_persona_rejects_unknown_moods_and_presets(tmp_path, bad):
 def test_prompt_asks_for_a_mood_tag(persona):
     msgs = build_messages(persona, None, [], "hi")
     assert "[happy]" in msgs[0]["content"] and "mood tag" in msgs[-2]["content"]
+
+
+def test_talk_weight_defaults_to_half(persona):
+    from secretary.persona import Expression
+
+    assert Expression(preset="happy", weight=0.6).talking == pytest.approx(0.3)
+    assert Expression(preset="happy", weight=0.6, talk_weight=0.1).talking == 0.1
