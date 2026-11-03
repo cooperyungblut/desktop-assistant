@@ -74,6 +74,20 @@ function pickHotkey(keys, tryRegister) {
   return { key: null, taken };
 }
 
+// How a hotkey reads in her hints: "Control+Alt+J" -> "Ctrl+Alt+J".
+const KEY_NAMES = {
+  control: "Ctrl", ctrl: "Ctrl", commandorcontrol: "Ctrl", cmdorctrl: "Ctrl",
+  alt: "Alt", option: "Alt", altgr: "AltGr", shift: "Shift", super: "Win", meta: "Win",
+  space: "Space", plus: "+", escape: "Esc", esc: "Esc",
+};
+function keyLabel(accelerator) {
+  if (!accelerator) return null;
+  return accelerator.split("+").map((part) => {
+    const name = KEY_NAMES[part.trim().toLowerCase()];
+    return name ?? (part.length === 1 ? part.toUpperCase() : part);
+  }).join("+");
+}
+
 // The window always has room for the chat panel on both sides of her, empty
 // and click-through while the panel is closed. Resizing a window on Windows
 // shows the old frame at the new position for a moment, so neither opening
@@ -109,5 +123,5 @@ function fitInside(b, area) {
 
 module.exports = {
   DEFAULT_URL, SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey,
-  withChatRoom, avatarPart, chatSideFor, fitInside,
+  keyLabel, withChatRoom, avatarPart, chatSideFor, fitInside,
 };

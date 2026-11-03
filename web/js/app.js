@@ -11,7 +11,8 @@ const els = {
   briefTitle: $("brief-title"), briefBody: $("brief-body"), history: $("history"),
   messages: $("messages"), form: $("ask-form"), input: $("ask-input"),
   askClaude: $("ask-claude"), stop: $("stop"), persona: $("persona-name"), mic: $("mic"),
-  note: $("avatar-note"),
+  note: $("avatar-note"), readyKey: $("ready-key"), briefKeyHint: $("brief-key-hint"),
+  sttDot: $("dot-stt"),
 };
 
 // ---- avatar + speech ---------------------------------------------------------
@@ -53,6 +54,30 @@ const player = new SpeechPlayer({
     relaxSoon();
   },
 });
+
+// ---- key hints -----------------------------------------------------------------
+
+// The browser page uses its own keys (hold V, Space). The desktop window uses
+// global hotkeys instead, which differ per PC (settings.json "hotkeys", or a
+// fallback when another app holds one), so desktop/main.js sends the ones that
+// registered and the hints follow them.
+let hints = {};
+function showHints(keys) {
+  const talk = keys.talk ? `${keys.talk} to talk` : null;
+  hints = {
+    retry: keys.hold ? `Hold ${keys.talk} a little longer and try again?` : "Try again?",
+  };
+  els.readyKey.textContent = keys.brief ?? "";
+  els.readyKey.hidden = !keys.brief;
+  els.briefKeyHint.textContent = keys.brief ? `or press ${keys.brief}` : "or use the tray menu";
+  els.sttDot.title = `Speech input (Whisper)${talk ? `: ${keys.hold ? "hold " : ""}${talk}` : ""}`;
+  els.mic.title = "Click to talk; click again or pause to send"
+    + (talk ? ` (or ${keys.hold ? "hold " : ""}${talk})` : "");
+  els.input.placeholder = talk ? `Type, or ${keys.hold ? "hold " : ""}${talk}…` : "Type a question…";
+}
+// Until the desktop shell says which hotkeys it got, show none rather than
+// keys that do nothing there.
+showHints(DESKTOP ? {} : { talk: "V", hold: true, brief: "Space" });
 
 // ---- connection ----------------------------------------------------------------
 
@@ -138,7 +163,7 @@ const handlers = {
       if (DESKTOP) flash(`You: ${e.text}`);
     } else {
       el.className = "note";
-      el.textContent = "Didn't catch that. Hold V a little longer and try again?";
+      el.textContent = `Didn't catch that. ${hints.retry}`;
       if (DESKTOP) flash("Didn't catch that. Try again?");
     }
   },
@@ -269,6 +294,7 @@ if (shellApi) {
     document.documentElement.style.setProperty("--room", `${room}px`);
     document.documentElement.classList.toggle("chat-right", chatSide === "right");
   });
+  shellApi.onHotkeys?.((keys) => showHints({ talk: keys.talk, brief: keys.brief }));
   shellApi.onChat((on) => {
     document.documentElement.classList.toggle("chat", on);
     if (on) els.input.focus();

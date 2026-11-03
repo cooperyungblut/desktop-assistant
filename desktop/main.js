@@ -16,7 +16,7 @@ const {
   app, BrowserWindow, Menu, Tray, globalShortcut, ipcMain, nativeImage, screen, session, shell,
 } = require("electron");
 const {
-  SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey,
+  SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey, keyLabel,
   withChatRoom, avatarPart, chatSideFor, fitInside,
 } = require("./shell.js");
 
@@ -100,7 +100,7 @@ function createWindow() {
 
   win.once("ready-to-show", () => win.showInactive());
   win.webContents.once("did-finish-load", logGpu); // the GPU process is up by then
-  win.webContents.on("did-finish-load", () => sendLayout(undefined, true));
+  win.webContents.on("did-finish-load", () => { sendLayout(undefined, true); sendHotkeys(); });
   win.on("move", () => sendLayout()); // flip the chat side at a screen edge
   win.on("moved", saveSettings);
   win.on("closed", () => { win = null; });
@@ -240,6 +240,12 @@ function registerHotkeys() {
     if (key) console.log(`${hk.label}: ${key}`);
     else console.warn(`${hk.label}: no free hotkey; use the tray menu.`);
   }
+}
+
+// The page shows these in its hints ("Ctrl+Alt+J to talk"); null = none free.
+function sendHotkeys() {
+  const labels = Object.fromEntries(Object.keys(HOTKEYS).map((a) => [a, keyLabel(activeKeys[a])]));
+  win?.webContents.send("shell:hotkeys", labels);
 }
 
 // Shows the hotkey next to a tray item without registering it twice.
