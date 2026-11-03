@@ -13,5 +13,7 @@ contextBridge.exposeInMainWorld("desktopShell", {
   onMoving: (fn) => ipcRenderer.on("shell:moving", (_e, on) => fn(on)),
   // { avatarWidth, chatSide }: her part of the window and where the chat goes
   onLayout: (fn) => ipcRenderer.on("shell:layout", (_e, layout) => fn(layout)),
+  // { talk: "Ctrl+Alt+J", brief: ..., chat: ... }: the hotkeys that registered
+  onHotkeys: (fn) => ipcRenderer.on("shell:hotkeys", (_e, keys) => fn(keys)),
   onChat: (fn) => ipcRenderer.on("shell:chat", (_e, on) => fn(on)),
 });

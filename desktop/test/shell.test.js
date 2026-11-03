@@ -77,3 +77,12 @@ test("a window past the screen edge slides back inside", () => {
   const inside = { x: 100, y: 100, width: 780, height: 560 };
   assert.deepEqual(fitInside(inside, area), inside);
 });
+
+test("hotkeys read the way her hints show them", () => {
+  const { keyLabel } = require("../shell.js");
+  assert.equal(keyLabel("Control+Alt+J"), "Ctrl+Alt+J");
+  assert.equal(keyLabel("CommandOrControl+Shift+space"), "Ctrl+Shift+Space");
+  assert.equal(keyLabel("Alt+F9"), "Alt+F9");
+  assert.equal(keyLabel("Control+Alt+k"), "Ctrl+Alt+K");
+  assert.equal(keyLabel(null), null);
+});
