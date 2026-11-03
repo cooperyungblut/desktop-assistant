@@ -65,6 +65,19 @@ Never soften, drop or joke about facts: an interview invite stays an interview
 invite, a rejection stays a rejection. 60 to 150 seconds when read aloud.
 Answer any escalated questions here too.>
 
+Keep it short (applies to both Display and Spoken):
+- Job search: if no job-search mail came in (recruiters, interview invites,
+  application updates, rejections), say only "No job search updates at the
+  moment." Never list the kinds of mail that did not arrive.
+- Anything else with nothing new: leave it out. Do not announce that it is empty.
+- Automated emails (account confirmations, sign-in alerts, receipts, password
+  resets, system notices): at most a few words each, saying what happened and
+  nothing more. No explanations, no advice, no "if this wasn't you" warnings
+  unless it looks like a real security problem. Group several into one line.
+  In Spoken, skip them unless they need action, or cover them all in one short
+  phrase.
+- Real emails: one line each with who, what they want, and any deadline.
+
 Rules: the "# Display" and "# Spoken" headings must appear exactly once each,
 in that order. Inside Display, use "##" headings or deeper, never a single "#".
 Leave out sections that would be empty, except Spoken, which is never empty.
@@ -116,6 +129,19 @@ Say times the way a person would ("two thirty"). Lead with what matters most.
 Never soften, drop or joke about facts. 30 to 90 seconds when read aloud.
 Answer any escalated questions here too.>
 
+Keep it short (applies to both Display and Spoken):
+- Job search: if no job-search mail came in (recruiters, interview invites,
+  application updates, rejections), say only "No job search updates at the
+  moment." Never list the kinds of mail that did not arrive.
+- Anything else with nothing new: leave it out. Do not announce that it is empty.
+- Automated emails (account confirmations, sign-in alerts, receipts, password
+  resets, system notices): at most a few words each, saying what happened and
+  nothing more. No explanations, no advice, no "if this wasn't you" warnings
+  unless it looks like a real security problem. Group several into one line.
+  In Spoken, skip them unless they need action, or cover them all in one short
+  phrase.
+- Real emails: one line each with who, what they want, and any deadline.
+
 Rules: the "# Display" and "# Spoken" headings must appear exactly once each,
 in that order. Inside Display, use "##" headings or deeper, never a single "#".
 Leave out sections that would be empty, except Spoken, which is never empty.
@@ -164,6 +190,19 @@ Plain spoken sentences only: no markdown, bullets, links, URLs or emoji.
 Say times the way a person would ("nine thirty"). Lead with what matters most.
 Never soften, drop or joke about facts. 30 to 90 seconds when read aloud.
 Answer any escalated questions here too.>
+
+Keep it short (applies to both Display and Spoken):
+- Job search: if no job-search mail came in (recruiters, interview invites,
+  application updates, rejections), say only "No job search updates at the
+  moment." Never list the kinds of mail that did not arrive.
+- Anything else with nothing new: leave it out. Do not announce that it is empty.
+- Automated emails (account confirmations, sign-in alerts, receipts, password
+  resets, system notices): at most a few words each, saying what happened and
+  nothing more. No explanations, no advice, no "if this wasn't you" warnings
+  unless it looks like a real security problem. Group several into one line.
+  In Spoken, skip them unless they need action, or cover them all in one short
+  phrase.
+- Real emails: one line each with who, what they want, and any deadline.
 
 Rules: the "# Display" and "# Spoken" headings must appear exactly once each,
 in that order. Inside Display, use "##" headings or deeper, never a single "#".
