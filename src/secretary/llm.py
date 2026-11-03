@@ -64,6 +64,18 @@ class OllamaClient:
         except httpx.HTTPError as exc:
             raise LlmUnavailable(f"couldn't load {self._config.model}: {exc}") from exc
 
+    async def unload(self) -> None:
+        """Drop the model from VRAM now (keep_alive 0), e.g. when the app quits."""
+        try:
+            r = await self._client.post(
+                "/api/generate", json={"model": self._config.model, "keep_alive": 0}
+            )
+            r.raise_for_status()
+        except httpx.HTTPError as exc:
+            log.warning("Couldn't unload %s: %s", self._config.model, exc)
+            return
+        log.info("Unloaded %s from memory", self._config.model)
+
     async def stream_chat(
         self, messages: Sequence[dict[str, str]], options: dict[str, Any]
     ) -> AsyncIterator[str]:
