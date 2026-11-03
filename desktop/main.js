@@ -353,6 +353,16 @@ async function startBackend() {
   });
 }
 
+// Ask the app to unload the chat model first: the kill below skips its normal
+// shutdown, and Ollama would otherwise keep the model in VRAM.
+async function unloadModel() {
+  try {
+    await fetch(new URL("/api/unload", URL_TO_LOAD), { method: "POST", signal: AbortSignal.timeout(3000) });
+  } catch {
+    // app already gone or Ollama not running: nothing to free
+  }
+}
+
 function stopBackend() {
   const child = backend;
   backend = null;
@@ -392,9 +402,13 @@ if (!app.requestSingleInstanceLock()) {
     registerHotkeys();
   });
 
-  app.on("will-quit", () => {
+  let unloading = false;
+  app.on("will-quit", (event) => {
     globalShortcut.unregisterAll();
-    stopBackend();
+    if (!backend || unloading) return stopBackend();
+    event.preventDefault();
+    unloading = true;
+    unloadModel().finally(() => app.quit());
   });
   app.on("window-all-closed", () => app.quit());
 }

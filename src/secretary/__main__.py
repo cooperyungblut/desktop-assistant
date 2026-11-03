@@ -26,7 +26,11 @@ def main() -> None:
     # Quiet chatty libraries: one line per HTTP request, and espeak's harmless
     # "words count mismatch" warnings on every sentence.
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("phonemizer").setLevel(logging.ERROR)
+    # phonemizer resets its logger's level whenever kokoro creates a backend, so a
+    # level set here doesn't stick; a filter does.
+    logging.getLogger("phonemizer").addFilter(
+        lambda record: "words count mismatch" not in record.getMessage()
+    )
     if not args.config.is_file():
         sys.exit(f"{args.config} not found. Copy config.example.yaml to config.yaml first.")
 

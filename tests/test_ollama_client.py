@@ -54,3 +54,34 @@ def test_log_timings_breaks_down_the_wait():
         }
     )
     assert line == "Ollama: load 6.2 s, prompt 1800 tok in 1.5 s, gen 60 tok in 1.2 s (50 tok/s)"
+
+
+async def test_model_stays_loaded_while_the_app_runs():
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, text=json.dumps({"message": {"content": "Hi."}, "done": True}))
+
+    client = _client(handler)
+    await client.warm_up()
+    _ = [t async for t in client.stream_chat([], {})]
+    assert [p["keep_alive"] for p in seen] == [-1, -1]
+
+
+async def test_unload_frees_the_model_and_survives_ollama_being_gone(caplog):
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"done": True, "done_reason": "unload"})
+
+    await _client(handler).unload()
+    assert seen == [{"model": "gemma4:12b", "keep_alive": 0}]
+
+    def down(request):
+        raise httpx.ConnectError("refused")
+
+    with caplog.at_level(logging.WARNING, logger="secretary.llm"):
+        await _client(down).unload()  # no exception on quit
+    assert "Couldn't unload" in caplog.text

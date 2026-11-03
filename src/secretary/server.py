@@ -117,6 +117,14 @@ def create_app(config: AppConfig) -> FastAPI:
         await transcriber.load()
         await hub.emit(await status())
 
+    unloaded = False
+
+    async def unload() -> None:
+        nonlocal unloaded
+        if config.ollama.unload_on_exit and not unloaded:
+            unloaded = True
+            await model.unload()
+
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         log.info("Watching %s", config.briefs_dir)
@@ -132,9 +140,17 @@ def create_app(config: AppConfig) -> FastAPI:
         yield
         warm.cancel()
         task.cancel()
+        await unload()
         await model.aclose()
 
     app = FastAPI(title="Desk Secretary", lifespan=lifespan)
+
+    # The desktop shell calls this just before it ends the app on Quit, because
+    # that kill skips the normal shutdown (and so the unload above).
+    @app.post("/api/unload")
+    async def unload_endpoint() -> dict[str, bool]:
+        await unload()
+        return {"ok": True}
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket) -> None:
