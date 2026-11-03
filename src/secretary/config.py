@@ -17,9 +17,10 @@ class OllamaConfig(BaseModel):
     url: str = "http://127.0.0.1:11434"
     model: str = "gemma4:12b"
     # How long Ollama keeps the model in VRAM after a request: a duration such as
-    # "30m", or -1 to keep it loaded for as long as the app runs (reloading
-    # gemma4:12b after it times out takes about 20 s). The app unloads it on quit.
-    keep_alive: str | int = -1
+    # "30m", or -1 to keep it loaded for as long as the app runs. After it times
+    # out, the next question waits for a reload (about 20 s for gemma4:12b); the
+    # tradeoff is ~8 GB of VRAM held while idle. The app unloads it on quit.
+    keep_alive: str | int = "30m"
     unload_on_exit: bool = True
     # Thinking models (Gemma 4, Qwen3, Qwen3.5) reason silently before answering,
     # which adds many seconds before the first word. Off by default for a voice

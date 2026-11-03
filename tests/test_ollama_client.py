@@ -56,7 +56,7 @@ def test_log_timings_breaks_down_the_wait():
     assert line == "Ollama: load 6.2 s, prompt 1800 tok in 1.5 s, gen 60 tok in 1.2 s (50 tok/s)"
 
 
-async def test_model_stays_loaded_while_the_app_runs():
+async def test_requests_tell_ollama_how_long_to_keep_the_model():
     seen = []
 
     def handler(request):
@@ -66,7 +66,7 @@ async def test_model_stays_loaded_while_the_app_runs():
     client = _client(handler)
     await client.warm_up()
     _ = [t async for t in client.stream_chat([], {})]
-    assert [p["keep_alive"] for p in seen] == [-1, -1]
+    assert [p["keep_alive"] for p in seen] == ["30m", "30m"]
 
 
 async def test_unload_frees_the_model_and_survives_ollama_being_gone(caplog):

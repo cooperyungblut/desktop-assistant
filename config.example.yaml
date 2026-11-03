@@ -20,7 +20,7 @@ port: 8765
 ollama:
   url: http://127.0.0.1:11434
   model: gemma4:12b    # check the exact tag at ollama.com/library; any chat model works
-  keep_alive: -1       # keep the model in VRAM while the app runs; or a time such as 30m
+  keep_alive: 30m      # VRAM is freed after this long idle (next question reloads, ~20 s); -1 = never
   unload_on_exit: true # free that VRAM when the app quits
   think: false         # thinking models (Gemma 4, Qwen3) otherwise reason silently for seconds first
 
