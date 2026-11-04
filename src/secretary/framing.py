@@ -62,7 +62,8 @@ Fill in this layout. Keep the labels exactly as shown, one line each:
 
 OPENER: [mood] one line right after the brief's greeting, before any news: the kind of day it is
 AFTER 1: [mood] a quick reaction right after paragraph 1
-CLOSER: [mood] one line after the last news, right before the brief's own sign-off
+CLOSER: [mood] one line after the last news, right before the brief's own sign-off,
+  about the day as a whole. React to a single item in an AFTER line right after it instead.
 
 Change the number after AFTER to the paragraph you're reacting to. Write at most
 {asides} AFTER lines, only for the paragraphs you really have a reaction to.
@@ -164,6 +165,7 @@ def build_framing_messages(persona: Persona, brief: Brief, config: FramingConfig
         paragraphs=numbered,
     )
     if config.asides == 0:
+        task = task.replace(" React to a single item in an AFTER line right after it instead.", "")
         task = re.sub(r"AFTER 1:.*?\n", "", task)
         task = re.sub(r"Change the number.*?reaction to\.\n", "", task, flags=re.DOTALL)
     return [{"role": "system", "content": system}, {"role": "user", "content": task}]
@@ -263,6 +265,25 @@ def spoiler(text: str, paragraphs_: Sequence[str], heard: int, allowed_names: Se
         if first_seen.get(stem, 0) > heard:
             return w
     return ""
+
+
+def topic_paragraph(
+    text: str, paragraphs_: Sequence[str], upto: int, allowed_names: Sequence[str]
+) -> int:
+    """The paragraph (at most `upto`) a line is about: the one sharing the most
+    item words with it, the later one on a tie. 0 if it names no item."""
+    names = {_stem(w) for name in allowed_names for w in _WORD.findall(name)}
+    words = {
+        _stem(w)
+        for w in _WORD.findall(text)
+        if len(_stem(w)) >= 4 and _stem(w) not in _COMMON and _stem(w) not in names
+    }
+    best, best_hits = 0, 0
+    for i, p in enumerate(paragraphs_[:upto], 1):
+        hits = len(words & {_stem(w) for w in _WORD.findall(p)})
+        if hits and hits >= best_hits:
+            best, best_hits = i, hits
+    return best
 
 
 class BriefFramer:
@@ -384,6 +405,14 @@ class BriefFramer:
         heard = {"opener": 1, "closer": self._count}.get(kind, n or 0)
         if not why and (early := spoiler(line.text, self._paragraphs, heard, names)):
             why = f"mentions {early!r} before it's read"
+        if not why and kind in ("after", "closer") and self._config.asides > 0:
+            # A reaction to one item belongs right after that item, not later
+            # (a closer about something from the middle of the brief sounds late).
+            said_after = self._count if kind == "closer" else (n or 0)
+            topic = topic_paragraph(line.text, self._paragraphs, said_after, names)
+            if 0 < topic < said_after:
+                log.info("Framing: moved %s line to after paragraph %d: %r", kind, topic, line.text)
+                kind, n = "after", topic
         if why:
             log.info("Framing: dropped %s line (%s): %r", kind, why, line.text)
         elif kind == "opener" and self.framing.opener is None:

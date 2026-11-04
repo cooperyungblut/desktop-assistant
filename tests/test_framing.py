@@ -16,6 +16,7 @@ from secretary.framing import (
     split_greeting,
     split_signoff,
     spoiler,
+    topic_paragraph,
 )
 from secretary.state import StateStore
 from secretary.tts import SilentSpeaker
@@ -289,3 +290,31 @@ def test_split_signoff(paragraph, tail):
     rest, got = split_signoff(paragraph)
     assert got == tail
     assert f"{rest} {got}".strip() == paragraph
+
+
+@pytest.mark.parametrize(
+    "line, upto, para",
+    [
+        ("Alright, that's me done.", 5, 0),  # about the day, no item
+        ("Oh no, that Northwind rejection stings.", 5, 3),
+        ("Those references are a lot of extra steps.", 5, 2),
+        ("Three new matches is solid.", 5, 5),
+        ("Bummer about Northwind.", 2, 0),  # can't point past what's been read
+    ],
+)
+def test_topic_paragraph(line, upto, para, brief):
+    assert topic_paragraph(line, paragraphs(brief.spoken), upto, ["Juniper", "Cooper"]) == para
+
+
+async def test_late_reaction_moves_to_its_paragraph(persona, brief):
+    model = FakeModel(
+        "OPENER: [relaxed] Okay, mixed bag this morning.\n"
+        "AFTER 5: [sad] Oof, Northwind passing still stings.\n"
+        "CLOSER: [sad] Oh no, those references sound like a lot of extra steps."
+    )
+    framer = BriefFramer(model, persona, brief, FramingConfig())
+    framer.start()
+    await framer.closer()
+    assert framer.framing.closer is None
+    assert framer.framing.asides[3].text == "Oof, Northwind passing still stings."
+    assert framer.framing.asides[2].text.startswith("Oh no, those references")
