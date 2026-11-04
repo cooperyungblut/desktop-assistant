@@ -13,6 +13,7 @@ from secretary.framing import (
     check_line,
     paragraphs,
     parse_line,
+    spoiler,
 )
 from secretary.state import StateStore
 from secretary.tts import SilentSpeaker
@@ -214,3 +215,31 @@ async def test_preamble_is_not_an_opener(persona, brief):
     )
     framer.start()
     assert (await framer.opener()).text == "Okay, today is actually a good one."
+
+
+@pytest.mark.parametrize(
+    "line, heard, word",
+    [
+        ("Okay, busy one today.", 0, ""),
+        ("Okay, a recruiter finally wrote back.", 1, ""),  # paragraph one is next
+        ("Bummer about Northwind.", 1, "Northwind"),  # that's paragraph three
+        ("Bummer about Northwind.", 3, ""),
+        ("Coffee chat sounds nice.", 2, "Coffee"),
+        ("Hmm, the references are due soon.", 1, "references"),
+    ],
+)
+def test_spoiler(line, heard, word, brief):
+    assert spoiler(line, paragraphs(brief.spoken), heard, ["Juniper", "Cooper"]) == word
+
+
+async def test_opener_that_gives_away_a_later_item_is_dropped(persona, brief):
+    model = FakeModel(
+        "OPENER: [sad] That Northwind news is not what I wanted to hear.\n"
+        "AFTER 1: [happy] Finally, a real reply from a recruiter.\n"
+        "AFTER 3: [sad] Bummer about Northwind.\n"
+        "CLOSER: [relaxed] Alright, that's me done."
+    )
+    framer = BriefFramer(model, persona, brief, FramingConfig())
+    framer.start()
+    assert await framer.opener() is None
+    assert set(framer.framing.asides) == {1, 3}
