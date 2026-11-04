@@ -4,7 +4,7 @@ import json
 import httpx
 import pytest
 
-from secretary.calendar_requests import EventDraft, RemoveRequest
+from secretary.calendar_requests import AgendaRequest, EventDraft, RemoveRequest
 from secretary.config import CalendarConfig
 from secretary.google_calendar import (
     MARKER,
@@ -204,3 +204,31 @@ async def test_remove_deletes_that_event(config):
     await cal.remove(FoundEvent("a/1", EventDraft("Test", DAY)))
     assert google.requests[-1].method == "DELETE"
     assert google.requests[-1].url.raw_path == b"/calendar/v3/calendars/primary/events/a%2F1"
+
+
+async def test_agenda_reads_the_whole_day_including_events_she_did_not_add(config):
+    seen = []
+    items = {
+        "items": [
+            ITEMS["items"][0],
+            {"id": "x", "summary": "Gone", "status": "cancelled", "start": {"date": "2026-11-05"}},
+            {"id": "y", "summary": "Your own event", "start": {"date": "2026-11-05"}},
+        ]
+    }
+
+    def handler(request):
+        seen.append(request)
+        if str(request.url) == TOKEN_URL:
+            return httpx.Response(200, json={"access_token": "new", "expires_in": 3599})
+        return httpx.Response(200, json=items)
+
+    cal = GoogleCalendar(
+        config,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        clock=lambda: 1000.0,
+    )
+    drafts = await cal.agenda(AgendaRequest(DAY))
+    assert [d.title for d in drafts] == ["Test event", "Your own event"]
+    query = seen[-1].url.params
+    assert "privateExtendedProperty" not in query  # unlike find(): everything, read-only
+    assert seen[-1].method == "GET"

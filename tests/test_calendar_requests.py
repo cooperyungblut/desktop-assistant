@@ -3,12 +3,16 @@ import datetime as dt
 import pytest
 
 from secretary.calendar_requests import (
+    AgendaRequest,
     EventDraft,
     Problem,
     RemoveRequest,
     answer_to_confirm,
+    day_phrase,
+    describe_agenda_item,
     describe_event,
     is_calendar_request,
+    parse_agenda,
     parse_event,
     parse_removal,
 )
@@ -224,3 +228,51 @@ def test_not_a_removal_request(text):
 
 def test_a_title_ending_in_off_survives_adding():
     assert said("add day off to my calendar friday") == "Day off, Friday, November 6, all day"
+
+
+@pytest.mark.parametrize(
+    ("text", "day"),
+    [
+        ("what's on my calendar today", TODAY),
+        ("What's on my calendar tomorrow?", dt.date(2026, 11, 5)),
+        ("what do I have on my calendar friday", dt.date(2026, 11, 6)),
+        ("read me my calendar", TODAY),
+        ("hey Juniper, check my calendar for the 20th", dt.date(2026, 11, 20)),
+        ("do I have anything on my calendar next monday", dt.date(2026, 11, 9)),
+        ("is my calendar free tomorrow afternoon", dt.date(2026, 11, 5)),
+        ("show me my calendar for november 12", dt.date(2026, 11, 12)),
+    ],
+)
+def test_agenda_requests(text, day):
+    assert parse_agenda(text, NOW, name="Juniper") == AgendaRequest(day)
+
+
+def test_agenda_asks_when_the_day_is_unclear():
+    assert isinstance(parse_agenda("what's on my calendar this week", NOW), Problem)
+    assert isinstance(parse_agenda("what's on my calendar tomorrow and friday", NOW), Problem)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "what's on tomorrow",  # no "calendar"
+        "add lunch to my calendar tomorrow at noon",
+        "remove the test event from my calendar",
+        "clear my calendar for friday",
+        "don't look at my calendar",
+        "read me this morning's brief",
+    ],
+)
+def test_not_an_agenda_request(text):
+    assert parse_agenda(text, NOW, name="Juniper") is None
+
+
+def test_agenda_wording():
+    assert day_phrase(TODAY, TODAY) == "today"
+    assert day_phrase(dt.date(2026, 11, 5), TODAY) == "tomorrow"
+    assert day_phrase(dt.date(2026, 11, 6), TODAY) == "on Friday, November 6"
+    timed = EventDraft(
+        "Coffee chat", TODAY, dt.datetime(2026, 11, 4, 10), dt.datetime(2026, 11, 4, 11)
+    )
+    assert describe_agenda_item(timed) == "Coffee chat at 10 AM"
+    assert describe_agenda_item(EventDraft("Birthday", TODAY)) == "Birthday, all day"

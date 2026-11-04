@@ -524,6 +524,70 @@ def parse_removal(
     return RemoveRequest(title.strip(), day)
 
 
+# ---- looking ------------------------------------------------------------------
+
+_LOOK_START = re.compile(
+    r"(?:what(?:'s|\s+is|\s+do\s+i\s+have|\s+have\s+i\s+got)?|read|show|tell|list|give|check|"
+    r"look|pull\s+up|do\s+i\s+have|have\s+i\s+got|is\s+there|is\s+my|any(?:thing)?)\b",
+    re.I,
+)
+
+
+@dataclass(frozen=True)
+class AgendaRequest:
+    """ "What's on my calendar tomorrow": one day, today if none was said."""
+
+    day: dt.date
+
+
+def parse_agenda(
+    text: str, now: dt.datetime, *, name: str | None = None
+) -> AgendaRequest | Problem | None:
+    """An `AgendaRequest` for a question about what's on the calendar, a
+    `Problem` if the day is unclear, or None if it isn't one. Needs the word
+    "calendar"."""
+    text = strip_leading_filler(text.strip(), name)
+    if (
+        len(text.split()) > 25
+        or not re.search(r"\bcalendar\b", text, re.I)
+        or not _LOOK_START.match(text)
+        or _NEGATION.search(text)
+    ):
+        return None
+    today = now.date()
+    found = _find_dates(text, today)
+    if found.bad:
+        return Problem(f"I don't think {found.bad} is a real date. Which day is it?")
+    distinct = sorted(set(found.days))
+    if len(distinct) > 1:
+        return Problem("That's more than one day. Which day should I look at?")
+    if re.search(r"\b(?:this|next)\s+week\b|\bweekend\b|\bweek\b", text, re.I) and not distinct:
+        return Problem("I can read one day at a time. Which day?")
+    if distinct and found.weekdays and distinct[0].weekday() not in found.weekdays:
+        said = WEEKDAYS[found.weekdays[0]].capitalize()
+        return Problem(
+            f"{distinct[0]:%B} {distinct[0].day} is a {distinct[0]:%A}, not a {said}. "
+            "Which day did you mean?"
+        )
+    return AgendaRequest(distinct[0] if distinct else today)
+
+
+def day_phrase(day: dt.date, today: dt.date) -> str:
+    """'today', 'tomorrow' or 'on Friday, November 6'."""
+    if day == today:
+        return "today"
+    if day == today + dt.timedelta(days=1):
+        return "tomorrow"
+    return "on " + spoken_date(day, today)
+
+
+def describe_agenda_item(event: EventDraft) -> str:
+    """'Coffee chat at 10 AM' or 'Mom's birthday, all day'."""
+    if event.start is None:
+        return f"{event.title}, all day"
+    return f"{event.title} at {spoken_time(event.start)}"
+
+
 # ---- reading it back ---------------------------------------------------------
 
 

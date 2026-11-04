@@ -39,7 +39,10 @@ from .calendar_requests import (
     EventDraft,
     Problem,
     answer_to_confirm,
+    day_phrase,
+    describe_agenda_item,
     describe_event,
+    parse_agenda,
     parse_event,
     parse_removal,
 )
@@ -381,6 +384,10 @@ class Assistant:
         if escalations.wants_escalation(text):
             return False
         now = self._now()
+        agenda = parse_agenda(text, now, name=self.persona.name)
+        if agenda is not None:
+            await self._agenda_turn(agenda, text, now)
+            return True
         removal = parse_removal(text, now, name=self.persona.name)
         if removal is not None:
             await self._removal_turn(removal, text, now)
@@ -402,6 +409,34 @@ class Assistant:
             event = describe_event(result, now.date())
             await self._reply_line(lines.calendar_confirm.format(event=event), text)
         return True
+
+    async def _agenda_turn(self, request, text: str, now: dt.datetime) -> None:
+        """ "What's on my calendar tomorrow": read the day out, built in code from the
+        calendar's own data (the model never summarizes it)."""
+        lines = self.persona.lines
+        if not self._calendar.available:
+            await self._reply_line(lines.calendar_off, text)
+            return
+        if isinstance(request, Problem):
+            await self._reply_line(request.message, text)
+            return
+        try:
+            events = await self._calendar.agenda(request)
+        except CalendarError as exc:
+            await self._reply_line(lines.calendar_read_failed.format(reason=exc), text)
+            return
+        day = day_phrase(request.day, now.date())
+        if not events:
+            await self._reply_line(lines.calendar_clear.format(day=day), text)
+            return
+        shown = events[:8]
+        listing = "; ".join(describe_agenda_item(e) for e in shown)
+        if len(events) > len(shown):
+            listing += f"; and {len(events) - len(shown)} more"
+        things = f"{len(events)} thing" + ("" if len(events) == 1 else "s")
+        await self._reply_line(
+            lines.calendar_agenda.format(things=things, day=day, events=listing), text
+        )
 
     async def _removal_turn(self, request, text: str, now: dt.datetime) -> None:
         """Find the one event of hers the request means and read it back."""

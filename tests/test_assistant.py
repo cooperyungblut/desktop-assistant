@@ -275,6 +275,7 @@ class FakeCalendar:
     def __init__(self, error: str | None = None):
         self.added = []
         self.found = []
+        self.agenda_events = []
         self.removed = None
         self.error = error
 
@@ -290,6 +291,14 @@ class FakeCalendar:
     async def find(self, request, now):
         self.searched = request
         return self.found
+
+    async def agenda(self, request):
+        self.asked = request
+        if self.error:
+            from secretary.google_calendar import CalendarError
+
+            raise CalendarError(self.error)
+        return self.agenda_events
 
     async def remove(self, found):
         if self.error:
@@ -448,3 +457,35 @@ async def test_calendar_removal_failure_is_spoken(env):
     a.ask("yes")
     await finish(a)
     assert replies(events)[-1] == "I couldn't remove that: Google Calendar didn't answer."
+
+
+async def test_calendar_question_is_answered_from_the_calendar(env, fake_model):
+    cal = FakeCalendar()
+    cal.agenda_events = [found_event("Coffee chat").draft, found_event("Mock interview").draft]
+    a, events = calendar_env(env, cal)
+    a.ask("What's on my calendar tomorrow?")
+    await finish(a)
+    assert replies(events) == [
+        "You have 2 things tomorrow: Coffee chat at 3 PM; Mock interview at 3 PM."
+    ]
+    assert fake_model.requests == []  # built in code, not summarized by the model
+
+
+async def test_calendar_question_clear_day_and_failure(env):
+    cal = FakeCalendar()
+    a, events = calendar_env(env, cal)
+    a.ask("what's on my calendar on friday")
+    await finish(a)
+    assert replies(events)[-1] == "Your calendar is clear on Friday, November 6."
+
+    cal.error = "Google Calendar didn't answer"
+    a.ask("read me my calendar")
+    await finish(a)
+    assert replies(events)[-1] == "I couldn't read your calendar: Google Calendar didn't answer."
+
+
+async def test_calendar_question_when_not_connected(env, fake_model):
+    a, _, _, events = env
+    a.ask("what's on my calendar today")
+    await finish(a)
+    assert replies(events) == [a.persona.lines.calendar_off]

@@ -35,6 +35,11 @@ class Lines(BaseModel):
     calendar_removed: str = "Done, I took it off your calendar."
     calendar_remove_none: str = "I don't see an event like that that I added."
     calendar_remove_failed: str = "I couldn't remove that: {reason}."
+    # Reading the calendar. {day} is "today", "tomorrow" or "on Friday, November 6";
+    # {things} is "3 things"; {events} the list, e.g. "Coffee chat at 10 AM; Lunch at noon".
+    calendar_clear: str = "Your calendar is clear {day}."
+    calendar_agenda: str = "You have {things} {day}: {events}."
+    calendar_read_failed: str = "I couldn't read your calendar: {reason}."
     calendar_off: str = "I can't reach your calendar yet. It needs to be connected first."
 
 
