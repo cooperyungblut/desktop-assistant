@@ -46,6 +46,10 @@ _QUESTION_START = re.compile(
     r"^\s*(what|when|who|where|why|how|which|did|does|do|is|was|are|have|has)\b", re.I
 )
 _NEGATION = re.compile(r"\b(don't|dont|do\s+not|never|no\s+need)\b", re.I)
+_NEW_EVENT = (
+    r"(?:add|create|make|set\s+up|put\s+in)\s+(?:me\s+)?(?:a|an|another|the|new)?\s*"
+    r"(?:new\s+)?(?:[\w'’-]+\s+){0,3}?(?:event|appointment|meeting|reminder)\b"
+)
 _LEADING_FILLER = [
     r"(?:hey|hi|okay|ok|so|um|uh)\b[,.!]?\s*",
     r"(?:can|could|would|will)\s+you\s+",
@@ -101,7 +105,10 @@ def is_calendar_request(text: str, name: str | None = None) -> bool:
         return False
     if re.match(r"(?:schedule|book|pencil\s+in)\b", text, re.I):
         return True
-    return bool(re.search(rf"\b{_VERB}\b.*\bcalendar\b", text, re.I))
+    if re.search(rf"\b{_VERB}\b.*\bcalendar\b", text, re.I):
+        return True
+    # "Create a test event for tomorrow at 3": no "calendar", but it names an event.
+    return bool(re.match(_NEW_EVENT, text, re.I))
 
 
 # ---- dates -------------------------------------------------------------------
@@ -423,6 +430,8 @@ def parse_event(
                 rest = _cut(rest, m)
                 break
 
+    if not re.search(r"\bcalendar\b", text, re.I) and not found.days and start_min is None:
+        return None  # "create a meeting agenda": no calendar, no when, so not a request
     title = _title(rest, name)
     if not title:
         return Problem("What should I call it?")

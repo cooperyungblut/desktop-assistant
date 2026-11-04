@@ -99,6 +99,41 @@ def test_reads_back_the_event(text, expected):
     assert said(text) == expected
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Create a test event for tomorrow at 3.", "Test event, Thursday, November 5, 3 to 4 PM"),
+        (
+            "make a dentist appointment friday at 2",
+            "Dentist appointment, Friday, November 6, 2 to 3 PM",
+        ),
+        (
+            "add a meeting with Dana tomorrow at 10am",
+            "Meeting with Dana, Thursday, November 5, 10 to 11 AM",
+        ),
+        (
+            "Create an event called standup tomorrow at 9",
+            "Standup, Thursday, November 5, 9 to 10 AM",
+        ),
+    ],
+)
+def test_names_an_event_without_saying_calendar(text, expected):
+    assert said(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "add an event to the wiki",
+        "create a meeting agenda",
+        "what event is tomorrow",
+        "make a note",
+    ],
+)
+def test_event_word_alone_is_not_enough(text):
+    assert parse_event(text, NOW) is None
+
+
 def test_a_time_without_a_day_is_the_next_time_it_comes_round():
     # It's 3 PM: "at 5" is later today, "at 3" (3 PM) has just passed so it's tomorrow.
     assert said("add a call to my calendar at 5") == "Call, Wednesday, November 4, 5 to 6 PM"
