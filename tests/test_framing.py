@@ -14,6 +14,7 @@ from secretary.framing import (
     paragraphs,
     parse_line,
     split_greeting,
+    split_signoff,
     spoiler,
 )
 from secretary.state import StateStore
@@ -151,7 +152,9 @@ async def test_readout_with_framing(make_env, morning_text):
     assert said[1] == "Good morning, Cooper!"
     assert said[2] == "Okay, today is actually a good one."
     assert said[3].startswith("Big news first.")
-    assert said[-1] == "Alright, that's me done."
+    # Her closing line comes before the brief's own sign-off.
+    assert said[-2] == "Alright, that's me done."
+    assert said[-1] == "That's everything!"
     assert "Their loss, honestly." in said
     # Every word of the brief is still said, unchanged and in order.
     brief_said = [s for s in said if s not in FRAMING]
@@ -266,3 +269,23 @@ def test_split_greeting(paragraph, head):
     got_head, rest = split_greeting(paragraph)
     assert got_head == head
     assert f"{got_head} {rest}".strip() == paragraph
+
+
+@pytest.mark.parametrize(
+    "paragraph, tail",
+    [
+        ("Tomorrow is open. Have a good night!", "Have a good night!"),
+        ("The details are on screen. That's everything!", "That's everything!"),
+        (
+            "Two things. Good luck out there. Have a great day!",
+            "Good luck out there. Have a great day!",
+        ),
+        ("You have a call at ten. Have fun on it, though, it's a screen.", ""),  # not a sign-off
+        ("Nothing today.", ""),
+        ("Have a good night!", "Have a good night!"),
+    ],
+)
+def test_split_signoff(paragraph, tail):
+    rest, got = split_signoff(paragraph)
+    assert got == tail
+    assert f"{rest} {got}".strip() == paragraph
