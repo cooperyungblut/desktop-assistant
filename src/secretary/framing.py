@@ -77,7 +77,9 @@ Reply with only those lines, each on its own line, in this order.
 </brief>"""
 
 _LABEL = re.compile(
-    r"^[\s*_#>-]*(opener|closer|after\s*\[?\s*(?:paragraph\s*)?(\d+)\s*\]?)[\s*_]*:[\s*_]*(.*)$",
+    r"^[\s*_#>-]*(?P<mood>\[\s*[a-z]+\s*\])?[\s*_]*"
+    r"(?P<label>opener|closer|after\s*\[?\s*(?:paragraph\s*|n\s*=\s*)?(?P<n>\d+)\s*\]?)"
+    r"[\s*_]*[:\-–—][\s*_]*(?P<text>.*)$",
     re.IGNORECASE,
 )
 _MOOD = re.compile(r"^\[\s*([a-z]+)\s*\]\s*", re.IGNORECASE)
@@ -124,9 +126,10 @@ def parse_line(raw: str) -> tuple[str, int | None, FrameLine] | None:
     m = _LABEL.match(raw.strip())
     if not m:
         return None
-    label = m.group(1).lower()
+    label = m.group("label").lower()
     kind = "after" if label.startswith("after") else label
-    text = m.group(3).strip().strip("*_").strip()
+    # A mood tag may come before the label ("[sad] OPENER: ...") or after it.
+    text = ((m.group("mood") or "") + m.group("text")).strip().strip("*_").strip()
     mood = None
     if mt := _MOOD.match(text):
         word = mt.group(1).lower()
@@ -135,7 +138,7 @@ def parse_line(raw: str) -> tuple[str, int | None, FrameLine] | None:
     text = text.strip().strip('"“”').strip()
     if not text:
         return None
-    return kind, int(m.group(2)) if m.group(2) else None, FrameLine(text, mood)
+    return kind, int(m.group("n")) if m.group("n") else None, FrameLine(text, mood)
 
 
 def check_line(text: str, brief_text: str, allowed_names: Sequence[str], max_words: int) -> str:
@@ -172,6 +175,7 @@ class BriefFramer:
         self._config = config
         self._count = len(paragraphs(brief.spoken))
         self.framing = Framing()
+        self.raw = ""  # what the model wrote, for scripts/try_framing.py
         self._opener_done = asyncio.Event()
         self._task: asyncio.Task | None = None
         self._deadline = 0.0
@@ -231,6 +235,7 @@ class BriefFramer:
                 messages, self._persona.sampling.as_options()
             ):
                 buf += token
+                self.raw += token
                 *lines, buf = buf.split("\n")
                 for line in lines:
                     self._take(line)
@@ -247,7 +252,7 @@ class BriefFramer:
         parsed = parse_line(raw)
         if parsed is None:
             if raw.strip():
-                log.debug("Framing: ignored %r", raw)
+                log.info("Framing: ignored %r", raw)
             return
         kind, n, line = parsed
         names = [self._persona.name, self._persona.user_name]
