@@ -13,6 +13,7 @@ from secretary.framing import (
     check_line,
     paragraphs,
     parse_line,
+    split_greeting,
     spoiler,
 )
 from secretary.state import StateStore
@@ -145,15 +146,18 @@ async def test_readout_with_framing(make_env, morning_text):
     a, events = make_env(FakeModel(FRAMING), FramingConfig())
     await read(a)
     said = [e["text"] for e in events if e["type"] == "say"]
-    assert said[0] == "Okay, today is actually a good one."
-    assert said[1].startswith("Heads up, this is a practice brief")
+    # The brief's own greeting first, then her opener, then the news.
+    assert said[0].startswith("Heads up, this is a practice brief")
+    assert said[1] == "Good morning, Cooper!"
+    assert said[2] == "Okay, today is actually a good one."
+    assert said[3].startswith("Big news first.")
     assert said[-1] == "Alright, that's me done."
     assert "Their loss, honestly." in said
     # Every word of the brief is still said, unchanged and in order.
     brief_said = [s for s in said if s not in FRAMING]
     assert " ".join(brief_said).split() == parse_brief(morning_text).spoken.split()
     moods = [e["mood"] for e in events if e["type"] == "expression"]
-    assert moods == ["happy", "happy", "sad", "relaxed"]
+    assert moods == ["neutral", "happy", "happy", "sad", "relaxed"]
     assert events[-1]["type"] == "speech_done"
 
 
@@ -243,3 +247,22 @@ async def test_opener_that_gives_away_a_later_item_is_dropped(persona, brief):
     framer.start()
     assert await framer.opener() is None
     assert set(framer.framing.asides) == {1, 3}
+
+
+@pytest.mark.parametrize(
+    "paragraph, head",
+    [
+        ("Good morning, Cooper! Big news first.", "Good morning, Cooper!"),
+        (
+            "Heads up, it's fake. Evening, Cooper! Two things.",
+            "Heads up, it's fake. Evening, Cooper!",
+        ),
+        ("Hey Cooper. Quiet one.", "Hey Cooper."),
+        ("Your afternoon is wide open. Afternoon is free.", ""),  # not a greeting
+        ("Two things need replies.", ""),
+    ],
+)
+def test_split_greeting(paragraph, head):
+    got_head, rest = split_greeting(paragraph)
+    assert got_head == head
+    assert f"{got_head} {rest}".strip() == paragraph

@@ -60,7 +60,7 @@ sounds like you talking and not a news reader.
 
 Fill in this layout. Keep the labels exactly as shown, one line each:
 
-OPENER: [mood] one line to start, before {user} has heard anything: the kind of day it is
+OPENER: [mood] one line right after the brief's greeting, before any news: the kind of day it is
 AFTER 1: [mood] a quick reaction right after paragraph 1
 CLOSER: [mood] one line after the brief to wrap up
 
@@ -105,6 +105,24 @@ _NUMBER = re.compile(
 
 def paragraphs(spoken: str) -> list[str]:
     return [p.strip() for p in re.split(r"\n\s*\n", spoken) if p.strip()]
+
+
+_GREETING = re.compile(
+    r"(?:^|(?<=[.!?]))\s*(?:good\s+(?:morning|afternoon|evening)|(?:morning|afternoon|evening)"
+    r"(?=\s*[,!.]))[^.!?]*[.!?]+"
+    r"|(?:^|(?<=[.!?]))\s*(?:hey|hi|hello)\b[^.!?]*[.!?]+",
+    re.IGNORECASE,
+)
+
+
+def split_greeting(paragraph: str) -> tuple[str, str]:
+    """(up to and including the greeting, the rest) of a brief's first paragraph,
+    so her opener can come right after "Good morning, Cooper!". No greeting
+    means ("", paragraph): the opener goes first."""
+    m = _GREETING.search(paragraph)
+    if not m:
+        return "", paragraph
+    return paragraph[: m.end()].strip(), paragraph[m.end() :].strip()
 
 
 def build_framing_messages(persona: Persona, brief: Brief, config: FramingConfig) -> list[Message]:

@@ -35,7 +35,7 @@ from . import commands, escalations
 from .briefs import Brief
 from .config import FramingConfig
 from .expressions import TagFilter, strip_tags
-from .framing import BriefFramer, FrameLine, paragraphs
+from .framing import BriefFramer, FrameLine, paragraphs, split_greeting
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .persona import Persona
 from .prompt import Turn, build_messages
@@ -191,14 +191,16 @@ class Assistant:
             framer = BriefFramer(self._model, self.persona, brief, self._framing)
             framer.start()
         try:
-            opener = await framer.opener() if framer else None
-            if opener and opener.mood:
-                await self._say_frame(opener)  # her reaction sets the face
-            else:
-                await self._express("neutral")
-                if opener:
-                    await self._say(opener.text)
-            for n, paragraph in enumerate(paragraphs(brief.spoken), 1):
+            await self._express("neutral")
+            parts = paragraphs(brief.spoken)
+            # Her opener comes right after the brief's own "Good morning, Cooper!"
+            # (or first, if there's no greeting), so she doesn't talk before saying hi.
+            greeting, parts[0] = split_greeting(parts[0])
+            for sentence in split_sentences(greeting):
+                await self._say(sentence)
+            if framer and (opener := await framer.opener()):
+                await self._say_frame(opener)
+            for n, paragraph in enumerate(parts, 1):
                 for sentence in split_sentences(paragraph):
                     await self._say(sentence)
                 if framer and (aside := await framer.aside(n)):
