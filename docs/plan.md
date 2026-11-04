@@ -146,6 +146,13 @@ Chunk 2:
   hold needs a native keyboard hook because Electron's global shortcuts
   only see presses, not releases.
 
+## Personality polish
+
+- [x] In-character framing around the brief readout (opener, asides,
+  closer; config `brief_framing`, preview with `scripts/try_framing.py`)
+- [ ] **Cooper:** hear it on a real brief; tune `asides`/`wait_seconds`
+- [ ] Persona presets with a private persona file kept out of git
+
 ## Milestone 5: wake word (~1–2 chunks)
 
 - openWakeWord (runs on CPU, custom "hey Juniper" model trainable from

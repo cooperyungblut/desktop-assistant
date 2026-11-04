@@ -33,7 +33,9 @@ from typing import Any
 
 from . import commands, escalations
 from .briefs import Brief
+from .config import FramingConfig
 from .expressions import TagFilter, strip_tags
+from .framing import BriefFramer, FrameLine, paragraphs
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .persona import Persona
 from .prompt import Turn, build_messages
@@ -60,6 +62,7 @@ class Assistant:
         emit: Emit,
         transcriber: Transcriber | None = None,
         history_turns: int = 12,
+        framing: FramingConfig | None = None,
     ):
         self.persona = persona
         self._model = model
@@ -70,6 +73,7 @@ class Assistant:
         self._emit = emit
         self._transcriber = transcriber or NoTranscriber()
         self._history_turns = history_turns
+        self._framing = framing or FramingConfig(enabled=False)
 
         self.briefs: dict[str, Brief] = {}
         self.current: Brief | None = None
@@ -179,13 +183,38 @@ class Assistant:
             }
         )
         await self.send_briefs()
-        await self._express("neutral")
         # The spoken script is read verbatim. It never passes through the local
-        # model, so the persona can't distort the facts in the readout.
-        for sentence in split_sentences(brief.spoken):
-            await self._say(sentence)
+        # model, so the persona can't distort the facts in the readout. Her own
+        # framing lines (if on) only go before, between and after paragraphs.
+        framer = None
+        if self._framing.enabled:
+            framer = BriefFramer(self._model, self.persona, brief, self._framing)
+            framer.start()
+        try:
+            opener = await framer.opener() if framer else None
+            if opener and opener.mood:
+                await self._say_frame(opener)  # her reaction sets the face
+            else:
+                await self._express("neutral")
+                if opener:
+                    await self._say(opener.text)
+            for n, paragraph in enumerate(paragraphs(brief.spoken), 1):
+                for sentence in split_sentences(paragraph):
+                    await self._say(sentence)
+                if framer and (aside := await framer.aside(n)):
+                    await self._say_frame(aside)
+            if framer and (closer := await framer.closer()):
+                await self._say_frame(closer)
+        finally:
+            if framer:
+                framer.cancel()
         self.history.append(Turn("assistant", brief.spoken))
         await self._emit({"type": "speech_done"})
+
+    async def _say_frame(self, line: FrameLine) -> None:
+        if line.mood:
+            await self._express(line.mood)
+        await self._say(line.text)
 
     async def _voice(self, audio: bytes) -> None:
         start = time.perf_counter()

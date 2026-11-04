@@ -63,13 +63,9 @@ def system_prompt(persona: Persona, brief: Brief | None) -> str:
         f"You are talking with {persona.user_name} at their desk.",
         CORE_RULES.format(user=persona.user_name),
         MOOD_TAG_RULE.format(tags=", ".join(f"[{e}]" for e in EMOTIONS)),
-        "Your personality: " + "; ".join(p.traits) + ".",
-        f"How you speak: {p.speaking_style.strip()}",
+        *persona_lines(persona),
         f"Answer length: {p.answer_length}.",
     ]
-    if persona.example_lines:
-        examples = "\n".join(f'- "{line}"' for line in persona.example_lines)
-        parts.append(f"Example lines (style only, not facts):\n{examples}")
     if brief is None:
         parts.append("No brief is loaded right now.")
     else:
@@ -79,6 +75,20 @@ def system_prompt(persona: Persona, brief: Brief | None) -> str:
             f"<brief>\n{brief.display}\n</brief>"
         )
     return "\n\n".join(parts)
+
+
+def persona_lines(persona: Persona) -> list[str]:
+    """Personality, speaking style and example lines: the parts of the prompt
+    that make one persona sound different from another."""
+    p = persona.personality
+    lines = [
+        "Your personality: " + "; ".join(p.traits) + ".",
+        f"How you speak: {p.speaking_style.strip()}",
+    ]
+    if persona.example_lines:
+        examples = "\n".join(f'- "{line}"' for line in persona.example_lines)
+        lines.append(f"Example lines (style only, not facts):\n{examples}")
+    return lines
 
 
 def reminder(persona: Persona) -> str:

@@ -149,9 +149,10 @@ VRM expression, holds it while she talks, and relaxes after she stops.
   now mostly "relaxed" with a touch of "happy". The face also holds through
   the gaps between sentences: the server sends `speech_done` when a reply's
   speech is finished, and only then does the face relax.
-- *Readouts stay neutral.* The brief readout is read verbatim and never goes
-  through the model, so there's no mood to pick. That's on purpose: the face
-  shouldn't editorialize the facts.
+- *Readouts don't editorialize.* The brief readout is read verbatim and never
+  goes through the model, so the brief text itself has no mood. Since the
+  framing lines (below) her face follows her own reaction to the news, but
+  the facts are still the brief's words.
 
 **Speech pauses.** Speech is made sentence by sentence so she can start
 talking before the reply is finished. Measuring the clips showed Kokoro trims
@@ -220,4 +221,28 @@ Quit.
   never moves, so she can't.
 - *Spike results in numbers.* The setup guide's checks asked for the GPU
   report line and Task Manager CPU, so "it works" came with evidence.
+
+## Personality around the brief
+
+**The problem.** Changing her persona made no audible difference, because
+most of what she says is the brief, read word for word. Two very different
+personas read the same script identically.
+
+**What it does.** Around the verbatim brief she now adds a first reaction, at
+most a couple of quick asides between paragraphs, and a closing line. One
+streamed call to the local model writes them, in the loaded persona's voice,
+as labeled lines (`OPENER:`, `AFTER 3:`, `CLOSER:`), each with a mood tag that
+drives her face.
+
+**Key decisions.**
+- *Frame the facts, don't rewrite them.* The brief text still never passes
+  through the model. Her lines only go between paragraphs, so the worst a bad
+  line can do is sound off, not change what the brief says.
+- *Check in code, not just in the prompt.* A line is dropped if it has a
+  number (spelled out or not) or a capitalised name that isn't in the brief.
+  Small models obey "add no facts" most of the time; the check covers the rest.
+- *Latency budget.* The opener is the first line of the stream, so she says it
+  as soon as it arrives while the rest is written. Everything waits at most
+  3 s from the start; when the model is cold (it unloads after 30 minutes
+  idle) she just reads the brief instead of making Cooper wait 20 s.
 
