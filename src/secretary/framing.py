@@ -105,7 +105,16 @@ _NUMBER = re.compile(
 
 
 def paragraphs(spoken: str) -> list[str]:
-    return [p.strip() for p in re.split(r"\n\s*\n", spoken) if p.strip()]
+    """The pieces of the script her reactions can follow. Normally its paragraphs;
+    when the script has only a few long ones (no blank lines between items), pairs
+    of sentences, so a reaction can still come right after the item it's about."""
+    paras = [p.strip() for p in re.split(r"\n\s*\n", spoken) if p.strip()]
+    sentences = [re.split(r"(?<=[.!?])\s+", p) for p in paras]
+    if len(paras) >= 4 or sum(len(x) for x in sentences) <= 4:
+        return paras
+    return [
+        " ".join(group[i : i + 2]).strip() for group in sentences for i in range(0, len(group), 2)
+    ]
 
 
 _GREETING = re.compile(
