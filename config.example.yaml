@@ -11,6 +11,15 @@ persona_file: personas/juniper.yaml
 # Google Drive for Desktop doesn't reliably raise file events, so the app polls.
 poll_seconds: 5
 
+# Her own lines around a brief readout: a first reaction before it, a couple of
+# quick asides between paragraphs, a line after. Written by the local model in
+# the persona's voice; the brief itself is still read word for word, and any
+# line with a number or a name that isn't in the brief is dropped.
+brief_framing:
+  enabled: true
+  asides: 2           # most reactions between paragraphs (0 = opener and closer only)
+  wait_seconds: 3     # if the model isn't ready by then (e.g. still loading), she just reads
+
 # How many past user/assistant exchanges to send to the model each turn.
 history_turns: 12
 

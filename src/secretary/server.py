@@ -83,6 +83,7 @@ def create_app(config: AppConfig) -> FastAPI:
         emit=hub.emit,
         transcriber=transcriber,
         history_turns=config.history_turns,
+        framing=config.brief_framing,
     )
 
     async def poll_forever() -> None:

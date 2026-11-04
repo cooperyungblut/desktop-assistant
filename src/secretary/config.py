@@ -44,6 +44,19 @@ class SttConfig(BaseModel):
     download_dir: Path = Path("models/whisper")
 
 
+class FramingConfig(BaseModel):
+    """Her own lines around a brief readout (see secretary/framing.py)."""
+
+    enabled: bool = True
+    # Most reactions between paragraphs (0 = opener and closer only).
+    asides: int = Field(default=2, ge=0, le=5)
+    # Longest she waits for the model, counted from the start of the readout.
+    # A loaded gemma4:12b writes the opener in well under a second; a cold one
+    # takes ~20 s to load, so she skips the framing that time.
+    wait_seconds: float = Field(default=3.0, ge=0.0, le=30.0)
+    max_words: int = Field(default=18, ge=4, le=40)
+
+
 class AppConfig(BaseModel):
     secretary_dir: Path = Field(description="Synced folder holding briefs/ and escalations/")
     state_file: Path = Path("data/state.json")
@@ -55,6 +68,7 @@ class AppConfig(BaseModel):
     ollama: OllamaConfig = OllamaConfig()
     tts: TtsConfig = TtsConfig()
     stt: SttConfig = SttConfig()
+    brief_framing: FramingConfig = FramingConfig()
 
     @property
     def briefs_dir(self) -> Path:

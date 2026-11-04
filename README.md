@@ -27,6 +27,11 @@ https://github.com/user-attachments/assets/f6dc1b93-f154-4ee3-8c28-ec2f78aa97e9
 - **Accuracy over personality**: the readout is read verbatim (it never passes
   through the local model), and fixed rules in code stop any persona from
   changing facts.
+- **In-character framing**: around the verbatim readout she adds a first
+  reaction, a couple of quick asides between paragraphs and a closing line,
+  written by the local model in the persona's voice. Lines with numbers or
+  names that aren't in the brief are dropped, and if the model isn't ready
+  within 3 s she just reads the brief. `scripts/try_framing.py` previews it.
 - **Expressions**: the model opens each reply with a mood tag (`[happy]`,
   `[sad]`, …) that the app strips from the text and speech and turns into an
   eased VRM facial expression. The moods are fixed in code; how each one looks
