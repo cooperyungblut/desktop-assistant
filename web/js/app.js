@@ -169,6 +169,7 @@ const handlers = {
   },
   escalated(e) { addMessage("note", `Saved for Claude (${e.id}): “${e.question}”`); },
   calendar_added(e) { addMessage("note", `Added to your calendar: “${e.title}”`); },
+  calendar_removed(e) { addMessage("note", `Removed from your calendar: “${e.title}”`); },
   error(e) { addMessage("note", `⚠ ${e.message}`); },
 };
 function handle(e) { handlers[e.type]?.(e); }

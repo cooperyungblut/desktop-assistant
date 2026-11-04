@@ -51,7 +51,8 @@ https://github.com/user-attachments/assets/f6dc1b93-f154-4ee3-8c28-ec2f78aa97e9
   typed or spoken.
 - **Calendar**: "add lunch with Sam to my calendar tomorrow at noon" is
   parsed in code (never by the model), read back, and added to Google
-  Calendar only after a yes. Setup in [`docs/calendar.md`](docs/calendar.md).
+  Calendar only after a yes. She can remove events she added the same way,
+  and never touches ones you made. Setup in [`docs/calendar.md`](docs/calendar.md).
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
 

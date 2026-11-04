@@ -18,6 +18,7 @@ Event types sent to the UI:
     reply_end    {id, text}
     escalated    {id, question}
     calendar_added {title, link}  an event she added after a yes
+    calendar_removed {title}      an event she removed after a yes
     error        {message}
 """
 
@@ -34,11 +35,18 @@ from typing import Any
 
 from . import commands, escalations
 from .briefs import Brief
-from .calendar_requests import EventDraft, Problem, answer_to_confirm, describe_event, parse_event
+from .calendar_requests import (
+    EventDraft,
+    Problem,
+    answer_to_confirm,
+    describe_event,
+    parse_event,
+    parse_removal,
+)
 from .config import CalendarConfig, FramingConfig
 from .expressions import TagFilter, strip_tags
 from .framing import BriefFramer, FrameLine, paragraphs, split_greeting, split_signoff
-from .google_calendar import Calendar, CalendarError, NoCalendar
+from .google_calendar import Calendar, CalendarError, FoundEvent, NoCalendar
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .persona import Persona
 from .prompt import Turn, build_messages
@@ -83,8 +91,9 @@ class Assistant:
         self._calendar = calendar or NoCalendar()
         self._calendar_config = calendar_config or CalendarConfig()
         self._now = now
-        # The event she just read back, waiting for a yes, and when she asked.
-        self._pending: tuple[EventDraft, float] | None = None
+        # The event she just read back (to add, or to remove), waiting for a yes,
+        # and when she asked.
+        self._pending: tuple[EventDraft | FoundEvent, float] | None = None
 
         self.briefs: dict[str, Brief] = {}
         self.current: Brief | None = None
@@ -359,7 +368,10 @@ class Assistant:
             fresh = time.monotonic() - asked <= self._calendar_config.confirm_seconds
             answer = answer_to_confirm(text, self.persona.name) if fresh else None
             if answer is True:
-                await self._add_event(draft, text)
+                if isinstance(draft, FoundEvent):
+                    await self._remove_event(draft, text)
+                else:
+                    await self._add_event(draft, text)
                 return True
             if answer is False:
                 await self._reply_line(lines.calendar_cancelled, text)
@@ -369,6 +381,10 @@ class Assistant:
         if escalations.wants_escalation(text):
             return False
         now = self._now()
+        removal = parse_removal(text, now, name=self.persona.name)
+        if removal is not None:
+            await self._removal_turn(removal, text, now)
+            return True
         result = parse_event(
             text,
             now,
@@ -386,6 +402,45 @@ class Assistant:
             event = describe_event(result, now.date())
             await self._reply_line(lines.calendar_confirm.format(event=event), text)
         return True
+
+    async def _removal_turn(self, request, text: str, now: dt.datetime) -> None:
+        """Find the one event of hers the request means and read it back."""
+        lines = self.persona.lines
+        if not self._calendar.available:
+            await self._reply_line(lines.calendar_off, text)
+            return
+        if isinstance(request, Problem):
+            await self._reply_line(request.message, text)
+            return
+        try:
+            matches = await self._calendar.find(request, now)
+        except CalendarError as exc:
+            await self._reply_line(lines.calendar_remove_failed.format(reason=exc), text)
+            return
+        if not matches:
+            await self._reply_line(lines.calendar_remove_none, text)
+        elif len(matches) > 1:
+            shown = "; ".join(describe_event(m.draft, now.date()) for m in matches[:3])
+            more = " and more" if len(matches) > 3 else ""
+            await self._reply_line(
+                f"I found {len(matches)} like that: {shown}{more}. "
+                'Say the day too, like "remove the lunch on Friday".',
+                text,
+            )
+        else:
+            self._pending = (matches[0], time.monotonic())
+            event = describe_event(matches[0].draft, now.date())
+            await self._reply_line(lines.calendar_remove_confirm.format(event=event), text)
+
+    async def _remove_event(self, found: FoundEvent, text: str) -> None:
+        try:
+            await self._calendar.remove(found)
+        except CalendarError as exc:
+            reason = self.persona.lines.calendar_remove_failed.format(reason=exc)
+            await self._reply_line(reason, text)
+            return
+        await self._emit({"type": "calendar_removed", "title": found.draft.title})
+        await self._reply_line(self.persona.lines.calendar_removed, text)
 
     async def _add_event(self, draft: EventDraft, text: str) -> None:
         try:

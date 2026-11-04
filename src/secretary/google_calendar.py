@@ -24,12 +24,13 @@ import secrets
 import threading
 import time
 import urllib.parse
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 import httpx
 
-from .calendar_requests import EventDraft
+from .calendar_requests import EventDraft, RemoveRequest
 from .config import CalendarConfig
 
 log = logging.getLogger(__name__)
@@ -38,6 +39,17 @@ SCOPE = "https://www.googleapis.com/auth/calendar.events"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 API_URL = "https://www.googleapis.com/calendar/v3"
+
+
+# Every event she adds carries this private property, and she only ever finds
+# or removes events that have it. Your own events are out of her reach.
+MARKER = "deskSecretary"
+
+
+@dataclass(frozen=True)
+class FoundEvent:
+    id: str
+    draft: EventDraft  # in the PC's local time, for the read-back
 
 
 class CalendarError(RuntimeError):
@@ -54,6 +66,12 @@ class Calendar(Protocol):
         goes in the event's description."""
         ...
 
+    async def find(self, request: RemoveRequest, now: dt.datetime) -> list[FoundEvent]:
+        """Her events (added by her, still upcoming) that match the request."""
+        ...
+
+    async def remove(self, event: FoundEvent) -> None: ...
+
     async def aclose(self) -> None: ...
 
 
@@ -63,6 +81,12 @@ class NoCalendar:
     available = False
 
     async def add(self, event: EventDraft, *, added_by: str | None = None) -> str:
+        raise CalendarError("the calendar isn't connected yet")
+
+    async def find(self, request: RemoveRequest, now: dt.datetime) -> list[FoundEvent]:
+        raise CalendarError("the calendar isn't connected yet")
+
+    async def remove(self, event: FoundEvent) -> None:
         raise CalendarError("the calendar isn't connected yet")
 
     async def aclose(self) -> None:
@@ -80,7 +104,12 @@ def event_body(event: EventDraft, added_by: str | None = None) -> dict[str, Any]
         # daylight-saving rules for that date, not today's.
         start = {"dateTime": event.start.astimezone().isoformat()}
         end = {"dateTime": event.end.astimezone().isoformat()}
-    body: dict[str, Any] = {"summary": event.title, "start": start, "end": end}
+    body: dict[str, Any] = {
+        "summary": event.title,
+        "start": start,
+        "end": end,
+        "extendedProperties": {"private": {MARKER: "1"}},
+    }
     if added_by:
         body["description"] = f"Added by {added_by}."
     return body
@@ -142,6 +171,42 @@ class GoogleCalendar:
         data = r.json()
         log.info("Added calendar event %s", data.get("id"))
         return data.get("htmlLink", "")
+
+    async def find(self, request: RemoveRequest, now: dt.datetime) -> list[FoundEvent]:
+        """Upcoming events she added whose title contains the request's words,
+        on the request's day if it has one."""
+        if request.day is not None:
+            first = dt.datetime.combine(request.day, dt.time())
+            last = first + dt.timedelta(days=1)
+        else:
+            first, last = now, now + dt.timedelta(days=365)
+        params = {
+            "privateExtendedProperty": f"{MARKER}=1",
+            "timeMin": first.astimezone().isoformat(),
+            "timeMax": last.astimezone().isoformat(),
+            "singleEvents": "true",
+            "orderBy": "startTime",
+            "maxResults": "50",
+        }
+        r = await self._request("GET", f"{self._events_url()}", params=params)
+        wanted = request.title.lower()
+        found = []
+        for item in r.json().get("items", []):
+            title = item.get("summary", "")
+            draft = _draft_from_item(item)
+            if item.get("id") and draft and wanted in title.lower():
+                found.append(FoundEvent(item["id"], draft))
+        return found
+
+    async def remove(self, event: FoundEvent) -> None:
+        await self._request(
+            "DELETE", f"{self._events_url()}/{urllib.parse.quote(event.id, safe='')}"
+        )
+        log.info("Removed calendar event %s", event.id)
+
+    def _events_url(self) -> str:
+        cal = urllib.parse.quote(self._config.calendar_id, safe="")
+        return f"{API_URL}/calendars/{cal}/events"
 
     async def calendar_name(self) -> str:
         """The calendar's name, read with one events.list call. Proves the saved
@@ -211,6 +276,22 @@ class GoogleCalendar:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+
+def _draft_from_item(item: dict[str, Any]) -> EventDraft | None:
+    """An events.list item as a local-time EventDraft (None if it has no start)."""
+    title = item.get("summary", "(no title)")
+    start, end = item.get("start", {}), item.get("end", {})
+    try:
+        if "dateTime" in start:
+            begins = dt.datetime.fromisoformat(start["dateTime"]).astimezone().replace(tzinfo=None)
+            ends = dt.datetime.fromisoformat(end["dateTime"]).astimezone().replace(tzinfo=None)
+            return EventDraft(title, begins.date(), begins, ends)
+        if "date" in start:
+            return EventDraft(title, dt.date.fromisoformat(start["date"]))
+    except (KeyError, ValueError):
+        pass
+    return None
 
 
 def _error_text(r: httpx.Response) -> str:

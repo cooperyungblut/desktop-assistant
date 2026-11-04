@@ -5,10 +5,12 @@ import pytest
 from secretary.calendar_requests import (
     EventDraft,
     Problem,
+    RemoveRequest,
     answer_to_confirm,
     describe_event,
     is_calendar_request,
     parse_event,
+    parse_removal,
 )
 
 NOW = dt.datetime(2026, 11, 4, 15, 0)  # a Wednesday afternoon
@@ -179,3 +181,46 @@ def test_not_a_calendar_request(text):
 )
 def test_answer_to_confirm(text, answer):
     assert answer_to_confirm(text, "Juniper") is answer
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Remove the test event from my calendar", RemoveRequest("test")),
+        (
+            "hey Juniper, delete the dentist appointment on friday from my calendar",
+            RemoveRequest("dentist appointment", dt.date(2026, 11, 6)),
+        ),
+        (
+            "take lunch with Sam off my calendar tomorrow",
+            RemoveRequest("lunch with Sam", dt.date(2026, 11, 5)),
+        ),
+        ("cancel everything on my calendar tomorrow", RemoveRequest("", dt.date(2026, 11, 5))),
+        ("clear my calendar for Friday", RemoveRequest("", dt.date(2026, 11, 6))),
+        (
+            "remove the career fair event from the calendar on the 20th",
+            RemoveRequest("career fair", dt.date(2026, 11, 20)),
+        ),
+        ("remove it from my calendar", Problem("Which event should I remove?")),
+    ],
+)
+def test_removal_requests(text, expected):
+    assert parse_removal(text, NOW, name="Juniper") == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "cancel that",  # no "calendar": that's an answer to a read-back, not a removal
+        "delete it",
+        "what's on my calendar",
+        "don't remove the dentist from my calendar",
+        "add lunch to my calendar tomorrow at noon",
+    ],
+)
+def test_not_a_removal_request(text):
+    assert parse_removal(text, NOW, name="Juniper") is None
+
+
+def test_a_title_ending_in_off_survives_adding():
+    assert said("add day off to my calendar friday") == "Day off, Friday, November 6, all day"

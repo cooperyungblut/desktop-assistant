@@ -4,11 +4,13 @@ import json
 import httpx
 import pytest
 
-from secretary.calendar_requests import EventDraft
+from secretary.calendar_requests import EventDraft, RemoveRequest
 from secretary.config import CalendarConfig
 from secretary.google_calendar import (
+    MARKER,
     TOKEN_URL,
     CalendarError,
+    FoundEvent,
     GoogleCalendar,
     NoCalendar,
     auth_url,
@@ -64,6 +66,11 @@ def test_timed_event_body_has_local_offset():
 def test_description_says_who_added_it():
     assert "description" not in event_body(EventDraft("Birthday", DAY))
     assert event_body(EventDraft("Birthday", DAY), "Juniper")["description"] == "Added by Juniper."
+
+
+def test_every_event_carries_her_marker():
+    body = event_body(EventDraft("Birthday", DAY))
+    assert body["extendedProperties"] == {"private": {MARKER: "1"}}
 
 
 def test_all_day_event_ends_the_next_day():
@@ -145,3 +152,55 @@ def test_sign_in_redirect_is_caught_and_state_checked(config, monkeypatch):
     assert sent["code"] == "good" and sent["grant_type"] == "authorization_code"
     assert len(sent["code_verifier"]) >= 43
     assert json.loads(config.token_file.read_text())["refresh_token"] == "r"
+
+
+ITEMS = {
+    "items": [
+        {
+            "id": "a1",
+            "summary": "Test event",
+            "start": {"dateTime": "2026-11-05T15:00:00-06:00"},
+            "end": {"dateTime": "2026-11-05T16:00:00-06:00"},
+        },
+        {"id": "b2", "summary": "Lunch with Sam", "start": {"date": "2026-11-06"}},
+        {"id": "c3", "summary": "Test of the thing", "start": {"date": "2026-11-07"}},
+        {"summary": "No id", "start": {"date": "2026-11-07"}},
+    ]
+}
+
+
+async def test_find_only_asks_for_her_events_and_filters_by_title(config):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        if str(request.url) == TOKEN_URL:
+            return httpx.Response(200, json={"access_token": "new", "expires_in": 3599})
+        return httpx.Response(200, json=ITEMS)
+
+    cal = GoogleCalendar(
+        config,
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+        clock=lambda: 1000.0,
+    )
+    now = dt.datetime(2026, 11, 4, 15, 0)
+    found = await cal.find(RemoveRequest("test"), now)
+    assert [f.id for f in found] == ["a1", "c3"]
+    query = seen[-1].url.params
+    assert query["privateExtendedProperty"] == f"{MARKER}=1"
+    assert query["singleEvents"] == "true"
+    assert found[1].draft.all_day and found[1].draft.day == dt.date(2026, 11, 7)
+    assert found[0].draft.start is not None and found[0].draft.title == "Test event"
+
+    await cal.find(RemoveRequest("", DAY), now)  # one day: the window is that day only
+    first = dt.datetime.fromisoformat(seen[-1].url.params["timeMin"])
+    last = dt.datetime.fromisoformat(seen[-1].url.params["timeMax"])
+    assert last - first == dt.timedelta(days=1) and first.replace(tzinfo=None).date() == DAY
+
+
+async def test_remove_deletes_that_event(config):
+    google = FakeGoogle()
+    cal = calendar_with(config, google)
+    await cal.remove(FoundEvent("a/1", EventDraft("Test", DAY)))
+    assert google.requests[-1].method == "DELETE"
+    assert google.requests[-1].url.raw_path == b"/calendar/v3/calendars/primary/events/a%2F1"
