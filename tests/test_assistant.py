@@ -274,6 +274,8 @@ class FakeCalendar:
 
     def __init__(self, error: str | None = None):
         self.added = []
+        self.found = []
+        self.removed = None
         self.error = error
 
     async def add(self, event, *, added_by=None):
@@ -284,6 +286,17 @@ class FakeCalendar:
         self.added.append(event)
         self.added_by = added_by
         return "https://calendar/e1"
+
+    async def find(self, request, now):
+        self.searched = request
+        return self.found
+
+    async def remove(self, found):
+        if self.error:
+            from secretary.google_calendar import CalendarError
+
+            raise CalendarError(self.error)
+        self.removed = found
 
     async def aclose(self):
         pass
@@ -366,3 +379,72 @@ async def test_calendar_not_connected(env, fake_model):
     await finish(a)
     assert replies(events) == [a.persona.lines.calendar_off]
     assert fake_model.requests == []
+
+
+def found_event(title="Test event"):
+    import datetime as dt
+
+    from secretary.calendar_requests import EventDraft
+    from secretary.google_calendar import FoundEvent
+
+    start = dt.datetime(2026, 11, 5, 15, 0)
+    return FoundEvent("a1", EventDraft(title, start.date(), start, start.replace(hour=16)))
+
+
+async def test_calendar_removal_asks_then_deletes_after_yes(env, fake_model):
+    cal = FakeCalendar()
+    cal.found = [found_event()]
+    a, events = calendar_env(env, cal)
+    a.ask("Remove the test event from my calendar")
+    await finish(a)
+    assert replies(events) == [
+        "Test event, Thursday, November 5, 3 to 4 PM. Should I remove it from your calendar?"
+    ]
+    assert cal.searched.title == "test" and cal.removed is None
+
+    a.ask("yes")
+    await finish(a)
+    assert cal.removed == cal.found[0]
+    assert replies(events)[-1] == "Done, I took it off your calendar."
+    assert {"type": "calendar_removed", "title": "Test event"} in events
+    assert fake_model.requests == []
+
+
+async def test_calendar_removal_no_keeps_the_event(env):
+    cal = FakeCalendar()
+    cal.found = [found_event()]
+    a, events = calendar_env(env, cal)
+    a.ask("remove the test event from my calendar")
+    await finish(a)
+    a.ask("no")
+    await finish(a)
+    assert cal.removed is None and replies(events)[-1] == "Okay, I won't add it."
+
+
+async def test_calendar_removal_nothing_found_or_too_many(env):
+    cal = FakeCalendar()
+    a, events = calendar_env(env, cal)
+    a.ask("remove the dentist from my calendar")
+    await finish(a)
+    assert replies(events)[-1] == "I don't see an event like that that I added."
+
+    cal.found = [found_event("Test one"), found_event("Test two")]
+    a.ask("remove the test from my calendar")
+    await finish(a)
+    assert replies(events)[-1].startswith("I found 2 like that: Test one, Thursday")
+    a.ask("yes")  # nothing pending, so nothing is removed
+    await finish(a)
+    assert cal.removed is None
+
+
+async def test_calendar_removal_failure_is_spoken(env):
+    cal = FakeCalendar(error="Google Calendar didn't answer")
+    cal.found = [found_event()]
+    a, events = calendar_env(env, cal)
+    cal.error = None
+    a.ask("remove the test event from my calendar")
+    await finish(a)
+    cal.error = "Google Calendar didn't answer"
+    a.ask("yes")
+    await finish(a)
+    assert replies(events)[-1] == "I couldn't remove that: Google Calendar didn't answer."

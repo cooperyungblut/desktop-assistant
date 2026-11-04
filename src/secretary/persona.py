@@ -31,6 +31,10 @@ class Lines(BaseModel):
     calendar_added: str = "Done, it's on your calendar."
     calendar_cancelled: str = "Okay, I won't add it."
     calendar_failed: str = "I couldn't add that: {reason}."
+    calendar_remove_confirm: str = "{event}. Should I remove it from your calendar?"
+    calendar_removed: str = "Done, I took it off your calendar."
+    calendar_remove_none: str = "I don't see an event like that that I added."
+    calendar_remove_failed: str = "I couldn't remove that: {reason}."
     calendar_off: str = "I can't reach your calendar yet. It needs to be connected first."
 
 

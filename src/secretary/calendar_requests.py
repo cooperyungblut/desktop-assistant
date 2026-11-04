@@ -343,6 +343,19 @@ _EDGE_WORDS = (
 )
 
 
+def _trim_edges(text: str) -> str:
+    """Strip filler words and punctuation from both ends ("on", "at", "please", ...)."""
+    edge = re.compile(
+        rf"^(?:[\s,;:.!-]|(?:{_EDGE_WORDS})\b)+|(?:[\s,;:.!?-]|\b(?:{_EDGE_WORDS}))+$", re.I
+    )
+    prev = None
+    while prev != text:
+        prev = text
+        text = edge.sub("", text).strip()
+        text = re.sub(r"\s+in$", "", text, flags=re.I)  # "pencil lunch in"
+    return text
+
+
 def _title(rest: str, name: str | None) -> str:
     text = _CALENDAR_PHRASE.sub(" ", rest)
     text = strip_leading_filler(re.sub(r"\s+", " ", text).strip(), name)
@@ -354,14 +367,7 @@ def _title(rest: str, name: str | None) -> str:
         flags=re.I,
     )
     text = re.sub(r"^(?:a|an|the)\s+", "", text, flags=re.I)
-    edge = re.compile(
-        rf"^(?:[\s,;:.!-]|(?:{_EDGE_WORDS})\b)+|(?:[\s,;:.!?-]|\b(?:{_EDGE_WORDS}))+$", re.I
-    )
-    prev = None
-    while prev != text:
-        prev = text
-        text = edge.sub("", text).strip()
-        text = re.sub(r"\s+in$", "", text, flags=re.I)  # "pencil lunch in"
+    text = _trim_edges(text)
     text = re.sub(r"\s+([,.])", r"\1", re.sub(r"\s+", " ", text))
     return text[:1].upper() + text[1:]
 
@@ -455,6 +461,67 @@ def parse_event(
     else:
         end = start + dt.timedelta(minutes=duration or default_minutes)
     return EventDraft(title, day, start, end)
+
+
+# ---- removing ------------------------------------------------------------------
+
+_REMOVE_VERB = r"(?:remove|delete|cancel|clear|scrap|drop|take|get\s+rid\s+of)"
+_REMOVE_CALENDAR = re.compile(
+    r"\b(?:off|from|on|in|out\s+of)\s+(?:of\s+)?(?:my|the|our)\s+(?:google\s+)?calendar\b"
+    r"|\b(?:my|the|our)\s+(?:google\s+)?calendar\b",
+    re.I,
+)
+
+
+@dataclass(frozen=True)
+class RemoveRequest:
+    """Which of her events to remove: words from the title, and optionally the day.
+    An empty title means "any event of hers on that day"."""
+
+    title: str
+    day: dt.date | None = None
+
+
+def is_removal_request(text: str, name: str | None = None) -> bool:
+    """True for "remove X from my calendar" and friends. Needs the word
+    "calendar", so "cancel that" or "delete it" never start one."""
+    text = strip_leading_filler(text.strip(), name)
+    if len(text.split()) > 30 or _QUESTION_START.match(text) or _NEGATION.search(text):
+        return False
+    return bool(re.match(rf"{_REMOVE_VERB}\b.*\bcalendar\b", text, re.I))
+
+
+def parse_removal(
+    text: str, now: dt.datetime, *, name: str | None = None
+) -> RemoveRequest | Problem | None:
+    """A `RemoveRequest`, a `Problem` if it's unclear, or None if it isn't one."""
+    if not is_removal_request(text, name):
+        return None
+    today = now.date()
+    found = _find_dates(text, today)
+    if found.bad:
+        return Problem(f"I don't think {found.bad} is a real date. Which day is it?")
+    distinct = sorted(set(found.days))
+    if len(distinct) > 1:
+        return Problem(
+            f"I heard two different days, {spoken_date(distinct[0], today)} and "
+            f"{spoken_date(distinct[1], today)}. Which one is it?"
+        )
+    day = distinct[0] if distinct else None
+    if day is not None and found.weekdays and day.weekday() not in found.weekdays:
+        said = WEEKDAYS[found.weekdays[0]].capitalize()
+        return Problem(f"{day:%B} {day.day} is a {day:%A}, not a {said}. Which day did you mean?")
+    rest = _REMOVE_CALENDAR.sub(" ", found.rest)
+    rest = strip_leading_filler(re.sub(r"\s+", " ", rest).strip(), name)
+    rest = re.sub(rf"^{_REMOVE_VERB}\s+", "", rest, flags=re.I)
+    title = _trim_edges(re.sub(r"^(?:a|an|the|my|that|this)\s+", "", rest, flags=re.I))
+    title = re.sub(r"\s+(?:events?|entry|entries)$", "", title, flags=re.I)
+    title = re.sub(
+        r"^(?:events?|entry|it|that|this|them|everything|all|all\s+events)$", "", title, flags=re.I
+    )
+    if not title and day is None:
+        return Problem("Which event should I remove?")
+    return RemoveRequest(title.strip(), day)
 
 
 # ---- reading it back ---------------------------------------------------------

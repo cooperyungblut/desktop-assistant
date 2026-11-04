@@ -13,6 +13,22 @@ as a normal message. If she can't tell the day or the name, she asks
 instead of guessing ("November 12 is a Thursday, not a Wednesday. Which day
 did you mean?").
 
+## Removing events
+
+"Remove the test event from my calendar", "delete lunch with Sam from my
+calendar on Friday" or "clear my calendar for Friday" (every event she added
+that day). She finds the event, reads it back ("Test event, Thursday,
+November 5, 3 to 4 PM. Should I remove it from your calendar?") and deletes
+it only after a yes. If more than one event matches she lists them and asks
+you to say the day; she never deletes several at once.
+
+She can only remove events she added herself. Each one she creates carries a
+hidden marker, and she only searches for events with it, so your own events
+can't be touched. Events added before the marker existed (including the test
+events from before this was added) don't have it; delete those in Google
+Calendar. Two events with the same name on the same day can't be told apart
+by voice, so she'll ask for a different day; delete one of them by hand.
+
 ## How it works
 
 - The request is parsed in code (`secretary/calendar_requests.py`), not by
@@ -25,7 +41,7 @@ did you mean?").
   an all-day event. "Friday" is the coming Friday, "next Friday" the one in
   next week.
 - Only text you typed or said can start a calendar request. Brief content
-  never does, and the model can't create events at all.
+  never does, and the model can't create or remove events at all.
 - Events go to Google Calendar through its REST API (`google_calendar.py`)
   with the `calendar.events` scope only. The Calendar API is free for
   personal use.
@@ -82,5 +98,5 @@ calendar:
 ```
 
 Her lines (`calendar_confirm`, `calendar_added`, `calendar_cancelled`,
-`calendar_failed`, `calendar_off`) can be changed under `lines:` in the
+`calendar_failed`, `calendar_off`, and the `calendar_remove_*` ones) can be changed under `lines:` in the
 persona file.
