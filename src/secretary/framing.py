@@ -60,7 +60,7 @@ sounds like you talking and not a news reader.
 
 Fill in this layout. Keep the labels exactly as shown, one line each:
 
-OPENER: [mood] your first reaction to the news overall, before you start reading
+OPENER: [mood] one line to start, before {user} has heard anything: the kind of day it is
 AFTER 1: [mood] a quick reaction right after paragraph 1
 CLOSER: [mood] one line after the brief to wrap up
 
@@ -75,6 +75,8 @@ For every line:
 - Don't inform: add no facts and repeat none (no times, dates, numbers or amounts).
 - No advice, no cheerleading, and no compliments about the news or about {user}.
 - Not a greeting or a goodbye; the brief has those.
+- No spoilers: {user} hears the brief in order, so the OPENER can't mention any
+  item yet, and a later line can only mention what's already been read.
 - Plain words only, no markdown or emoji.
 
 Reply with only the filled-in lines.
@@ -188,6 +190,43 @@ def check_line(text: str, brief_text: str, allowed_names: Sequence[str], max_wor
     return ""
 
 
+# Everyday words that don't give away what an item is about.
+_COMMON = set(
+    """about after again also always another around back been before being better
+    big busy could does doing done down each even ever every first from going good
+    have here just keep kind know last like little long look looks lot lots make
+    many maybe more most much need needs news next nice nothing okay only other
+    over pretty quick quiet quite really right same should some something still
+    such sure take than that their them then there these thing things think this
+    those though time today tomorrow very want well were what when where which
+    while will with would yeah your yours morning afternoon evening night week
+    weekend brief heads practice made everything wrote write writes written said
+    says asked asks sent wants wanted came come""".split()  # noqa: SIM905
+)
+
+
+def _stem(word: str) -> str:
+    w = re.split(r"['’]", word.lower())[0]
+    return w[:-1] if len(w) > 4 and w.endswith("s") else w
+
+
+def spoiler(text: str, paragraphs_: Sequence[str], heard: int, allowed_names: Sequence[str]) -> str:
+    """A word in `text` that only comes up in a paragraph after the first `heard`
+    ones ("" if none). Her lines must not mention an item before it's read."""
+    first_seen: dict[str, int] = {}
+    for i, p in enumerate(paragraphs_, 1):
+        for w in _WORD.findall(p):
+            first_seen.setdefault(_stem(w), i)
+    names = {_stem(w) for name in allowed_names for w in _WORD.findall(name)}
+    for w in _WORD.findall(text):
+        stem = _stem(w)
+        if len(stem) < 4 or stem in _COMMON or stem in names:
+            continue
+        if first_seen.get(stem, 0) > heard:
+            return w
+    return ""
+
+
 class BriefFramer:
     """Runs the framing call in the background and hands out lines as they're ready."""
 
@@ -196,7 +235,8 @@ class BriefFramer:
         self._persona = persona
         self._brief = brief
         self._config = config
-        self._count = len(paragraphs(brief.spoken))
+        self._paragraphs = paragraphs(brief.spoken)
+        self._count = len(self._paragraphs)
         self.framing = Framing()
         self.raw = ""  # what the model wrote, for scripts/try_framing.py
         self._lines = 0  # non-empty lines seen
@@ -301,6 +341,11 @@ class BriefFramer:
     def _accept(self, kind: str, n: int | None, line: FrameLine) -> None:
         names = [self._persona.name, self._persona.user_name]
         why = check_line(line.text, self._brief.spoken, names, self._config.max_words)
+        # What he's heard when she says it. The opener comes right before
+        # paragraph one, so naming what's in it is fine; anything later isn't.
+        heard = {"opener": 1, "closer": self._count}.get(kind, n or 0)
+        if not why and (early := spoiler(line.text, self._paragraphs, heard, names)):
+            why = f"mentions {early!r} before it's read"
         if why:
             log.info("Framing: dropped %s line (%s): %r", kind, why, line.text)
         elif kind == "opener" and self.framing.opener is None:
