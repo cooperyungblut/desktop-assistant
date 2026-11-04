@@ -69,9 +69,9 @@ def test_prompt_numbers_paragraphs_and_uses_persona(persona, brief):
     assert "Never change, drop, soften" in msgs[0]["content"]  # core rules stay
     count = len(paragraphs(brief.spoken))
     assert f"[{count}] And the job search" in msgs[1]["content"]
-    assert "At most two" in msgs[1]["content"]
+    assert "two AFTER lines" in msgs[1]["content"]
     none = build_framing_messages(persona, brief, FramingConfig(asides=0))
-    assert "AFTER n" not in none[1]["content"]
+    assert "AFTER" not in none[1]["content"]
 
 
 async def test_framer_keeps_good_lines_and_drops_bad_ones(persona, brief):
@@ -191,3 +191,26 @@ async def test_waiting_on_a_cancelled_framer_does_not_cancel_the_reader(persona,
 )
 def test_parse_line_tolerates_other_layouts(raw, kind, n, text, mood):
     assert parse_line(raw) == (kind, n, FrameLine(text, mood))
+
+
+async def test_unlabeled_lines_still_give_opener_and_closer(persona, brief):
+    # Real gemma4:12b output that skipped the labels.
+    model = FakeModel(
+        "[relaxed] Okay, bit of a mixed bag this morning.\n"
+        "[happy] That sounds like a real shot.\n"
+        "[sad] Their loss.\n"
+        "Alright, that's the lot."
+    )
+    framer = BriefFramer(model, persona, brief, FramingConfig())
+    framer.start()
+    assert (await framer.opener()) == FrameLine("Okay, bit of a mixed bag this morning.", "relaxed")
+    assert (await framer.closer()) == FrameLine("Alright, that's the lot.", None)
+    assert framer.framing.asides == {}  # can't tell which paragraph they were for
+
+
+async def test_preamble_is_not_an_opener(persona, brief):
+    framer = BriefFramer(
+        FakeModel("Here are my lines:\n" + FRAMING), persona, brief, FramingConfig()
+    )
+    framer.start()
+    assert (await framer.opener()).text == "Okay, today is actually a good one."

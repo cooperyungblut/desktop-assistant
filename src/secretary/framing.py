@@ -55,22 +55,29 @@ class Framing:
 
 TASK = """\
 You are about to read {user} the {kind} brief below, word for word. It already
-has its own greeting and sign-off. Write the few lines you add around it, in your
-own voice, so it sounds like you and not a news reader:
+has its own greeting and sign-off. Write the few lines you say around it, so it
+sounds like you talking and not a news reader.
 
-OPENER: before the brief, your honest first reaction to the news overall. Not a greeting.
-AFTER n: right after paragraph n, a quick reaction to it, like you'd say to a friend.
-  At most {asides}; only where you really have a reaction. Leave them out otherwise.
-CLOSER: after the brief, one line to wrap up. Not a goodbye.
+Fill in this layout. Keep the labels exactly as shown, one line each:
+
+OPENER: [mood] your first reaction to the news overall, before you start reading
+AFTER 1: [mood] a quick reaction right after paragraph 1
+CLOSER: [mood] one line after the brief to wrap up
+
+Change the number after AFTER to the paragraph you're reacting to. Write at most
+{asides} AFTER lines, only for the paragraphs you really have a reaction to.
 
 For every line:
-- Start it with one mood tag from: {tags}.
-- One sentence, at most {words} words.
-- React; don't inform. Add no facts and repeat none: no times, dates, numbers or amounts.
-- No advice and no praise. Match the mood of the news.
+- Replace [mood] with one of: {tags}.
+- One sentence, at most {words} words. Use contractions, like you're talking.
+- React to something specific in the brief, the way a friend at the next desk
+  would: an opinion, a joke, sympathy, mild surprise. Stay in your personality.
+- Don't inform: add no facts and repeat none (no times, dates, numbers or amounts).
+- No advice, no cheerleading, and no compliments about the news or about {user}.
+- Not a greeting or a goodbye; the brief has those.
 - Plain words only, no markdown or emoji.
 
-Reply with only those lines, each on its own line, in this order.
+Reply with only the filled-in lines.
 
 <brief>
 {paragraphs}
@@ -117,7 +124,8 @@ def build_framing_messages(persona: Persona, brief: Brief, config: FramingConfig
         paragraphs=numbered,
     )
     if config.asides == 0:
-        task = re.sub(r"AFTER n:.*?otherwise\.\n", "", task, flags=re.DOTALL)
+        task = re.sub(r"AFTER 1:.*?\n", "", task)
+        task = re.sub(r"Change the number.*?reaction to\.\n", "", task, flags=re.DOTALL)
     return [{"role": "system", "content": system}, {"role": "user", "content": task}]
 
 
@@ -139,6 +147,21 @@ def parse_line(raw: str) -> tuple[str, int | None, FrameLine] | None:
     if not text:
         return None
     return kind, int(m.group("n")) if m.group("n") else None, FrameLine(text, mood)
+
+
+def unlabeled_line(raw: str) -> FrameLine | None:
+    """A line without a label, such as "[happy] Nice.", or None if it looks like
+    something else (a heading, "Here are my lines:", a code fence)."""
+    text = raw.strip().lstrip("-*• ").strip()
+    if not text or text.endswith(":") or text.startswith(("`", "#", "<")):
+        return None
+    mood = None
+    if mt := _MOOD.match(text):
+        word = mt.group(1).lower()
+        mood = word if word in EMOTIONS else "neutral"
+        text = text[mt.end() :].strip()
+    text = text.strip('"“”').strip()
+    return FrameLine(text, mood) if text else None
 
 
 def check_line(text: str, brief_text: str, allowed_names: Sequence[str], max_words: int) -> str:
@@ -176,6 +199,8 @@ class BriefFramer:
         self._count = len(paragraphs(brief.spoken))
         self.framing = Framing()
         self.raw = ""  # what the model wrote, for scripts/try_framing.py
+        self._lines = 0  # non-empty lines seen
+        self._last_unlabeled: FrameLine | None = None
         self._opener_done = asyncio.Event()
         self._task: asyncio.Task | None = None
         self._deadline = 0.0
@@ -240,6 +265,10 @@ class BriefFramer:
                 for line in lines:
                     self._take(line)
             self._take(buf)
+            # Unlabeled output: small models sometimes drop the labels and just
+            # write the lines in order. Then the last line is the closer.
+            if self.framing.closer is None and self._last_unlabeled is not None:
+                self._accept("closer", None, self._last_unlabeled)
             log.info("Brief framing written in %.1f s", time.perf_counter() - start)
         except LlmUnavailable as exc:
             log.warning("No brief framing, model unavailable: %s", exc)
@@ -249,12 +278,27 @@ class BriefFramer:
             self._opener_done.set()
 
     def _take(self, raw: str) -> None:
-        parsed = parse_line(raw)
-        if parsed is None:
-            if raw.strip():
-                log.info("Framing: ignored %r", raw)
+        if not raw.strip():
             return
-        kind, n, line = parsed
+        parsed = parse_line(raw)
+        line = unlabeled_line(raw) if parsed is None else None
+        if parsed is None and line is None:
+            log.info("Framing: ignored %r", raw)  # e.g. "Here are my lines:"
+            return
+        self._lines += 1
+        first = self._lines == 1
+        self._last_unlabeled = None
+        if parsed is None:
+            if first and self.framing.opener is None:
+                self._accept("opener", None, line)  # no labels: first line opens
+            else:
+                self._last_unlabeled = line  # becomes the closer if it's the last
+        else:
+            self._accept(*parsed)
+        # Only the first line can be the opener: past it, don't wait for one.
+        self._opener_done.set()
+
+    def _accept(self, kind: str, n: int | None, line: FrameLine) -> None:
         names = [self._persona.name, self._persona.user_name]
         why = check_line(line.text, self._brief.spoken, names, self._config.max_words)
         if why:
@@ -271,8 +315,6 @@ class BriefFramer:
             and len(self.framing.asides) < self._config.asides
         ):
             self.framing.asides[n] = line
-        # Only the first line can be the opener: past it, don't wait for one.
-        self._opener_done.set()
 
 
 def _spelled(n: int) -> str:
