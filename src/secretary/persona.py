@@ -25,6 +25,13 @@ class Lines(BaseModel):
     escalated: str = "Okay, I've passed that to Claude. The answer will be in your next brief."
     no_brief: str = "I don't have a brief loaded yet."
     model_unavailable: str = "Sorry, the local model isn't responding. Is Ollama running?"
+    # Calendar lines. {event} is the read-back, e.g.
+    # "Dentist, Thursday, November 5, 3 to 4 PM"; {reason} is what went wrong.
+    calendar_confirm: str = "{event}. Should I add it to your calendar?"
+    calendar_added: str = "Done, it's on your calendar."
+    calendar_cancelled: str = "Okay, I won't add it."
+    calendar_failed: str = "I couldn't add that: {reason}."
+    calendar_off: str = "I can't reach your calendar yet. It needs to be connected first."
 
 
 class Voice(BaseModel):

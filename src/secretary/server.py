@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .assistant import Assistant
 from .config import AppConfig
+from .google_calendar import make_calendar
 from .llm import LlmUnavailable, OllamaClient
 from .persona import load_persona
 from .state import StateStore
@@ -72,6 +73,7 @@ def create_app(config: AppConfig) -> FastAPI:
     model = OllamaClient(config.ollama)
     speaker = make_speaker(config.tts)
     transcriber = make_transcriber(config.stt)
+    calendar = make_calendar(config.calendar)
     config.escalations_dir.mkdir(parents=True, exist_ok=True)
     assistant = Assistant(
         persona=persona,
@@ -84,6 +86,8 @@ def create_app(config: AppConfig) -> FastAPI:
         transcriber=transcriber,
         history_turns=config.history_turns,
         framing=config.brief_framing,
+        calendar=calendar,
+        calendar_config=config.calendar,
     )
 
     async def poll_forever() -> None:
@@ -143,6 +147,7 @@ def create_app(config: AppConfig) -> FastAPI:
         task.cancel()
         await unload()
         await model.aclose()
+        await calendar.aclose()
 
     app = FastAPI(title="Desk Secretary", lifespan=lifespan)
 

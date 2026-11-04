@@ -57,6 +57,21 @@ class FramingConfig(BaseModel):
     max_words: int = Field(default=18, ge=4, le=40)
 
 
+class CalendarConfig(BaseModel):
+    """Adding events to a calendar by voice or chat (see secretary/google_calendar.py)."""
+
+    engine: str = "none"  # "google" or "none"
+    calendar_id: str = "primary"
+    # The OAuth client you download from Google Cloud, and the saved sign-in.
+    # Both are personal: keep them under data/, which is git-ignored.
+    client_file: Path = Path("data/google-oauth-client.json")
+    token_file: Path = Path("data/google-token.json")
+    # Length of an event when you only say when it starts.
+    default_minutes: int = Field(default=60, ge=5, le=24 * 60)
+    # How long her "Should I add it?" waits for a yes.
+    confirm_seconds: float = Field(default=300.0, ge=10.0)
+
+
 class AppConfig(BaseModel):
     secretary_dir: Path = Field(description="Synced folder holding briefs/ and escalations/")
     state_file: Path = Path("data/state.json")
@@ -69,6 +84,7 @@ class AppConfig(BaseModel):
     tts: TtsConfig = TtsConfig()
     stt: SttConfig = SttConfig()
     brief_framing: FramingConfig = FramingConfig()
+    calendar: CalendarConfig = CalendarConfig()
 
     @property
     def briefs_dir(self) -> Path:
@@ -94,4 +110,6 @@ def load_config(path: Path) -> AppConfig:
     config.tts.model_path = resolve(config.tts.model_path)
     config.tts.voices_path = resolve(config.tts.voices_path)
     config.stt.download_dir = resolve(config.stt.download_dir)
+    config.calendar.client_file = resolve(config.calendar.client_file)
+    config.calendar.token_file = resolve(config.calendar.token_file)
     return config

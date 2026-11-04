@@ -264,3 +264,103 @@ async def test_reply_without_tag_falls_back_to_neutral(env):
     exprs = [e for e in events if e["type"] == "expression"]
     assert [e["mood"] for e in exprs] == ["neutral"]
     assert exprs[0]["faces"] == {} and exprs[0]["talk_faces"] == {}
+
+
+# ---- calendar ------------------------------------------------------------------
+
+
+class FakeCalendar:
+    available = True
+
+    def __init__(self, error: str | None = None):
+        self.added = []
+        self.error = error
+
+    async def add(self, event):
+        from secretary.google_calendar import CalendarError
+
+        if self.error:
+            raise CalendarError(self.error)
+        self.added.append(event)
+        return "https://calendar/e1"
+
+    async def aclose(self):
+        pass
+
+
+def calendar_env(env, calendar):
+    import datetime as dt
+
+    a, *_, events = env
+    a._calendar = calendar
+    a._now = lambda: dt.datetime(2026, 11, 4, 15, 0)
+    return a, events
+
+
+def replies(events):
+    return [e["text"] for e in events if e["type"] == "reply_end"]
+
+
+async def test_calendar_event_is_added_only_after_yes(env, fake_model):
+    cal = FakeCalendar()
+    a, events = calendar_env(env, cal)
+    a.ask("Add lunch with Sam to my calendar tomorrow at noon")
+    await finish(a)
+    assert replies(events) == [
+        "Lunch with Sam, Thursday, November 5, noon to 1 PM. Should I add it to your calendar?"
+    ]
+    assert cal.added == [] and fake_model.requests == []  # never via the model
+
+    a.ask("yes")
+    await finish(a)
+    assert [e.title for e in cal.added] == ["Lunch with Sam"]
+    assert replies(events)[-1] == "Done, it's on your calendar."
+    assert {
+        "type": "calendar_added",
+        "title": "Lunch with Sam",
+        "link": "https://calendar/e1",
+    } in events
+
+    a.ask("yes")  # nothing pending any more: goes to the model as usual
+    await finish(a)
+    assert len(cal.added) == 1 and len(fake_model.requests) == 1
+
+
+async def test_calendar_no_or_something_else_drops_it(env, fake_model):
+    cal = FakeCalendar()
+    a, events = calendar_env(env, cal)
+    a.ask("add the dentist to my calendar friday at 3")
+    await finish(a)
+    a.ask("no")
+    await finish(a)
+    assert replies(events)[-1] == "Okay, I won't add it."
+
+    a.ask("add the dentist to my calendar friday at 3")
+    await finish(a)
+    a.ask("when is the coffee chat?")  # not an answer: handled normally, event dropped
+    await finish(a)
+    a.ask("yes")
+    await finish(a)
+    assert cal.added == [] and len(fake_model.requests) == 2
+
+
+async def test_calendar_problems_and_failures_are_spoken(env):
+    a, events = calendar_env(env, FakeCalendar(error="Google Calendar didn't answer"))
+    a.ask("add lunch to my calendar")
+    await finish(a)
+    assert replies(events)[-1] == "When is it?"
+
+    a.ask("add lunch to my calendar friday at noon")
+    await finish(a)
+    a.ask("yes")
+    await finish(a)
+    assert replies(events)[-1] == "I couldn't add that: Google Calendar didn't answer."
+    assert events[-1]["type"] == "speech_done"
+
+
+async def test_calendar_not_connected(env, fake_model):
+    a, _, _, events = env
+    a.ask("add lunch to my calendar friday at noon")
+    await finish(a)
+    assert replies(events) == [a.persona.lines.calendar_off]
+    assert fake_model.requests == []

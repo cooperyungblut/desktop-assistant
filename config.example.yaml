@@ -38,6 +38,15 @@ tts:
   model_path: models/kokoro-v1.0.onnx
   voices_path: models/voices-v1.0.bin
 
+# Add events by voice or chat: "add lunch with Sam to my calendar tomorrow at noon".
+# She reads it back and only adds it after you say yes. Setup: docs/calendar.md
+calendar:
+  engine: none         # "google" once you've set it up
+  calendar_id: primary # or a specific calendar's ID (Google Calendar settings)
+  client_file: data/google-oauth-client.json   # from Google Cloud; keep it private
+  token_file: data/google-token.json           # written by scripts/connect_calendar.py
+  default_minutes: 60  # event length when you only say when it starts
+
 # Push-to-talk speech input (Milestone 2). Needs: uv sync --extra tts --extra stt
 stt:
   engine: whisper      # "none" disables the mic button

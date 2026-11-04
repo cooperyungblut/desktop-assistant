@@ -153,6 +153,12 @@ Chunk 2:
 - [ ] **Cooper:** hear it on a real brief; tune `asides`/`wait_seconds`
 - [ ] Persona presets with a private persona file kept out of git
 
+## Calendar
+
+- [x] Add events by voice or chat: parsed in code, read back, added to
+  Google Calendar only after a yes (docs/calendar.md)
+- [ ] **Cooper:** Google Cloud setup and first real event (docs/calendar.md)
+
 ## Milestone 5: wake word (~1–2 chunks)
 
 - openWakeWord (runs on CPU, custom "hey Juniper" model trainable from
