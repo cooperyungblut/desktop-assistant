@@ -178,3 +178,16 @@ async def test_waiting_on_a_cancelled_framer_does_not_cancel_the_reader(persona,
     framer.cancel()  # e.g. it timed out on the opener
     assert await framer.aside(1) is None  # must not raise CancelledError
     assert await framer.closer() is None
+
+
+@pytest.mark.parametrize(
+    "raw, kind, n, text, mood",
+    [
+        ("[sad] OPENER: Rough one.", "opener", None, "Rough one.", "sad"),
+        ("OPENER - [relaxed] Quiet day.", "opener", None, "Quiet day.", "relaxed"),
+        ("- **AFTER paragraph 2**: [happy] Nice.", "after", 2, "Nice.", "happy"),
+        ("Closer — [neutral] That's it.", "closer", None, "That's it.", "neutral"),
+    ],
+)
+def test_parse_line_tolerates_other_layouts(raw, kind, n, text, mood):
+    assert parse_line(raw) == (kind, n, FrameLine(text, mood))
