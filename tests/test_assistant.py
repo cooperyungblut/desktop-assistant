@@ -276,12 +276,13 @@ class FakeCalendar:
         self.added = []
         self.error = error
 
-    async def add(self, event):
+    async def add(self, event, *, added_by=None):
         from secretary.google_calendar import CalendarError
 
         if self.error:
             raise CalendarError(self.error)
         self.added.append(event)
+        self.added_by = added_by
         return "https://calendar/e1"
 
     async def aclose(self):
@@ -314,6 +315,7 @@ async def test_calendar_event_is_added_only_after_yes(env, fake_model):
     a.ask("yes")
     await finish(a)
     assert [e.title for e in cal.added] == ["Lunch with Sam"]
+    assert cal.added_by == "Juniper"
     assert replies(events)[-1] == "Done, it's on your calendar."
     assert {
         "type": "calendar_added",

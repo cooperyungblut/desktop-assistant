@@ -389,7 +389,7 @@ class Assistant:
 
     async def _add_event(self, draft: EventDraft, text: str) -> None:
         try:
-            link = await self._calendar.add(draft)
+            link = await self._calendar.add(draft, added_by=self.persona.name)
         except CalendarError as exc:
             await self._reply_line(self.persona.lines.calendar_failed.format(reason=exc), text)
             return

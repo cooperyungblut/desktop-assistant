@@ -49,8 +49,9 @@ class Calendar(Protocol):
     @property
     def available(self) -> bool: ...
 
-    async def add(self, event: EventDraft) -> str:
-        """Create the event; returns a link to it."""
+    async def add(self, event: EventDraft, *, added_by: str | None = None) -> str:
+        """Create the event; returns a link to it. `added_by` (the persona's name)
+        goes in the event's description."""
         ...
 
     async def aclose(self) -> None: ...
@@ -61,14 +62,14 @@ class NoCalendar:
 
     available = False
 
-    async def add(self, event: EventDraft) -> str:
+    async def add(self, event: EventDraft, *, added_by: str | None = None) -> str:
         raise CalendarError("the calendar isn't connected yet")
 
     async def aclose(self) -> None:
         pass
 
 
-def event_body(event: EventDraft) -> dict[str, Any]:
+def event_body(event: EventDraft, added_by: str | None = None) -> dict[str, Any]:
     """The events.insert body. Times carry the PC's UTC offset for that date."""
     if event.all_day:
         start: dict[str, str] = {"date": event.day.isoformat()}
@@ -79,7 +80,10 @@ def event_body(event: EventDraft) -> dict[str, Any]:
         # daylight-saving rules for that date, not today's.
         start = {"dateTime": event.start.astimezone().isoformat()}
         end = {"dateTime": event.end.astimezone().isoformat()}
-    return {"summary": event.title, "start": start, "end": end}
+    body: dict[str, Any] = {"summary": event.title, "start": start, "end": end}
+    if added_by:
+        body["description"] = f"Added by {added_by}."
+    return body
 
 
 # ---- tokens ------------------------------------------------------------------
@@ -131,9 +135,9 @@ class GoogleCalendar:
     def available(self) -> bool:
         return self._config.token_file.is_file() and self._config.client_file.is_file()
 
-    async def add(self, event: EventDraft) -> str:
+    async def add(self, event: EventDraft, *, added_by: str | None = None) -> str:
         cal = urllib.parse.quote(self._config.calendar_id, safe="")
-        body = event_body(event)
+        body = event_body(event, added_by)
         r = await self._request("POST", f"{API_URL}/calendars/{cal}/events", json=body)
         data = r.json()
         log.info("Added calendar event %s", data.get("id"))

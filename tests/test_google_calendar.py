@@ -61,6 +61,11 @@ def test_timed_event_body_has_local_offset():
     assert body["end"]["dateTime"].startswith("2026-11-05T16:00:00")
 
 
+def test_description_says_who_added_it():
+    assert "description" not in event_body(EventDraft("Birthday", DAY))
+    assert event_body(EventDraft("Birthday", DAY), "Juniper")["description"] == "Added by Juniper."
+
+
 def test_all_day_event_ends_the_next_day():
     body = event_body(EventDraft("Birthday", DAY))
     assert body["start"] == {"date": "2026-11-05"}
@@ -71,7 +76,7 @@ async def test_add_refreshes_the_token_then_creates(config):
     google = FakeGoogle()
     cal = calendar_with(config, google)
     assert cal.available
-    link = await cal.add(EventDraft("Birthday", DAY))
+    link = await cal.add(EventDraft("Birthday", DAY), added_by="Juniper")
     assert link == "https://calendar/e1"
 
     refresh, create = google.requests
@@ -79,6 +84,7 @@ async def test_add_refreshes_the_token_then_creates(config):
     assert create.url.path == "/calendar/v3/calendars/primary/events"
     assert create.headers["Authorization"] == "Bearer new"
     assert json.loads(create.content)["summary"] == "Birthday"
+    assert json.loads(create.content)["description"] == "Added by Juniper."
     saved = json.loads(config.token_file.read_text())
     assert saved["access_token"] == "new" and saved["refresh_token"] == "r1"
     assert saved["expires_at"] == 1000.0 + 3599
