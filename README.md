@@ -49,6 +49,9 @@ https://github.com/user-attachments/assets/f6dc1b93-f154-4ee3-8c28-ec2f78aa97e9
   at a screen edge, and she never moves for it). It renders on the GPU and
   drops to 30 fps while she's idle. "Read me this morning's brief" works
   typed or spoken.
+- **Calendar**: "add lunch with Sam to my calendar tomorrow at noon" is
+  parsed in code (never by the model), read back, and added to Google
+  Calendar only after a yes. Setup in [`docs/calendar.md`](docs/calendar.md).
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
 
@@ -163,8 +166,8 @@ committed.
 ## Privacy
 
 Real briefs contain email and calendar data. They stay in the synced folder,
-which lives outside the repo. `config.yaml`, `data/`, `models/` and avatar
-files are git-ignored. Everything under `samples/` is invented.
+which lives outside the repo. `config.yaml`, `data/` (which also holds the
+Google Calendar sign-in), `models/` and avatar files are git-ignored. Everything under `samples/` is invented.
 
 ## Roadmap
 

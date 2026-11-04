@@ -17,6 +17,7 @@ Event types sent to the UI:
     reply_token  {id, text}
     reply_end    {id, text}
     escalated    {id, question}
+    calendar_added {title, link}  an event she added after a yes
     error        {message}
 """
 
@@ -33,9 +34,11 @@ from typing import Any
 
 from . import commands, escalations
 from .briefs import Brief
-from .config import FramingConfig
+from .calendar_requests import EventDraft, Problem, answer_to_confirm, describe_event, parse_event
+from .config import CalendarConfig, FramingConfig
 from .expressions import TagFilter, strip_tags
 from .framing import BriefFramer, FrameLine, paragraphs, split_greeting, split_signoff
+from .google_calendar import Calendar, CalendarError, NoCalendar
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .persona import Persona
 from .prompt import Turn, build_messages
@@ -63,6 +66,9 @@ class Assistant:
         transcriber: Transcriber | None = None,
         history_turns: int = 12,
         framing: FramingConfig | None = None,
+        calendar: Calendar | None = None,
+        calendar_config: CalendarConfig | None = None,
+        now: Callable[[], dt.datetime] = dt.datetime.now,
     ):
         self.persona = persona
         self._model = model
@@ -74,6 +80,11 @@ class Assistant:
         self._transcriber = transcriber or NoTranscriber()
         self._history_turns = history_turns
         self._framing = framing or FramingConfig(enabled=False)
+        self._calendar = calendar or NoCalendar()
+        self._calendar_config = calendar_config or CalendarConfig()
+        self._now = now
+        # The event she just read back, waiting for a yes, and when she asked.
+        self._pending: tuple[EventDraft, float] | None = None
 
         self.briefs: dict[str, Brief] = {}
         self.current: Brief | None = None
@@ -240,6 +251,8 @@ class Assistant:
         text = text.strip()
         if not text:
             return
+        if await self._calendar_turn(text):
+            return
         if escalations.wants_escalation(text):
             await self._escalate(text)
             return
@@ -327,6 +340,68 @@ class Assistant:
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
         await self._emit({"type": "reply_end", "id": rid, "text": line})
+        await self._express("neutral")
+        await self._say(line)
+        await self._emit({"type": "speech_done"})
+
+    # ---- calendar -------------------------------------------------------------
+
+    async def _calendar_turn(self, text: str) -> bool:
+        """Handle a calendar request, or the yes/no to one. True if handled.
+
+        Like brief requests, this never goes through the model: the event is
+        parsed in code, read back, and only added after an explicit yes.
+        """
+        lines = self.persona.lines
+        pending, self._pending = self._pending, None
+        if pending is not None:
+            draft, asked = pending
+            fresh = time.monotonic() - asked <= self._calendar_config.confirm_seconds
+            answer = answer_to_confirm(text, self.persona.name) if fresh else None
+            if answer is True:
+                await self._add_event(draft, text)
+                return True
+            if answer is False:
+                await self._reply_line(lines.calendar_cancelled, text)
+                return True
+            # Anything else drops the read-back and is handled as a new message.
+
+        if escalations.wants_escalation(text):
+            return False
+        now = self._now()
+        result = parse_event(
+            text,
+            now,
+            default_minutes=self._calendar_config.default_minutes,
+            name=self.persona.name,
+        )
+        if result is None:
+            return False
+        if not self._calendar.available:
+            await self._reply_line(lines.calendar_off, text)
+        elif isinstance(result, Problem):
+            await self._reply_line(result.message, text)
+        else:
+            self._pending = (result, time.monotonic())
+            event = describe_event(result, now.date())
+            await self._reply_line(lines.calendar_confirm.format(event=event), text)
+        return True
+
+    async def _add_event(self, draft: EventDraft, text: str) -> None:
+        try:
+            link = await self._calendar.add(draft)
+        except CalendarError as exc:
+            await self._reply_line(self.persona.lines.calendar_failed.format(reason=exc), text)
+            return
+        await self._emit({"type": "calendar_added", "title": draft.title, "link": link})
+        await self._reply_line(self.persona.lines.calendar_added, text)
+
+    async def _reply_line(self, line: str, user_text: str) -> None:
+        """A fixed reply (not from the model): show it, say it, keep it in history."""
+        rid = self._next_reply_id()
+        await self._emit({"type": "reply_start", "id": rid})
+        await self._emit({"type": "reply_end", "id": rid, "text": line})
+        self.history += [Turn("user", user_text), Turn("assistant", line)]
         await self._express("neutral")
         await self._say(line)
         await self._emit({"type": "speech_done"})
