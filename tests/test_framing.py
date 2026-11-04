@@ -318,3 +318,17 @@ async def test_late_reaction_moves_to_its_paragraph(persona, brief):
     assert framer.framing.closer is None
     assert framer.framing.asides[3].text == "Oof, Northwind passing still stings."
     assert framer.framing.asides[2].text.startswith("Oh no, those references")
+
+
+def test_a_few_long_paragraphs_are_split_into_sentence_pairs():
+    spoken = "Good morning, Cooper! One. Two. Three. Four.\n\nFive. Six. Seven. Eight."
+    assert paragraphs(spoken) == [
+        "Good morning, Cooper! One.",
+        "Two. Three.",
+        "Four.",
+        "Five. Six.",
+        "Seven. Eight.",
+    ]
+    # Enough paragraphs already: leave them alone.
+    many = "A one. Two three.\n\nB.\n\nC.\n\nD four five."
+    assert paragraphs(many) == ["A one. Two three.", "B.", "C.", "D four five."]

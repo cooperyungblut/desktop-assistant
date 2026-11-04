@@ -63,7 +63,9 @@ Plain spoken sentences only: no markdown, bullets, links, URLs or emoji.
 Say times the way a person would ("ten thirty"). Lead with what matters most.
 Never soften, drop or joke about facts: an interview invite stays an interview
 invite, a rejection stays a rejection. 60 to 150 seconds when read aloud.
-Answer any escalated questions here too.>
+Answer any escalated questions here too.
+Put a blank line between items: one short paragraph per email or topic, so
+Juniper can react to each one right after she reads it.>
 
 Keep it short (applies to both Display and Spoken):
 - Job search: if no job-search mail came in (recruiters, interview invites,
@@ -127,7 +129,9 @@ answers_escalations: [<ids of the escalations you answered, comma separated, or 
 Plain spoken sentences only: no markdown, bullets, links, URLs or emoji.
 Say times the way a person would ("two thirty"). Lead with what matters most.
 Never soften, drop or joke about facts. 30 to 90 seconds when read aloud.
-Answer any escalated questions here too.>
+Answer any escalated questions here too.
+Put a blank line between items: one short paragraph per email or topic, so
+Juniper can react to each one right after she reads it.>
 
 Keep it short (applies to both Display and Spoken):
 - Job search: if no job-search mail came in (recruiters, interview invites,
@@ -189,7 +193,9 @@ answers_escalations: [<ids of the escalations you answered, comma separated, or 
 Plain spoken sentences only: no markdown, bullets, links, URLs or emoji.
 Say times the way a person would ("nine thirty"). Lead with what matters most.
 Never soften, drop or joke about facts. 30 to 90 seconds when read aloud.
-Answer any escalated questions here too.>
+Answer any escalated questions here too.
+Put a blank line between items: one short paragraph per email or topic, so
+Juniper can react to each one right after she reads it.>
 
 Keep it short (applies to both Display and Spoken):
 - Job search: if no job-search mail came in (recruiters, interview invites,
