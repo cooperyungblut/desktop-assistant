@@ -62,7 +62,7 @@ Fill in this layout. Keep the labels exactly as shown, one line each:
 
 OPENER: [mood] one line right after the brief's greeting, before any news: the kind of day it is
 AFTER 1: [mood] a quick reaction right after paragraph 1
-CLOSER: [mood] one line after the brief to wrap up
+CLOSER: [mood] one line after the last news, right before the brief's own sign-off
 
 Change the number after AFTER to the paragraph you're reacting to. Write at most
 {asides} AFTER lines, only for the paragraphs you really have a reaction to.
@@ -123,6 +123,26 @@ def split_greeting(paragraph: str) -> tuple[str, str]:
     if not m:
         return "", paragraph
     return paragraph[: m.end()].strip(), paragraph[m.end() :].strip()
+
+
+_SIGNOFF = re.compile(
+    r"^(?:have\s+an?\b|have\s+a\s+good|good\s+night|good\s+luck|that'?s\s+(?:everything|all|it)\b"
+    r"|that\s+is\s+(?:everything|all)\b|enjoy\b|take\s+care|talk\s+(?:to\s+you\s+)?soon"
+    r"|see\s+you|catch\s+you|(?:i'?ll|i\s+will)\s+(?:be\s+here|check\s+in)|go\s+get\s+'?em"
+    r"|you'?ve\s+got\s+this|that\s+covers)",
+    re.IGNORECASE,
+)
+
+
+def split_signoff(paragraph: str) -> tuple[str, str]:
+    """(the rest, the sign-off) of a brief's last paragraph, so her closing line
+    can come before "Have a good night!". The sign-off is the run of final
+    sentences that look like one. No sign-off means (paragraph, "")."""
+    sentences = re.split(r"(?<=[.!?])\s+", paragraph.strip())
+    cut = len(sentences)
+    while cut > 0 and _SIGNOFF.match(sentences[cut - 1].strip().lstrip("\"“'")):
+        cut -= 1
+    return " ".join(sentences[:cut]).strip(), " ".join(sentences[cut:]).strip()
 
 
 def build_framing_messages(persona: Persona, brief: Brief, config: FramingConfig) -> list[Message]:

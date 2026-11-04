@@ -35,7 +35,7 @@ from . import commands, escalations
 from .briefs import Brief
 from .config import FramingConfig
 from .expressions import TagFilter, strip_tags
-from .framing import BriefFramer, FrameLine, paragraphs, split_greeting
+from .framing import BriefFramer, FrameLine, paragraphs, split_greeting, split_signoff
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .persona import Persona
 from .prompt import Turn, build_messages
@@ -200,6 +200,8 @@ class Assistant:
                 await self._say(sentence)
             if framer and (opener := await framer.opener()):
                 await self._say_frame(opener)
+            # Likewise her closing line goes before the brief's own sign-off.
+            parts[-1], signoff = split_signoff(parts[-1])
             for n, paragraph in enumerate(parts, 1):
                 for sentence in split_sentences(paragraph):
                     await self._say(sentence)
@@ -207,6 +209,8 @@ class Assistant:
                     await self._say_frame(aside)
             if framer and (closer := await framer.closer()):
                 await self._say_frame(closer)
+            for sentence in split_sentences(signoff):
+                await self._say(sentence)
         finally:
             if framer:
                 framer.cancel()
