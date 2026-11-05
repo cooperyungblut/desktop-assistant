@@ -303,7 +303,8 @@ class WikiIndex:
         hits: list[Passage] = []
         for candidate in sorted(candidates, key=len, reverse=True):
             row = self._db.execute(
-                "SELECT p.title, p.body FROM articles a JOIN passages p ON p.rowid = a.first_passage"
+                "SELECT p.title, p.body FROM articles a"
+                " JOIN passages p ON p.rowid = a.first_passage"
                 " WHERE a.title = ? COLLATE NOCASE LIMIT 1",
                 (candidate,),
             ).fetchone()

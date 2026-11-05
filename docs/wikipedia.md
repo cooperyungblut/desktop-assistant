@@ -64,6 +64,9 @@ uv run python scripts/build_wiki_index.py
 Then ask it things. `--ask` prints the passages she would get and how long the
 search took.
 
+If you built a trial index before this fix, delete it and build again; the layout
+changed.
+
 ## How it works
 
 Each article is cut into passages of about 600 characters, opening first, and
