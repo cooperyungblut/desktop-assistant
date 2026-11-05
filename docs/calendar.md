@@ -13,6 +13,22 @@ as a normal message. If she can't tell the day or the name, she asks
 instead of guessing ("November 12 is a Thursday, not a Wednesday. Which day
 did you mean?").
 
+## Asking what's on it
+
+"What's on my calendar tomorrow?", "read me my calendar", "do I have anything
+on my calendar Friday?" or "is my calendar free on the 20th". One day at a
+time (today if you don't say). She reads the whole day from Google, yours as
+well as hers, in time order ("You have 2 things tomorrow: Coffee chat at
+10 AM; Mock interview at 2 PM.", or "Your calendar is clear tomorrow."). The
+list is built in code from Google's data, so the model can't leave an event
+out or invent one, and it is read-only.
+
+Everything here still needs the word "calendar" in the request.
+
+Before this, she only knew what the brief said about your calendar. If the
+brief didn't list anything she could say the calendar was free without
+having looked; the prompt now tells her not to, and to point you at this.
+
 ## Removing events
 
 "Remove the test event from my calendar", "delete lunch with Sam from my

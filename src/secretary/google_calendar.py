@@ -30,7 +30,7 @@ from typing import Any, Protocol
 
 import httpx
 
-from .calendar_requests import EventDraft, RemoveRequest
+from .calendar_requests import AgendaRequest, EventDraft, RemoveRequest
 from .config import CalendarConfig
 
 log = logging.getLogger(__name__)
@@ -72,6 +72,11 @@ class Calendar(Protocol):
 
     async def remove(self, event: FoundEvent) -> None: ...
 
+    async def agenda(self, request: AgendaRequest) -> list[EventDraft]:
+        """Everything on that day of the calendar, yours and hers, in time order.
+        Read-only."""
+        ...
+
     async def aclose(self) -> None: ...
 
 
@@ -87,6 +92,9 @@ class NoCalendar:
         raise CalendarError("the calendar isn't connected yet")
 
     async def remove(self, event: FoundEvent) -> None:
+        raise CalendarError("the calendar isn't connected yet")
+
+    async def agenda(self, request: AgendaRequest) -> list[EventDraft]:
         raise CalendarError("the calendar isn't connected yet")
 
     async def aclose(self) -> None:
@@ -197,6 +205,25 @@ class GoogleCalendar:
             if item.get("id") and draft and wanted in title.lower():
                 found.append(FoundEvent(item["id"], draft))
         return found
+
+    async def agenda(self, request: AgendaRequest) -> list[EventDraft]:
+        first = dt.datetime.combine(request.day, dt.time())
+        params = {
+            "timeMin": first.astimezone().isoformat(),
+            "timeMax": (first + dt.timedelta(days=1)).astimezone().isoformat(),
+            "singleEvents": "true",
+            "orderBy": "startTime",
+            "maxResults": "50",
+        }
+        r = await self._request("GET", self._events_url(), params=params)
+        drafts = []
+        for item in r.json().get("items", []):
+            if item.get("status") == "cancelled":
+                continue
+            draft = _draft_from_item(item)
+            if draft is not None:
+                drafts.append(draft)
+        return drafts
 
     async def remove(self, event: FoundEvent) -> None:
         await self._request(
