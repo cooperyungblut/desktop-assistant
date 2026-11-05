@@ -47,16 +47,25 @@ class Passage:
         return "https://en.wikipedia.org/wiki/" + self.title.replace(" ", "_")
 
 
+def is_fragment(line: str) -> bool:
+    """A section heading or list label: short, no sentence ending, not prose.
+
+    The cleaned dump keeps headings as bare lines ("Early life", "Plot"). They
+    carry no facts and only take room in her prompt.
+    """
+    return len(line.split()) < 8 and not line.endswith((".", "!", "?", '"', ")", ":"))
+
+
 def split_passages(text: str, limit: int = PASSAGE_CHARS) -> list[str]:
     """Pack paragraphs into passages of up to about `limit` characters.
 
-    A paragraph longer than the limit is cut at sentence ends. The first passage
-    is always the article's opening.
+    A paragraph longer than the limit is cut at sentence ends. Bare headings are
+    dropped. The first passage is the article's opening.
     """
     pieces: list[str] = []
     for para in re.split(r"\n\s*\n|\n", text):
         para = para.strip()
-        if not para:
+        if not para or is_fragment(para):
             continue
         if len(para) <= limit:
             pieces.append(para)
