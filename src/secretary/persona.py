@@ -41,6 +41,17 @@ class Lines(BaseModel):
     calendar_agenda: str = "You have {things} {day}: {events}."
     calendar_read_failed: str = "I couldn't read your calendar: {reason}."
     calendar_off: str = "I can't reach your calendar yet. It needs to be connected first."
+    # Notes. {note} is exactly what she wrote, {page} the page's name.
+    note_written: str = "Got it, I wrote down: {note}."
+    note_ask: str = "Sure, what should I write down?"
+    note_cancelled: str = "Okay, I won't write anything."
+    note_page_started: str = "New page started: {page}."
+    note_read: str = "Your last notes on {page}: {notes}."
+    note_read_empty: str = "There's nothing on {page} yet."
+    note_opened: str = "Your notes are open."
+    note_no_viewer: str = "Your notes are in {folder}. Set notes open_with to have me open them."
+    note_failed: str = "I couldn't write that down: {reason}."
+    notes_off: str = "Note taking is turned off in my settings."
 
 
 class Voice(BaseModel):
