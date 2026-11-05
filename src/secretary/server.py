@@ -26,6 +26,7 @@ from .assistant import Assistant
 from .config import AppConfig
 from .google_calendar import make_calendar
 from .llm import LlmUnavailable, OllamaClient
+from .notes import Notebook
 from .persona import load_persona
 from .state import StateStore
 from .stt import make_transcriber
@@ -91,6 +92,7 @@ def create_app(config: AppConfig) -> FastAPI:
         calendar=calendar,
         calendar_config=config.calendar,
         wiki=wiki,
+        notebook=Notebook(config.notes),
     )
 
     async def poll_forever() -> None:

@@ -560,3 +560,59 @@ async def test_nothing_usable_means_no_wikipedia_block(env, fake_model):
     a.ask("Who is Nicolas Cage?")
     await finish(a)
     assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
+
+
+# ---- notes ---------------------------------------------------------------------
+
+
+def notes_env(env, tmp_path):
+    from secretary.config import NotesConfig
+    from secretary.notes import Notebook
+
+    a, _, _, events = env
+    a._notebook = Notebook(NotesConfig(dir=tmp_path / "notes", timestamps=False))
+    return a, events, tmp_path / "notes" / "Notes.md"
+
+
+async def test_write_that_down_appends_a_note(env, tmp_path, fake_model):
+    a, events, page = notes_env(env, tmp_path)
+    a.ask("The password is 4471, write that down.")
+    await finish(a)
+    assert page.read_text(encoding="utf-8").endswith("- The password is 4471\n")
+    assert {"type": "note_added", "page": "Notes", "text": "The password is 4471"} in events
+    assert a.history[-1].content == "Got it, I wrote down: The password is 4471."
+    assert fake_model.requests == []  # never goes through the model
+
+
+async def test_write_that_down_alone_asks_what_to_write(env, tmp_path, fake_model):
+    a, events, page = notes_env(env, tmp_path)
+    a.ask("Can you write that down?")
+    await finish(a)
+    assert a.history[-1].content == "Sure, what should I write down?"
+    a.ask("Lever three, then lever one.")
+    await finish(a)
+    assert page.read_text(encoding="utf-8").endswith("- Lever three, then lever one\n")
+
+    a.ask("write that down")
+    await finish(a)
+    a.ask("never mind")
+    await finish(a)
+    assert a.history[-1].content == "Okay, I won't write anything."
+    assert fake_model.requests == []
+
+
+async def test_read_my_notes(env, tmp_path):
+    a, _, _ = notes_env(env, tmp_path)
+    for note in ("note one", "note two"):
+        a.ask(f"write down {note}")
+        await finish(a)
+    a.ask("read me my notes")
+    await finish(a)
+    assert a.history[-1].content == "Your last notes on Notes: note one; note two."
+
+
+async def test_notes_off_without_a_notebook(env):
+    a, _, _, _ = env
+    a.ask("write that down: 4471")
+    await finish(a)
+    assert a.history[-1].content == "Note taking is turned off in my settings."
