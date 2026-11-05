@@ -49,6 +49,22 @@ def test_html_to_text_leaves_out_the_junk():
     assert "[2]" not in text and "No label here" not in text
 
 
+def test_class_names_on_the_page_root_do_not_break_it():
+    html = (
+        '<html class="client-js vector-sidebar-pinned noprint"><body class="mw-body metadata">'
+        "<p>Paris is the capital and most populous city of France.</p></body></html>"
+    )
+    assert html_to_text(html) == "Paris is the capital and most populous city of France."
+
+
+def test_nested_junk_is_dropped_without_error():
+    html = (
+        '<body><div class="navbox"><div class="thumb"><p>inner</p></div></div>'
+        "<p>Kept paragraph text.</p></body>"
+    )
+    assert html_to_text(html) == "Kept paragraph text."
+
+
 def test_html_to_text_handles_garbage():
     assert html_to_text("") == ""
     assert html_to_text("<html><body></body></html>") == ""
