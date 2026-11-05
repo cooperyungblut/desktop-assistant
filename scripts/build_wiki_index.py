@@ -36,14 +36,15 @@ def main() -> None:
     )
     parser.add_argument("--config", type=Path, default=Path("config.yaml"))
     parser.add_argument("--limit", type=int, help="index only the first N articles")
+    parser.add_argument("--workers", type=int, help="processes for reading a ZIM (default: config)")
     parser.add_argument("--ask", metavar="QUESTION", help="search an existing index and exit")
     args = parser.parse_args()
     wiki = load_config(args.config).wiki
     if args.ask:
         ask(wiki.index_file, args.ask)
         return
-    if not wiki.source_dir.is_dir():
-        sys.exit(f"wiki.source_dir not found: {wiki.source_dir} (see docs/wikipedia.md)")
+    if not wiki.source.exists():
+        sys.exit(f"wiki.source not found: {wiki.source} (see docs/wikipedia.md)")
     started = time.perf_counter()
 
     def progress(stats: BuildStats) -> None:
@@ -55,7 +56,7 @@ def main() -> None:
         )
 
     stats = build_index(
-        iter_articles(wiki.source_dir),
+        iter_articles(wiki.source, workers=args.workers or wiki.workers),
         wiki.index_file,
         max_chars_per_article=wiki.max_chars_per_article,
         limit=args.limit,

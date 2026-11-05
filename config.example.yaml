@@ -51,7 +51,8 @@ calendar:
 # Setup: docs/wikipedia.md
 wiki:
   engine: none         # "local" once you've built the index
-  source_dir: C:/data/wikipedia/20231101.en   # downloaded parquet files (only for building)
+  source: C:/data/wikipedia/wikipedia_en_all_nopic.zim   # Kiwix file (only for building)
+  workers: 4           # CPU processes used while building the index
   index_file: C:/data/wikipedia/index.sqlite  # the search index
   max_chars_per_article: 4000
 

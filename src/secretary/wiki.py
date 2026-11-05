@@ -145,8 +145,17 @@ def _stem(word: str) -> str:
         scratch.close()
 
 
-def iter_articles(source_dir: Path, batch_size: int = 2000) -> Iterator[tuple[str, str]]:
-    """Yield (title, text) from every parquet file in `source_dir`, in order."""
+def iter_articles(source: Path, workers: int = 1) -> Iterator[tuple[str, str]]:
+    """Yield (title, text) from a Kiwix .zim file or a folder of parquet files."""
+    if source.suffix.lower() == ".zim":
+        from secretary.wiki_zim import iter_zim_articles
+
+        return iter_zim_articles(source, workers)
+    return _iter_parquet(source)
+
+
+def _iter_parquet(source_dir: Path, batch_size: int = 2000) -> Iterator[tuple[str, str]]:
+    """The cleaned Hugging Face dump: a `title` and a `text` column per article."""
     try:
         import pyarrow.parquet as pq
     except ImportError as exc:  # pragma: no cover - message only
@@ -300,24 +309,35 @@ class WikiIndex:
         return rare or [min(known, key=lambda t: counts[t])]
 
     def _title_hits(self, question: str) -> list[Passage]:
-        """Openings of articles whose exact title appears in the question."""
+        """Openings of articles whose exact title appears in the question.
+
+        The longest titles win and a word is used only once, so "Nicolas Cage"
+        beats "Cage" and "Pride and Prejudice" beats "Pride". Single-word titles
+        count only when no longer title was found.
+        """
         words = _WORD.findall(question.lower().replace("'s", ""))
-        candidates = {
-            " ".join(words[i:j])
+        spans = [
+            (i, j)
             for i in range(len(words))
-            for j in range(i + 1, min(i + 5, len(words)) + 1)
-        }
-        # Single stopwords ("it", "what") are real titles but never what was meant.
-        candidates = {c for c in candidates if c not in _STOPWORDS and len(c) > 2}
+            for j in range(min(i + 6, len(words)), i, -1)
+            if " ".join(words[i:j]) not in _STOPWORDS and len(" ".join(words[i:j])) > 2
+        ]
+        spans.sort(key=lambda span: (-(span[1] - span[0]), span[0]))
+        used: set[int] = set()
         hits: list[Passage] = []
-        for candidate in sorted(candidates, key=len, reverse=True):
+        for i, j in spans:
+            if used & set(range(i, j)):
+                continue
+            if j - i == 1 and hits:
+                break  # a longer title was found: skip the lone words
             row = self._db.execute(
                 "SELECT p.title, p.body FROM articles a"
                 " JOIN passages p ON p.rowid = a.first_passage"
                 " WHERE a.title = ? COLLATE NOCASE LIMIT 1",
-                (candidate,),
+                (" ".join(words[i:j]),),
             ).fetchone()
             if row:
+                used.update(range(i, j))
                 hits.append(Passage(row[0], row[1], score=100.0))
                 if len(hits) >= 2:
                     break
