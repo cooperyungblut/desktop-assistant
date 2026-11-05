@@ -51,6 +51,7 @@ from .expressions import TagFilter, strip_tags
 from .framing import BriefFramer, FrameLine, paragraphs, split_greeting, split_signoff
 from .google_calendar import Calendar, CalendarError, FoundEvent, NoCalendar
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
+from .lookup import Lookup, lookup_request, render, usable
 from .persona import Persona
 from .prompt import Turn, build_messages
 from .state import StateStore
@@ -79,6 +80,7 @@ class Assistant:
         framing: FramingConfig | None = None,
         calendar: Calendar | None = None,
         calendar_config: CalendarConfig | None = None,
+        wiki: Lookup | None = None,
         now: Callable[[], dt.datetime] = dt.datetime.now,
     ):
         self.persona = persona
@@ -93,6 +95,7 @@ class Assistant:
         self._framing = framing or FramingConfig(enabled=False)
         self._calendar = calendar or NoCalendar()
         self._calendar_config = calendar_config or CalendarConfig()
+        self._wiki = wiki
         self._now = now
         # The event she just read back (to add, or to remove), waiting for a yes,
         # and when she asked.
@@ -278,6 +281,7 @@ class Assistant:
             self.history,
             text,
             history_turns=self._history_turns,
+            wikipedia=await self._wikipedia_for(text),
         )
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
@@ -341,6 +345,27 @@ class Assistant:
         self.history += [Turn("user", text), Turn("assistant", full)]
         await speaking
         await self._emit({"type": "speech_done"})
+
+    async def _wikipedia_for(self, text: str) -> str | None:
+        """Passages for a general-knowledge question, or None (not asked, nothing
+        good found, or the index failed: she then answers as usual)."""
+        if self._wiki is None or (request := lookup_request(text)) is None:
+            return None
+        started = time.perf_counter()
+        try:
+            found = await asyncio.to_thread(self._wiki.search, request.query, 6)
+        except Exception:
+            log.exception("Wikipedia lookup failed")
+            return None
+        passages = usable(found, request)
+        log.info(
+            "Wikipedia: %d of %d passages kept in %.0f ms (%s)",
+            len(passages),
+            len(found),
+            (time.perf_counter() - started) * 1000,
+            ", ".join(p.title for p in passages) or "nothing",
+        )
+        return render(passages) if passages else None
 
     async def _read_requested(self, req: commands.BriefRequest) -> None:
         """ "Read me this morning's brief": read it out verbatim, never via the model."""

@@ -41,6 +41,9 @@ class Passage:
     title: str
     text: str
     score: float  # higher is better
+    # How it was found: "title" (the question names the article), "all" (every
+    # key word is in the passage) or "any" (only some are: weak).
+    match: str = "any"
 
     @property
     def url(self) -> str:
@@ -145,8 +148,17 @@ def _stem(word: str) -> str:
         scratch.close()
 
 
-def iter_articles(source_dir: Path, batch_size: int = 2000) -> Iterator[tuple[str, str]]:
-    """Yield (title, text) from every parquet file in `source_dir`, in order."""
+def iter_articles(source: Path, workers: int = 1) -> Iterator[tuple[str, str]]:
+    """Yield (title, text) from a Kiwix .zim file or a folder of parquet files."""
+    if source.suffix.lower() == ".zim":
+        from secretary.wiki_zim import iter_zim_articles
+
+        return iter_zim_articles(source, workers)
+    return _iter_parquet(source)
+
+
+def _iter_parquet(source_dir: Path, batch_size: int = 2000) -> Iterator[tuple[str, str]]:
+    """The cleaned Hugging Face dump: a `title` and a `text` column per article."""
     try:
         import pyarrow.parquet as pq
     except ImportError as exc:  # pragma: no cover - message only
@@ -242,7 +254,10 @@ class WikiIndex:
             raise FileNotFoundError(
                 f"No Wikipedia index at {index_file}. Build it first (docs/wikipedia.md)."
             )
-        self._db = sqlite3.connect(f"file:{index_file.as_posix()}?mode=ro", uri=True)
+        # Read-only, so it is safe to search from a worker thread.
+        self._db = sqlite3.connect(
+            f"file:{index_file.as_posix()}?mode=ro", uri=True, check_same_thread=False
+        )
 
     def close(self) -> None:
         self._db.close()
@@ -300,25 +315,36 @@ class WikiIndex:
         return rare or [min(known, key=lambda t: counts[t])]
 
     def _title_hits(self, question: str) -> list[Passage]:
-        """Openings of articles whose exact title appears in the question."""
+        """Openings of articles whose exact title appears in the question.
+
+        The longest titles win and a word is used only once, so "Nicolas Cage"
+        beats "Cage" and "Pride and Prejudice" beats "Pride". Single-word titles
+        count only when no longer title was found.
+        """
         words = _WORD.findall(question.lower().replace("'s", ""))
-        candidates = {
-            " ".join(words[i:j])
+        spans = [
+            (i, j)
             for i in range(len(words))
-            for j in range(i + 1, min(i + 5, len(words)) + 1)
-        }
-        # Single stopwords ("it", "what") are real titles but never what was meant.
-        candidates = {c for c in candidates if c not in _STOPWORDS and len(c) > 2}
+            for j in range(min(i + 6, len(words)), i, -1)
+            if " ".join(words[i:j]) not in _STOPWORDS and len(" ".join(words[i:j])) > 2
+        ]
+        spans.sort(key=lambda span: (-(span[1] - span[0]), span[0]))
+        used: set[int] = set()
         hits: list[Passage] = []
-        for candidate in sorted(candidates, key=len, reverse=True):
+        for i, j in spans:
+            if used & set(range(i, j)):
+                continue
+            if j - i == 1 and hits:
+                break  # a longer title was found: skip the lone words
             row = self._db.execute(
                 "SELECT p.title, p.body FROM articles a"
                 " JOIN passages p ON p.rowid = a.first_passage"
                 " WHERE a.title = ? COLLATE NOCASE LIMIT 1",
-                (candidate,),
+                (" ".join(words[i:j]),),
             ).fetchone()
             if row:
-                hits.append(Passage(row[0], row[1], score=100.0))
+                used.update(range(i, j))
+                hits.append(Passage(row[0], row[1], score=100.0, match="title"))
                 if len(hits) >= 2:
                     break
         return hits
@@ -331,4 +357,23 @@ class WikiIndex:
             " WHERE passages MATCH ? ORDER BY rank LIMIT ?",
             (query, limit),
         ).fetchall()
-        return [Passage(title, body, score=-rank) for title, body, rank in rows]
+        match = "all" if require_all else "any"
+        return [Passage(title, body, score=-rank, match=match) for title, body, rank in rows]
+
+
+def make_wiki(config) -> WikiIndex | None:
+    """The index for `wiki:` in config.yaml, or None when it is off or not built yet."""
+    import logging
+
+    log = logging.getLogger(__name__)
+    if config.engine == "none":
+        return None
+    if config.engine != "local":
+        raise ValueError(f"unknown wiki.engine {config.engine!r}; use local or none")
+    try:
+        index = WikiIndex(config.index_file)
+    except FileNotFoundError as exc:
+        log.warning("Wikipedia lookup is on but has no index: %s", exc)
+        return None
+    log.info("Wikipedia lookup ready (%s)", config.index_file)
+    return index

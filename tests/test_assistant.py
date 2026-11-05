@@ -489,3 +489,74 @@ async def test_calendar_question_when_not_connected(env, fake_model):
     a.ask("what's on my calendar today")
     await finish(a)
     assert replies(events) == [a.persona.lines.calendar_off]
+
+
+class FakeWiki:
+    def __init__(self, passages=None, fail=False):
+        from secretary.wiki import Passage
+
+        self.passages = passages or [
+            Passage(
+                "Nicolas Cage", "Nicolas Cage (born January 7, 1964) is an actor.", 100, "title"
+            )
+        ]
+        self.fail = fail
+        self.questions: list[str] = []
+
+    def search(self, question, limit=3):
+        self.questions.append(question)
+        if self.fail:
+            raise RuntimeError("index broke")
+        return self.passages
+
+
+def _with_wiki(env, wiki):
+    a, *_ = env
+    a._wiki = wiki
+    return a
+
+
+async def test_factual_question_gets_wikipedia_passages_in_the_prompt(env, fake_model):
+    wiki = FakeWiki()
+    a = _with_wiki(env, wiki)
+    a.ask("What is Nicolas Cage's birthday?")
+    await finish(a)
+    messages = fake_model.requests[-1]
+    wiki_message = next(m for m in messages if "<wikipedia>" in m["content"])
+    assert "[Nicolas Cage] Nicolas Cage (born January 7, 1964)" in wiki_message["content"]
+    # right before the persona reminder and the question
+    assert messages.index(wiki_message) == len(messages) - 3
+    assert wiki.questions == ["What is Nicolas Cage's birthday?"]
+
+
+async def test_wikipedia_text_is_not_kept_in_history(env, fake_model):
+    a = _with_wiki(env, FakeWiki())
+    a.ask("Who is Nicolas Cage?")
+    await finish(a)
+    assert all("Wikipedia" not in t.content and "1964" not in t.content for t in a.history)
+
+
+async def test_personal_questions_skip_the_lookup(env, fake_model):
+    wiki = FakeWiki()
+    a = _with_wiki(env, wiki)
+    a.ask("What time is my interview?")
+    await finish(a)
+    assert wiki.questions == []
+    assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
+
+
+async def test_a_failing_index_falls_back_to_a_normal_answer(env, fake_model):
+    a = _with_wiki(env, FakeWiki(fail=True))
+    a.ask("Who is Nicolas Cage?")
+    await finish(a)
+    assert fake_model.requests
+    assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
+
+
+async def test_nothing_usable_means_no_wikipedia_block(env, fake_model):
+    from secretary.wiki import Passage
+
+    a = _with_wiki(env, FakeWiki([Passage("Random", "Unrelated.", 1, "any")]))
+    a.ask("Who is Nicolas Cage?")
+    await finish(a)
+    assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])

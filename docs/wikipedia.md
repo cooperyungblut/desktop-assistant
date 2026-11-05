@@ -7,26 +7,26 @@ separate step.
 
 ## What you need
 
-- About 40 GB free on a drive (about 12 GB download plus the index; see the note on size).
-- Do not put it inside the repo or the Google Drive folder. `C:\data\wikipedia` works.
+- About 100 GB free on a drive: the ZIM download (roughly 50 GB) plus the index
+  (roughly 20 to 30 GB). The download can be deleted after the index is built.
+- Keep it out of the repo and out of the Google Drive folder. `C:\data\wikipedia`
+  works.
 
 ## 1. Download
 
-The data is the cleaned English text on Hugging Face (`wikimedia/wikipedia`),
-the November 2023 snapshot, as 41 parquet files. In PowerShell:
+Use the Kiwix copy of English Wikipedia, which is the whole encyclopedia and is
+updated every few months.
 
-```powershell
-mkdir C:\data\wikipedia
-uvx --from huggingface_hub hf download wikimedia/wikipedia --repo-type dataset --include "20231101.en/*" --local-dir C:\data\wikipedia
-```
+1. Open [library.kiwix.org](https://library.kiwix.org) and search "Wikipedia".
+2. Pick the **English** one that is **"no pictures"** (the file name contains
+   `nopic`). The full text is there, including the infobox facts like birth dates.
+   Avoid the picture versions, which are over 100 GB.
+3. Download the `.zim` file with something that can resume (a browser download
+   manager or the torrent link) to `C:\data\wikipedia\`.
 
-It resumes if interrupted; run the same command again.
-
-What it leaves out: infoboxes, tables, images, the references / see also /
-external links sections, and anything after the snapshot date. Facts that sit
-in a table rather than the text (exact populations, box-office totals, season
-stats) are the likely gaps. Biographies' birth dates are in the first
-sentence, so those work.
+The Hugging Face `wikimedia/wikipedia` dump also works as a source (a folder of
+parquet files), but it turned out to be missing many of the biggest articles
+(Nicolas Cage, Roman Empire), so it is not recommended.
 
 ## 2. Point the config at it
 
@@ -35,55 +35,70 @@ In `config.yaml` (copy the `wiki:` block from `config.example.yaml`):
 ```yaml
 wiki:
   engine: none   # switch to "local" when the lookup is wired in
-  source_dir: C:/data/wikipedia/20231101.en
+  source: C:/data/wikipedia/wikipedia_en_all_nopic_2026-01.zim   # your file's name
   index_file: C:/data/wikipedia/index.sqlite
+  workers: 4       # CPU processes used while building
   max_chars_per_article: 4000
 ```
 
-`max_chars_per_article` keeps the opening and the first sections of each
-article. Smaller means a smaller, faster index; larger gives deeper answers.
+`max_chars_per_article` keeps the opening, the infobox facts and the first
+sections of each article. Smaller means a smaller, faster index.
 
 ## 3. Build the index
 
 ```powershell
 cd C:\dev\desktop-assistant
 uv sync --extra wiki
-uv run python scripts/build_wiki_index.py --limit 20000   # trial run, a minute or two
+uv run python scripts/build_wiki_index.py --limit 20000   # trial run
 uv run python scripts/build_wiki_index.py --ask "What is Nicolas Cage's birthday?"
 ```
 
-The trial index has only the first 20,000 articles, so a question can come
-back empty or about a different page. When you are happy with how it runs, build
-the real one (leave the PC awake; about an hour or two, and you can stop it with
-Ctrl+C at any time because the old index is only replaced when the build finishes):
+The trial indexes only the first 20,000 articles, so a question can come back
+empty or about a different page. When it looks right, build the real one. Leave
+the PC awake; it uses `workers` CPU cores, takes a few hours, and can be stopped
+with Ctrl+C because the old index is only replaced when the build finishes:
 
 ```powershell
 uv run python scripts/build_wiki_index.py
 ```
 
-Then ask it things. `--ask` prints the passages she would get and how long the
-search took.
-
-If you built a trial index before this fix, delete it and build again; the layout
-changed.
+`--ask` prints the passages she would get and how long the search took.
 
 ## How it works
 
+A ZIM stores each article as HTML. The loader (`src/secretary/wiki_zim.py`)
+turns it back into text: opening paragraphs, then the infobox facts ("Facts:
+Born: January 7, 1964; Occupation: Actor."), then the body up to the References
+section. Navigation boxes, tables, images and reference marks are dropped.
+
 Each article is cut into passages of about 600 characters, opening first, and
-stored in a SQLite full-text index (BM25 ranking, word stems, so "directed"
-finds "directs"). A search tries these in order: an article whose exact title is
-in the question, then passages containing all the key words, then any of them.
-Title matches count ten times a body match. Very common words are dropped from
-the query so a question like "history of Zanzibar" doesn't have to score every
-history page. Stubs and disambiguation pages are not indexed.
+stored in a SQLite full-text index (BM25 ranking, word stems, so "directed" finds
+"directs"). A search tries these in order: articles whose exact title is in the
+question (the longest title wins, so "Nicolas Cage" beats "Cage"), then passages
+containing all the key words, then any of them. Title matches count ten times a
+body match. Very common words are dropped from the query so a question like
+"history of Zanzibar" doesn't have to score every history page. Stubs and
+disambiguation pages are not indexed.
 
-Searching uses only Python's standard library. Only building needs `pyarrow`.
-The code is in `src/secretary/wiki.py` and knows nothing about the chat model,
-so another front end can use it unchanged.
+Searching uses only Python's standard library. Only building needs `libzim`,
+`lxml` and (for the parquet source) `pyarrow`. The code is in
+`src/secretary/wiki.py` and knows nothing about the chat model, so another front
+end can use it unchanged.
 
-## Size and speed
+## 4. Turn it on
 
-The real size and search time are measured on your machine, not guessed: the
-build prints the finished size, and `--ask` prints milliseconds per question.
-If searches take more than about a second, tell me and we will tune it
-(smaller `max_chars_per_article`, or a rebuild with fewer passages).
+Once `--ask` gives good answers, set `engine: local` under `wiki:` in
+`config.yaml` and restart the app. The startup log says "Wikipedia lookup ready".
+
+She looks something up when the question asks for general knowledge ("who is ...",
+"what is ...", "why did ...", "how tall is ...", "tell me about ..."), and always
+when you say "look up ..." or "what does Wikipedia say about ...". She does not
+look up questions that sound like they're about you or your day (my, brief,
+calendar, email, interview, today, tomorrow), small talk, or live information
+(weather, news, the time). Those go to the model as before.
+
+The best passages (up to three, about 600 characters each) go to the model for that
+one question and are not kept in the chat history. She answers in a sentence or two
+and says it comes from Wikipedia. If the passages don't answer it, she says she
+couldn't find it. Matching is done in code, not by the model, so it's predictable;
+the log line "Wikipedia: 2 of 6 passages kept in 25 ms (...)" shows what she found.

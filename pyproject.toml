@@ -17,9 +17,10 @@ dependencies = [
 # Kept optional so CI and tests never download speech models.
 tts = ["kokoro-onnx>=0.4", "numpy>=1.26"]
 stt = ["faster-whisper>=1.1"]
-# Only for building the offline Wikipedia index (scripts/build_wiki_index.py).
+# Only for building the offline Wikipedia index (scripts/build_wiki_index.py):
+# pyarrow reads the Hugging Face dump, libzim + lxml read a Kiwix ZIM file.
 # Searching the finished index uses nothing beyond the standard library.
-wiki = ["pyarrow>=15"]
+wiki = ["pyarrow>=15", "libzim>=3", "lxml>=5"]
 # Only for stt.device: cuda on Windows. Large downloads (~1 GB).
 # cuBLAS 12.9.3 shipped Linux wheels only, so stay below it until Windows wheels exist.
 stt-gpu = ["nvidia-cublas-cu12>=12.4,<12.9.3", "nvidia-cudnn-cu12>=9,<10"]
@@ -28,7 +29,7 @@ stt-gpu = ["nvidia-cublas-cu12>=12.4,<12.9.3", "nvidia-cudnn-cu12>=9,<10"]
 desk-secretary = "secretary.__main__:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6", "numpy>=1.26", "av>=12", "pyarrow>=15"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6", "numpy>=1.26", "av>=12", "pyarrow>=15", "libzim>=3", "lxml>=5"]
 
 [build-system]
 requires = ["hatchling"]

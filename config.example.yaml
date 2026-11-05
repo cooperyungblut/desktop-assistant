@@ -48,10 +48,13 @@ calendar:
   default_minutes: 60  # event length when you only say when it starts
 
 # Offline Wikipedia she can look things up in. Runs on CPU and disk only, no VRAM.
-# Setup: docs/wikipedia.md
+# Build the index first (docs/wikipedia.md), then set engine: local. She then looks
+# up general-knowledge questions ("who is ...", "why did ...") and anything you
+# start with "look up".
 wiki:
   engine: none         # "local" once you've built the index
-  source_dir: C:/data/wikipedia/20231101.en   # downloaded parquet files (only for building)
+  source: C:/data/wikipedia/wikipedia_en_all_nopic.zim   # Kiwix file (only for building)
+  workers: 4           # CPU processes used while building the index
   index_file: C:/data/wikipedia/index.sqlite  # the search index
   max_chars_per_article: 4000
 

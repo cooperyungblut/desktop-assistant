@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class OllamaConfig(BaseModel):
@@ -76,8 +76,14 @@ class WikiConfig(BaseModel):
     """Offline Wikipedia lookup (see secretary/wiki.py and docs/wikipedia.md)."""
 
     engine: str = "none"  # "local" once you've built the index
-    # The downloaded Hugging Face parquet files (only needed to build the index).
-    source_dir: Path = Path("data/wikipedia/20231101.en")
+    # What the index is built from (only needed to build it): a Kiwix .zim file,
+    # or a folder of Hugging Face parquet files. `source_dir` still works.
+    source: Path = Field(
+        default=Path("data/wikipedia.zim"),
+        validation_alias=AliasChoices("source", "source_dir"),
+    )
+    # CPU processes used to convert a ZIM's HTML while building.
+    workers: int = Field(default=4, ge=1, le=64)
     # The search index built from them. Keep both outside the repo if you like.
     index_file: Path = Path("data/wikipedia.sqlite")
     # How much of each article goes into the index: the opening plus the first
@@ -126,6 +132,6 @@ def load_config(path: Path) -> AppConfig:
     config.stt.download_dir = resolve(config.stt.download_dir)
     config.calendar.client_file = resolve(config.calendar.client_file)
     config.calendar.token_file = resolve(config.calendar.token_file)
-    config.wiki.source_dir = resolve(config.wiki.source_dir)
+    config.wiki.source = resolve(config.wiki.source)
     config.wiki.index_file = resolve(config.wiki.index_file)
     return config

@@ -163,3 +163,30 @@ def test_common_words_are_left_out_when_a_rarer_one_exists(tmp_path: Path, monke
         # Stemming: "histories" is counted as the common stem "histori".
         assert index._prune_common(["histories", "zanzibar"]) == ["zanzibar"]
         assert index.search("history of zanzibar")[0].title == "Zanzibar"
+
+
+def test_full_name_title_beats_single_word_titles(tmp_path: Path):
+    articles = [
+        ("Birthday", "A birthday is the anniversary of the birth of a person. " * 5),
+        ("Cage", "A cage is an enclosure made of mesh, bars or wires. " * 5),
+        ("Nicolas Cage", CAGE),
+        ("Pride", "Pride is an inwardly directed emotion about oneself. " * 5),
+        ("Pride and Prejudice", "Pride and Prejudice is an 1813 novel by Jane Austen. " * 5),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(articles), path)
+    with WikiIndex(path) as index:
+        assert index.search("What is Nicolas Cage's birthday?")[0].title == "Nicolas Cage"
+        assert index.search("Who wrote Pride and Prejudice?")[0].title == "Pride and Prejudice"
+        # With no longer title in the question, a lone word's article is fine.
+        assert index.search("what is a cage")[0].title == "Cage"
+
+
+def test_passages_say_how_they_were_found(tmp_path: Path):
+    path = tmp_path / "w.sqlite"
+    build_index(iter(ARTICLES), path)
+    with WikiIndex(path) as index:
+        found = index.search("What is Nicolas Cage's birthday?")
+        assert found[0].match == "title"
+        by_text = index.search("which river is the capital of France on")
+        assert any(p.match == "all" for p in by_text)

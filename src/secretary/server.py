@@ -31,6 +31,7 @@ from .state import StateStore
 from .stt import make_transcriber
 from .tts import make_speaker
 from .watcher import BriefScanner
+from .wiki import make_wiki
 
 log = logging.getLogger(__name__)
 MAX_VOICE_BYTES = 5_000_000  # about 5 minutes of Opus; push-to-talk clips are tiny
@@ -74,6 +75,7 @@ def create_app(config: AppConfig) -> FastAPI:
     speaker = make_speaker(config.tts)
     transcriber = make_transcriber(config.stt)
     calendar = make_calendar(config.calendar)
+    wiki = make_wiki(config.wiki)
     config.escalations_dir.mkdir(parents=True, exist_ok=True)
     assistant = Assistant(
         persona=persona,
@@ -88,6 +90,7 @@ def create_app(config: AppConfig) -> FastAPI:
         framing=config.brief_framing,
         calendar=calendar,
         calendar_config=config.calendar,
+        wiki=wiki,
     )
 
     async def poll_forever() -> None:
