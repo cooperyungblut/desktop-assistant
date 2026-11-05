@@ -8,10 +8,13 @@ Needs `libzim` and `lxml` (`uv sync --extra wiki`).
 
 from __future__ import annotations
 
+import logging
 import multiprocessing
 import re
 from collections.abc import Iterator
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 # Only the start of an article matters (we keep a few thousand characters), and
 # the infobox and opening sit at the top, so a huge page is cut before parsing.
@@ -80,6 +83,9 @@ def html_to_text(html: str) -> str:
             if name and text and len(facts) < INFOBOX_ROWS:
                 facts.append(f"{name}: {text[:INFOBOX_VALUE_CHARS]}")
     for element in body.xpath(_JUNK + '|//table[contains(@class,"infobox")]'):
+        # The page's own <html>/<body> can carry class names like "...sidebar...".
+        if element.tag in ("html", "body") or element.getparent() is None:
+            continue
         element.drop_tree()
 
     lead: list[str] = []
@@ -123,7 +129,11 @@ def _read_chunk(bounds: tuple[int, int]) -> list[tuple[str, str]]:
         item = entry.get_item()
         if not item.mimetype.startswith("text/html"):
             continue
-        text = html_to_text(bytes(item.content).decode("utf-8", errors="replace"))
+        try:
+            text = html_to_text(bytes(item.content).decode("utf-8", errors="replace"))
+        except Exception:  # one odd page must not stop a multi-hour build
+            log.warning("Skipped %s: could not convert", entry.path, exc_info=True)
+            continue
         if text:
             found.append((entry.title, text))
     return found
