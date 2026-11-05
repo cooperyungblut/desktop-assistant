@@ -72,6 +72,19 @@ class CalendarConfig(BaseModel):
     confirm_seconds: float = Field(default=300.0, ge=10.0)
 
 
+class WikiConfig(BaseModel):
+    """Offline Wikipedia lookup (see secretary/wiki.py and docs/wikipedia.md)."""
+
+    engine: str = "none"  # "local" once you've built the index
+    # The downloaded Hugging Face parquet files (only needed to build the index).
+    source_dir: Path = Path("data/wikipedia/20231101.en")
+    # The search index built from them. Keep both outside the repo if you like.
+    index_file: Path = Path("data/wikipedia.sqlite")
+    # How much of each article goes into the index: the opening plus the first
+    # sections. Raise it for deeper answers (bigger, slower to build).
+    max_chars_per_article: int = Field(default=4000, ge=500)
+
+
 class AppConfig(BaseModel):
     secretary_dir: Path = Field(description="Synced folder holding briefs/ and escalations/")
     state_file: Path = Path("data/state.json")
@@ -85,6 +98,7 @@ class AppConfig(BaseModel):
     stt: SttConfig = SttConfig()
     brief_framing: FramingConfig = FramingConfig()
     calendar: CalendarConfig = CalendarConfig()
+    wiki: WikiConfig = WikiConfig()
 
     @property
     def briefs_dir(self) -> Path:
@@ -112,4 +126,6 @@ def load_config(path: Path) -> AppConfig:
     config.stt.download_dir = resolve(config.stt.download_dir)
     config.calendar.client_file = resolve(config.calendar.client_file)
     config.calendar.token_file = resolve(config.calendar.token_file)
+    config.wiki.source_dir = resolve(config.wiki.source_dir)
+    config.wiki.index_file = resolve(config.wiki.index_file)
     return config

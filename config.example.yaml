@@ -47,6 +47,14 @@ calendar:
   token_file: data/google-token.json           # written by scripts/connect_calendar.py
   default_minutes: 60  # event length when you only say when it starts
 
+# Offline Wikipedia she can look things up in. Runs on CPU and disk only, no VRAM.
+# Setup: docs/wikipedia.md
+wiki:
+  engine: none         # "local" once you've built the index
+  source_dir: C:/data/wikipedia/20231101.en   # downloaded parquet files (only for building)
+  index_file: C:/data/wikipedia/index.sqlite  # the search index
+  max_chars_per_article: 4000
+
 # Push-to-talk speech input (Milestone 2). Needs: uv sync --extra tts --extra stt
 stt:
   engine: whisper      # "none" disables the mic button
