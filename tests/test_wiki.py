@@ -48,6 +48,17 @@ def test_split_passages_keeps_opening_first_and_respects_limit():
     assert len(passages) > 2
 
 
+def test_headings_are_dropped_but_short_sentences_stay():
+    text = (
+        "Paris is the capital of France.\n\nEarly life\n\nHe was born in Lyon.\n"
+        "Plot\nThe story of a deaf and mute hitman starts in the first act of the film."
+    )
+    assert split_passages(text) == [
+        "Paris is the capital of France.\nHe was born in Lyon.\n"
+        "The story of a deaf and mute hitman starts in the first act of the film."
+    ]
+
+
 def test_is_indexable_skips_stubs_and_disambiguation():
     assert not is_indexable("Tiny", "Too short.")
     assert not is_indexable("Mercury", ARTICLES[3][1])
