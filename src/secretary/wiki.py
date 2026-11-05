@@ -108,7 +108,11 @@ def _fts_query(terms: list[str], *, require_all: bool) -> str:
 
 TOKENIZER = "porter unicode61 remove_diacritics 2"
 _SCHEMA = f"""
-CREATE TABLE articles (id INTEGER PRIMARY KEY, title TEXT NOT NULL);
+CREATE TABLE articles (
+    id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    first_passage INTEGER NOT NULL  -- rowid of the opening passage
+);
 CREATE VIRTUAL TABLE passages USING fts5(
     title, body, article_id UNINDEXED, seq UNINDEXED,
     tokenize = "{TOKENIZER}",
@@ -185,12 +189,21 @@ def build_index(
             if not title or not text or not is_indexable(title, text):
                 stats.skipped += 1
                 continue
-            cursor = db.execute("INSERT INTO articles (title) VALUES (?)", (title,))
-            article_id = cursor.lastrowid
             parts = split_passages(text[:max_chars_per_article])
-            db.executemany(
-                "INSERT INTO passages (title, body, article_id, seq) VALUES (?, ?, ?, ?)",
-                [(title, part, article_id, seq) for seq, part in enumerate(parts)],
+            if not parts:
+                stats.skipped += 1
+                continue
+            article_id = stats.articles + 1
+            first = None
+            for seq, part in enumerate(parts):
+                cursor = db.execute(
+                    "INSERT INTO passages (title, body, article_id, seq) VALUES (?, ?, ?, ?)",
+                    (title, part, article_id, seq),
+                )
+                first = first if first is not None else cursor.lastrowid
+            db.execute(
+                "INSERT INTO articles (id, title, first_passage) VALUES (?, ?, ?)",
+                (article_id, title, first),
             )
             stats.articles += 1
             stats.passages += len(parts)
@@ -263,7 +276,7 @@ class WikiIndex:
         """Drop unknown words and words that appear in a large share of passages."""
         if len(terms) < 2:
             return terms
-        total = self._db.execute("SELECT count(*) FROM passages_docsize").fetchone()[0]
+        total = self._db.execute("SELECT max(id) FROM passages_docsize").fetchone()[0] or 0
         counts: dict[str, int] = {}
         for term in terms:
             # The index stores stems, so look up the stem's count.
@@ -290,8 +303,9 @@ class WikiIndex:
         hits: list[Passage] = []
         for candidate in sorted(candidates, key=len, reverse=True):
             row = self._db.execute(
-                "SELECT p.title, p.body FROM articles a JOIN passages p ON p.article_id = a.id"
-                " WHERE a.title = ? COLLATE NOCASE AND p.seq = 0 LIMIT 1",
+                "SELECT p.title, p.body FROM articles a"
+                " JOIN passages p ON p.rowid = a.first_passage"
+                " WHERE a.title = ? COLLATE NOCASE LIMIT 1",
                 (candidate,),
             ).fetchone()
             if row:
