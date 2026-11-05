@@ -180,3 +180,13 @@ def test_full_name_title_beats_single_word_titles(tmp_path: Path):
         assert index.search("Who wrote Pride and Prejudice?")[0].title == "Pride and Prejudice"
         # With no longer title in the question, a lone word's article is fine.
         assert index.search("what is a cage")[0].title == "Cage"
+
+
+def test_passages_say_how_they_were_found(tmp_path: Path):
+    path = tmp_path / "w.sqlite"
+    build_index(iter(ARTICLES), path)
+    with WikiIndex(path) as index:
+        found = index.search("What is Nicolas Cage's birthday?")
+        assert found[0].match == "title"
+        by_text = index.search("which river is the capital of France on")
+        assert any(p.match == "all" for p in by_text)

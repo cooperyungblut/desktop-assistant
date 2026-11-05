@@ -48,7 +48,9 @@ calendar:
   default_minutes: 60  # event length when you only say when it starts
 
 # Offline Wikipedia she can look things up in. Runs on CPU and disk only, no VRAM.
-# Setup: docs/wikipedia.md
+# Build the index first (docs/wikipedia.md), then set engine: local. She then looks
+# up general-knowledge questions ("who is ...", "why did ...") and anything you
+# start with "look up".
 wiki:
   engine: none         # "local" once you've built the index
   source: C:/data/wikipedia/wikipedia_en_all_nopic.zim   # Kiwix file (only for building)

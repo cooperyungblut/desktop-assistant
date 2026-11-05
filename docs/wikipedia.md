@@ -84,3 +84,21 @@ Searching uses only Python's standard library. Only building needs `libzim`,
 `lxml` and (for the parquet source) `pyarrow`. The code is in
 `src/secretary/wiki.py` and knows nothing about the chat model, so another front
 end can use it unchanged.
+
+## 4. Turn it on
+
+Once `--ask` gives good answers, set `engine: local` under `wiki:` in
+`config.yaml` and restart the app. The startup log says "Wikipedia lookup ready".
+
+She looks something up when the question asks for general knowledge ("who is ...",
+"what is ...", "why did ...", "how tall is ...", "tell me about ..."), and always
+when you say "look up ..." or "what does Wikipedia say about ...". She does not
+look up questions that sound like they're about you or your day (my, brief,
+calendar, email, interview, today, tomorrow), small talk, or live information
+(weather, news, the time). Those go to the model as before.
+
+The best passages (up to three, about 600 characters each) go to the model for that
+one question and are not kept in the chat history. She answers in a sentence or two
+and says it comes from Wikipedia. If the passages don't answer it, she says she
+couldn't find it. Matching is done in code, not by the model, so it's predictable;
+the log line "Wikipedia: 2 of 6 passages kept in 25 ms (...)" shows what she found.

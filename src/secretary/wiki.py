@@ -41,6 +41,9 @@ class Passage:
     title: str
     text: str
     score: float  # higher is better
+    # How it was found: "title" (the question names the article), "all" (every
+    # key word is in the passage) or "any" (only some are: weak).
+    match: str = "any"
 
     @property
     def url(self) -> str:
@@ -251,7 +254,10 @@ class WikiIndex:
             raise FileNotFoundError(
                 f"No Wikipedia index at {index_file}. Build it first (docs/wikipedia.md)."
             )
-        self._db = sqlite3.connect(f"file:{index_file.as_posix()}?mode=ro", uri=True)
+        # Read-only, so it is safe to search from a worker thread.
+        self._db = sqlite3.connect(
+            f"file:{index_file.as_posix()}?mode=ro", uri=True, check_same_thread=False
+        )
 
     def close(self) -> None:
         self._db.close()
@@ -338,7 +344,7 @@ class WikiIndex:
             ).fetchone()
             if row:
                 used.update(range(i, j))
-                hits.append(Passage(row[0], row[1], score=100.0))
+                hits.append(Passage(row[0], row[1], score=100.0, match="title"))
                 if len(hits) >= 2:
                     break
         return hits
@@ -351,4 +357,23 @@ class WikiIndex:
             " WHERE passages MATCH ? ORDER BY rank LIMIT ?",
             (query, limit),
         ).fetchall()
-        return [Passage(title, body, score=-rank) for title, body, rank in rows]
+        match = "all" if require_all else "any"
+        return [Passage(title, body, score=-rank, match=match) for title, body, rank in rows]
+
+
+def make_wiki(config) -> WikiIndex | None:
+    """The index for `wiki:` in config.yaml, or None when it is off or not built yet."""
+    import logging
+
+    log = logging.getLogger(__name__)
+    if config.engine == "none":
+        return None
+    if config.engine != "local":
+        raise ValueError(f"unknown wiki.engine {config.engine!r}; use local or none")
+    try:
+        index = WikiIndex(config.index_file)
+    except FileNotFoundError as exc:
+        log.warning("Wikipedia lookup is on but has no index: %s", exc)
+        return None
+    log.info("Wikipedia lookup ready (%s)", config.index_file)
+    return index
