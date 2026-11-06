@@ -12,10 +12,11 @@ same search, filtering and clipping as the app (see secretary/retrieval_eval.py)
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 from secretary.config import load_config
-from secretary.rerank import make_reranked
+from secretary.rerank import RerankedWiki, make_reranked
 from secretary.retrieval_eval import load_retrieval_cases, run_retrieval_case, summary
 from secretary.wiki import WikiIndex
 
@@ -37,8 +38,16 @@ def main() -> None:
     results = []
     config = load_config(args.config).wiki
     model = None if args.no_rerank else config.rerank_model
-    print(f"reranker: {model or 'off'}")
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
     with make_reranked(WikiIndex(config.index_file), model) as wiki:
+        if isinstance(wiki, RerankedWiki):
+            print(f"reranker: on ({model})")
+        elif args.no_rerank:
+            print("reranker: off (--no-rerank)")
+        elif model is None:
+            print(f"reranker: off (no wiki.rerank_model in {args.config})")
+        else:
+            print(f"reranker: off ({model} didn't load; see the line above)")
         for case in cases:
             result = run_retrieval_case(wiki, case)
             results.append(result)
