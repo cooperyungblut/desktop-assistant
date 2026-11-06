@@ -124,6 +124,14 @@ def _stem(word: str) -> str:
     return word
 
 
+def _mentions(stems: set[str], wanted: str) -> bool:
+    """True if a passage's word stems include `wanted`, or a longer form of it
+    ("marri" from "married" also finds "marriage")."""
+    if wanted in stems:
+        return True
+    return len(wanted) >= 4 and any(stem.startswith(wanted) for stem in stems)
+
+
 def query_terms(question: str) -> list[str]:
     """The words of a question that are worth searching for."""
     words = _WORD.findall(question.lower().replace("'s", ""))
@@ -420,27 +428,38 @@ class WikiIndex:
     def _title_hits(self, question: str) -> list[Passage]:
         """Openings of articles whose exact title appears in the question.
 
-        Titles with more real words win ("Pride and Prejudice" over "Pride"), then
-        ones that don't start or end with a filler word ("Roman Empire" over "The
-        Roman"), then the longest. A word is used once. Titles of a single real
-        word count only when no longer title was found.
+        Names written with capitals win ("Keanu Reeves", "The Matrix", "StarCraft"
+        over "four species" or "played"), then titles with more real words
+        ("Pride and Prejudice" over "Pride"), then ones that don't start or end
+        with a filler word ("Roman Empire" over "Roman Empire fall"; a leading
+        "the" is fine), then the longest. A word is used once. Once a name is
+        found, plain lowercase words are not tried, and without capitals a single
+        word only counts when no longer title was found.
         """
-        words = _WORD.findall(question.lower().replace("'s", ""))
+        text = question.replace("'s", "").replace("\u2019s", "")
+        lowered = text.lower()
+        matches = list(_WORD.finditer(lowered))
+        words = [m.group() for m in matches]
+        # Did the user capitalise it? The first word doesn't count (sentence start).
+        capital = [k > 0 and text[m.start()].isupper() for k, m in enumerate(matches)]
         spans = []
         for i in range(len(words)):
             for j in range(i + 1, min(i + 6, len(words)) + 1):
                 chunk = words[i:j]
-                content = sum(1 for w in chunk if w not in _STOPWORDS)
+                content = [k for k in range(i, j) if words[k] not in _STOPWORDS]
                 if not content or len(" ".join(chunk)) <= 2:
                     continue
-                edge = (chunk[0] in _STOPWORDS) + (chunk[-1] in _STOPWORDS)
-                spans.append((content, edge, i, j))
-        spans.sort(key=lambda span: (-span[0], span[1], span[2] - span[3], span[2]))
+                lettered = [k for k in content if not words[k].isdigit()]
+                named = bool(lettered) and all(capital[k] for k in lettered)
+                edge = (chunk[0] in _STOPWORDS and chunk[0] != "the") + (chunk[-1] in _STOPWORDS)
+                spans.append((named, len(content), edge, i, j))
+        spans.sort(key=lambda s: (not s[0], -s[1], s[2], s[3] - s[4], s[3]))
+        any_named = any(span[0] for span in spans)
         used: set[int] = set()
         hits: list[Passage] = []
-        for content, _edge, i, j in spans:
-            if content == 1 and hits:
-                break  # a longer title was found: skip the lone words
+        for named, content, _edge, i, j in spans:
+            if hits and not named and (any_named or content == 1):
+                break  # a name was found: skip plain words and lone words
             if used & set(range(i, j)):
                 continue
             name = " ".join(words[i:j])
@@ -488,7 +507,8 @@ class WikiIndex:
         wanted = {_stem(w) for w in others}
         best, best_score = None, 0
         for body in bodies[1:]:
-            score = len(wanted & {_stem(w) for w in _WORD.findall(body.lower())})
+            stems = {_stem(w) for w in _WORD.findall(body.lower())}
+            score = sum(1 for w in wanted if _mentions(stems, w))
             if score > best_score and FACTS_PREFIX not in body:
                 best, best_score = body, score
         if best is not None:
