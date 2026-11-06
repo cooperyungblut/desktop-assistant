@@ -545,3 +545,27 @@ def test_the_thing_a_plain_title_is_for_is_looked_up_too(tmp_path: Path):
     titles = [p.title for p in found if p.match == "title"]
     assert titles[0] == "Chemical symbol" and "Salt" in titles
     assert "Symbol" not in titles
+
+
+def test_openings_drop_trailing_qualifiers_and_the_x_is_not_a_name(tmp_path: Path):
+    items = [
+        ("Take Care (album)", "Take Care is an album with the song The Largest. " * 5),
+        Redirect("The largest", "Take Care (album)"),
+        (
+            "Sahara",
+            "The Sahara is the largest hot desert in the world by area, covering much "
+            "of North Africa. " * 3,
+        ),
+        ("Polar desert", "Polar deserts are cold, dry regions near the poles. " * 5),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search(
+            "What is the largest desert by area in the world, excluding polar deserts?",
+            limit=8,
+            loose=False,
+        )
+    titles = [p.title for p in found]
+    assert "Take Care (album)" not in titles
+    assert "Sahara" in titles

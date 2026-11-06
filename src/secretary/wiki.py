@@ -204,6 +204,8 @@ ARTICLE_PASSAGES = 40
 # Openings fetched for the all-key-words stage; those that hold the question's
 # words in the question's order go first. Longest run of words tried as a phrase.
 OPENING_POOL = 300
+# Key words the openings stage may drop, one at a time, when nothing has them all.
+MAX_DROPPED_TERMS = 3
 # Wikipedia pages that aren't articles ("Portal:Malawi/Featured article/3").
 _NOT_ARTICLES = ("Portal:", "Wikipedia:", "Template:", "Category:", "Help:", "File:", "Draft:")
 PHRASE_WORDS = 8
@@ -451,13 +453,17 @@ class WikiIndex:
             # Among those, the ones that say it the way the question does ("the
             # longest river in Africa", not "the longest river in South Africa")
             # come first.
-            openings = [
-                p
-                for p in self._ranked(
-                    opening_terms, OPENING_POOL, require_all=True, openings_only=True
+            # No opening has them all ("largest desert by area in the world,
+            # excluding polar deserts")? Drop key words from the end, where the
+            # qualifiers usually are, down to two.
+            openings: list[Passage] = []
+            for keep in range(len(opening_terms), 1, -1):
+                found = self._ranked(
+                    opening_terms[:keep], OPENING_POOL, require_all=True, openings_only=True
                 )
-                if p.title not in named
-            ]
+                openings = [p for p in found if p.title not in named]
+                if openings or keep <= len(opening_terms) - MAX_DROPPED_TERMS:
+                    break
             phrases = _phrases(question, opening_terms)
             if phrases:
                 openings.sort(key=lambda p: _phrase_rank(p.text, phrases))
@@ -550,7 +556,11 @@ class WikiIndex:
                 for k, w in enumerate(words)
                 if (k < i or k >= j) and w not in _STOPWORDS and len(w) > 1
             ]
-            row = self._qualified(name, others) or self._article(name)
+            # One plain word reaches only a real article, not a redirect: "the
+            # largest" redirects to an album with a song of that name.
+            row = self._qualified(name, others) or self._article(
+                name, redirects=named or content > 1
+            )
             if row:
                 used.update(range(i, j))
                 hits += self._article_passages(row, others)
@@ -598,7 +608,7 @@ class WikiIndex:
             found.append(Passage(title, facts, score=98.0, match="title"))
         return found
 
-    def _article(self, name: str) -> tuple[str, str, int, int] | None:
+    def _article(self, name: str, redirects: bool = True) -> tuple[str, str, int, int] | None:
         """(title, opening, id, first passage) of the article called `name`,
         directly or through a redirect ("Nicholas Cage", "Capital of France")."""
         row = self._db.execute(
@@ -607,7 +617,7 @@ class WikiIndex:
             " WHERE a.title = ? COLLATE NOCASE LIMIT 1",
             (name,),
         ).fetchone()
-        if row or not self._has_redirects:
+        if row or not redirects or not self._has_redirects:
             return row
         return self._db.execute(
             "SELECT p.title, p.body, a.id, a.first_passage FROM redirects r"
