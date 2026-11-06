@@ -23,7 +23,8 @@ from secretary.wiki import BuildStats, WikiIndex, build_index, iter_articles
 def ask(index_file: Path, question: str) -> None:
     with WikiIndex(index_file) as index:
         started = time.perf_counter()
-        passages = index.search(question)
+        # The same search the app runs for a question (not an explicit "look up").
+        passages = index.search(question, 8, loose=False)
         took = time.perf_counter() - started
         stages = ", ".join(f"{name} {ms:.0f}" for name, ms in index.trace)
     for passage in passages:

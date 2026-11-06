@@ -395,6 +395,11 @@ class WikiIndex:
     def close(self) -> None:
         self._db.close()
 
+    def interrupt(self) -> None:
+        """Stop a search running in another thread (one that took too long), so it
+        doesn't hold up the next question."""
+        self._db.interrupt()
+
     def __enter__(self) -> WikiIndex:
         return self
 
@@ -407,13 +412,16 @@ class WikiIndex:
             self._passages = row[0] or 0
         return self._passages
 
-    def search(self, question: str, limit: int = 3) -> list[Passage]:
+    def search(self, question: str, limit: int = 3, *, loose: bool = True) -> list[Passage]:
         """The best passages for a question, best first.
 
         Two kinds of match, taken in turns so neither crowds out the other:
         - by title: the opening, Facts line and best-matching passage of an article
           the question names, then articles whose title holds all the key words;
-        - by text: passages holding all the rarer key words, then any of them.
+        - by text: passages holding all the rarer key words, then (if `loose`) any
+          of them. That last stage is slow on a full index (seconds: "nicholas OR
+          cage OR birthday" matches millions of passages), so leave it off unless
+          those matches will be used.
         The text search matters when the answer is a name the question doesn't
         say ("the longest river in Africa" -> Nile, while "Africa" is the title
         match). `self.trace` keeps the time each stage took, for tuning.
@@ -455,7 +463,7 @@ class WikiIndex:
                 openings.sort(key=lambda p: _phrase_rank(p.text, phrases))
             by_text = openings[:limit]
             mark("openings")
-            for require_all in (True, False):
+            for require_all in (True, False) if loose else (True,):
                 if rare and len(by_text) < limit:
                     found = self._ranked(rare, limit * 3, require_all=require_all)
                     # Other articles only: the named ones are already in by_title.
