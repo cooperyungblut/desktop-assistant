@@ -166,6 +166,13 @@ SAMPLE_PASSAGES = 100_000  # per slice
 SAMPLE_SLICES = (0.2, 0.5, 0.8)
 SMALL_INDEX = 50_000  # below this many passages every word counts as rare
 MAX_BODY_TERMS = 3
+# Article openings are searched with every key word (up to this many), common or not.
+MAX_OPENING_TERMS = 6
+# Words that shape the question but won't be in the answer's text ("what is the
+# name of the process ..."): left out when every word must match.
+_QUESTION_FILLER = frozenset(
+    ["name", "names", "called", "known", "kind", "type", "sort", "word", "term"]
+)
 # The infobox line written by the ZIM loader, and how many passages in to look for it.
 FACTS_PREFIX = "Facts: "
 # How many passages of one article to read when looking inside it. Generous: an
@@ -399,12 +406,23 @@ class WikiIndex:
                 mark("title words")
             rare = self._rare_terms(terms)
             mark("word counts")
-            by_text: list[Passage] = []
+            named = {p.title for p in by_title}
+            opening_terms = [t for t in terms if t not in _QUESTION_FILLER][:MAX_OPENING_TERMS]
+            # Openings that hold every key word: an article's first lines define
+            # it ("Photosynthesis is ... by which plants convert light energy into
+            # chemical energy"), so they beat a stray mention deep in some page.
+            by_text = [
+                p
+                for p in self._ranked(
+                    opening_terms, limit * 3, require_all=True, openings_only=True
+                )
+                if p.title not in named
+            ][:limit]
+            mark("openings")
             for require_all in (True, False):
                 if rare and len(by_text) < limit:
                     found = self._ranked(rare, limit * 3, require_all=require_all)
                     # Other articles only: the named ones are already in by_title.
-                    named = {p.title for p in by_title}
                     by_text += [p for p in found if p.title not in named][:limit]
                     mark("body")
             return _take_turns(by_title, by_text, limit)
@@ -561,7 +579,9 @@ class WikiIndex:
         ).fetchall()
         return [Passage(title, body, score=-rank, match="all") for title, body, rank in rows]
 
-    def _ranked(self, terms: list[str], limit: int, *, require_all: bool) -> list[Passage]:
+    def _ranked(
+        self, terms: list[str], limit: int, *, require_all: bool, openings_only: bool = False
+    ) -> list[Passage]:
         """Passages whose text holds the words. Titles don't count here: the title
         stages already cover them, and a title word ("N3 (South Africa)") would
         otherwise beat the passage that answers ("the Nile ... longest river in
@@ -570,7 +590,9 @@ class WikiIndex:
         rows = self._db.execute(
             # Lower (more negative) bm25 is better.
             "SELECT title, body, bm25(passages, 0.0, 1.0) AS rank FROM passages"
-            " WHERE passages MATCH ? ORDER BY rank LIMIT ?",
+            " WHERE passages MATCH ?"
+            + (" AND seq = 0" if openings_only else "")
+            + " ORDER BY rank LIMIT ?",
             (query, limit),
         ).fetchall()
         match = "all" if require_all else "any"
