@@ -121,3 +121,24 @@ one question and are not kept in the chat history. She answers in a sentence or 
 and says it comes from Wikipedia. If the passages don't answer it, she says she
 couldn't find it. Matching is done in code, not by the model, so it's predictable;
 the log line "Wikipedia: 2 of 6 passages kept in 25 ms (...)" shows what she found.
+
+## Checking the search
+
+`evals/wiki_questions.yaml` holds about 30 questions, each with the article(s)
+that answer it and a pattern for the answer. To run them:
+
+```powershell
+uv run python scripts/eval_wiki.py        # one line per question, then totals
+uv run python scripts/eval_wiki.py -v     # also shows what she read on a miss
+```
+
+It runs the same steps as the app (decide whether to look it up, search, keep
+the best passages, clip them) without the chat model, and reports:
+
+- **article:** the right article is among the passages she gets (recall@4).
+- **answer:** the answer itself is in the text she reads.
+- **MRR:** how near the top the right article sits.
+
+A miss here is a search problem. A hit that she still answers wrong is a prompt
+or model problem. Run it before and after a search change to see whether the
+change helped.

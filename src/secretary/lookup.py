@@ -29,6 +29,9 @@ _EXPLICIT = re.compile(
 )
 _ASKS = re.compile(
     r"^\s*(?:(?:hey|ok|okay|so|and|um|uh|well|now|then)\b[,\s]*)*"
+    # "In which year...", "On what date...", "By whom...", "Of which country..."
+    r"(?:(?:in|on|at|by|for|from|of|to|with|during|since|after|before)\s+"
+    r"(?=(?:which|what|whom|whose|when|where)\b))?"
     r"(who|whom|whose|what|what's|whats|when|where|why|how|which|"
     # yes/no questions: "Is Keanu Reeves married?", "Does he have kids?"
     r"is|are|was|were|does|do|did|has|have|had|"

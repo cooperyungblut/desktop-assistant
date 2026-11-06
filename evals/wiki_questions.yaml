@@ -1,0 +1,107 @@
+# Retrieval eval for the Wikipedia lookup (scripts/eval_wiki.py).
+# article: the article(s) whose passages answer the question (any one counts)
+# answer:  a regex, case-sensitive, for the answer in the text she reads
+# note:    where the question came from or why it's here
+
+# Questions already asked in testing
+- question: When was Nicolas Cage born?
+  article: Nicolas Cage
+  answer: "1964"
+- question: When is Keanu Reeves's birthday?
+  article: Keanu Reeves
+  answer: "1964"
+- question: What is the longest river in the world?
+  article: [Nile, Congo River]
+  answer: Nile
+  note: answered via the Congo River opening
+- question: What is photosynthesis?
+  article: Photosynthesis
+  answer: light
+- question: What is the chemical symbol for potassium?
+  article: Potassium
+  answer: \bK\b
+- question: Which element has the chemical symbol Fe?
+  article: Iron
+  answer: \b[Ii]ron\b
+- question: What is the chemical symbol for salt?
+  article: Sodium chloride
+  answer: NaCl
+  note: loose wording; the formula is the closest real answer
+- question: What is the largest desert in the world?
+  article: [Desert, Polar desert, Antarctica, Antarctic Desert]
+  answer: Antarctic
+- question: What is the largest country in Africa?
+  article: [Algeria, Africa]
+  answer: Algeria
+- question: What is the capital of Nigeria?
+  article: [Nigeria, Abuja]
+  answer: Abuja
+- question: When was Teddy Roosevelt president?
+  article: Theodore Roosevelt
+  answer: "1901"
+- question: Who designed the Sydney Opera House?
+  article: Sydney Opera House
+  answer: Utzon
+- question: What is the atomic number of livermorium?
+  article: Livermorium
+  answer: \b116\b
+- question: Which county contains the village of Lower Slaughter?
+  article: Lower Slaughter
+  answer: Gloucestershire
+- question: Who was the first woman to win a Nobel Prize in Literature?
+  article: [Selma Lagerlöf, Nobel Prize in Literature]
+  answer: Lagerl
+- question: What is the mount, or vahana, of the Hindu god Ganesha?
+  article: Ganesha
+  answer: (mouse|rat|Mushika|Mūṣaka)
+- question: What is the mount of Ganesha?
+  article: Ganesha
+  answer: (mouse|rat|Mushika|Mūṣaka)
+  note: without "vahana"; "mount" must not be read as a mountain
+- question: What is the ISO 4217 currency code for the Bhutanese ngultrum?
+  article: Bhutanese ngultrum
+  answer: BTN
+- question: What is the official motto of the Isle of Man?
+  article: Isle of Man
+  answer: Quocunque
+  note: needs the infobox Motto row (PR 70 + rebuild)
+- question: In which year did the Dutch East India Company cease operations?
+  article: Dutch East India Company
+  answer: "1799"
+- question: Which bird is the national bird of Papua New Guinea?
+  article: [Raggiana bird-of-paradise, Papua New Guinea]
+  answer: Raggiana
+- question: Who is Harry Potter's school rival?
+  article: [Draco Malfoy, Harry Potter (character)]
+  answer: Draco
+  note: vague on purpose; the answer is deep in the character article
+- question: Which Kangxi radical number is assigned to the character 木?
+  article: [Radical 75, Kangxi radical]
+  answer: \b75\b
+  note: very hard; expected to miss
+
+# New questions, same kinds
+- question: Who wrote Pride and Prejudice?
+  article: Pride and Prejudice
+  answer: Austen
+- question: In what year did the Western Roman Empire fall?
+  article: [Western Roman Empire, Fall of the Western Roman Empire]
+  answer: \b476\b
+- question: What is the tallest mountain in the world?
+  article: [Mount Everest, List of highest mountains on Earth]
+  answer: Everest
+- question: Who painted the Mona Lisa?
+  article: Mona Lisa
+  answer: Leonardo
+- question: What is the capital of Australia?
+  article: [Australia, Canberra]
+  answer: Canberra
+- question: How many bones are in the adult human body?
+  article: [Human skeleton, Bone]
+  answer: \b206\b
+- question: Who was the first person to walk on the Moon?
+  article: [Neil Armstrong, Apollo 11]
+  answer: Armstrong
+- question: What year did the Titanic sink?
+  article: Titanic
+  answer: "1912"
