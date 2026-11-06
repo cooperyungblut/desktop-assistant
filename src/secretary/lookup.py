@@ -73,7 +73,7 @@ _COMMAND_WORDS = re.compile(
 class Lookup(Protocol):
     """Anything that can find passages for a question (see secretary.wiki.WikiIndex)."""
 
-    def search(self, question: str, limit: int = 3) -> list[Passage]: ...
+    def search(self, question: str, limit: int = 3, *, loose: bool = True) -> list[Passage]: ...
 
 
 # A follow-up that points back at the last topic ("What are those four species?").

@@ -366,7 +366,11 @@ class Assistant:
             (t.content for t in reversed(self.history) if t.role == "assistant"), None
         )
         query = follow_up(request.query, self._wiki_topic, last_reply and strip_tags(last_reply))
-        search = asyncio.ensure_future(asyncio.to_thread(self._wiki.search, query, 8))
+        # Loose (any-word) matches are only kept for an explicit "look up", and
+        # finding them is the slow part, so skip them otherwise.
+        search = asyncio.ensure_future(
+            asyncio.to_thread(self._wiki.search, query, 8, loose=request.forced)
+        )
         notice = min(self._wiki_notice_after, self._wiki_timeout)
         try:
             try:
@@ -380,6 +384,12 @@ class Assistant:
             log.warning(
                 "Wikipedia lookup took over %.0f s; answering without it", self._wiki_timeout
             )
+            # The search thread is still running: stop it, or the next question
+            # waits behind it.
+            if interrupt := getattr(self._wiki, "interrupt", None):
+                interrupt()
+            # It ends with an "interrupted" error nobody waits for: keep it quiet.
+            search.add_done_callback(lambda f: f.cancelled() or f.exception())
             return None
         except Exception:
             log.exception("Wikipedia lookup failed")

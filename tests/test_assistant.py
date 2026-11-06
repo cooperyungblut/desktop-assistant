@@ -502,9 +502,15 @@ class FakeWiki:
         ]
         self.fail = fail
         self.questions: list[str] = []
+        self.loose: list[bool] = []
+        self.interrupted = False
 
-    def search(self, question, limit=3):
+    def interrupt(self):
+        self.interrupted = True
+
+    def search(self, question, limit=3, *, loose=True):
         self.questions.append(question)
+        self.loose.append(loose)
         if self.fail:
             raise RuntimeError("index broke")
         return self.passages
@@ -566,15 +572,17 @@ async def test_a_slow_lookup_is_skipped_and_she_still_answers(env, fake_model):
     import time
 
     class SlowWiki(FakeWiki):
-        def search(self, question, limit=3):
+        def search(self, question, limit=3, *, loose=True):
             time.sleep(0.4)
             return super().search(question, limit)
 
-    a = _with_wiki(env, SlowWiki())
+    wiki = SlowWiki()
+    a = _with_wiki(env, wiki)
     a._wiki_timeout = 0.05
     a.ask("Who is Nicolas Cage?")
     await finish(a)
     assert fake_model.requests
+    assert wiki.interrupted  # the abandoned search is stopped
     assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
 
 
@@ -583,7 +591,7 @@ class _SlowWiki(FakeWiki):
         super().__init__()
         self.delay = delay
 
-    def search(self, question, limit=3):
+    def search(self, question, limit=3, *, loose=True):
         import time
 
         time.sleep(self.delay)
@@ -636,3 +644,13 @@ async def test_a_follow_up_question_is_looked_up_with_the_last_topic(env, fake_m
         "What is StarCraft?",
         "What are those four species? (StarCraft)",
     ]
+
+
+async def test_any_word_matches_only_for_an_explicit_look_up(env, fake_model):
+    wiki = FakeWiki()
+    a = _with_wiki(env, wiki)
+    a.ask("Who is Nicolas Cage?")
+    await finish(a)
+    a.ask("Look up Nicolas Cage")
+    await finish(a)
+    assert wiki.loose == [False, True]

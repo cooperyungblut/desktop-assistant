@@ -517,3 +517,15 @@ def test_the_answer_beats_runners_up_and_portal_pages(tmp_path: Path):
         stray = ranked(["longest", "river", "africa"], 9, require_all=True)
     assert [p.title for p in found if p.match != "title"][0] == "Nile"
     assert not any(p.title.startswith("Portal:") for p in stray)
+
+
+def test_loose_matches_are_skipped_when_not_wanted(tmp_path: Path):
+    items = [("Cage", "A cage is an enclosure for animals. " * 8)]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        wiki.search("Which birds live in a cage at the zoo?", loose=False)
+        strict = [name for name, _ in wiki.trace]
+        wiki.search("Which birds live in a cage at the zoo?")
+        loose = [name for name, _ in wiki.trace]
+    assert strict.count("body") == 1 and loose.count("body") == 2
