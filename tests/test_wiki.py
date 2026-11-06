@@ -216,3 +216,31 @@ def test_passages_say_how_they_were_found(tmp_path: Path):
         assert found[0].match == "title"
         by_text = index.search("which river is the capital of France on")
         assert any(p.match == "all" for p in by_text)
+
+
+def test_title_hit_brings_the_facts_line_after_a_long_opening(tmp_path: Path):
+    opening = " ".join(
+        f"France is a country in Western Europe with a long history, sentence {n}."
+        for n in range(20)
+    )
+    articles = [
+        ("France", f"{opening}\nFacts: Capital: Paris; Currency: Euro.\nHistory goes on here."),
+        ("Germany", "Germany is a country in Central Europe with many old cities. " * 5),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(articles), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("What is the capital of France?", limit=4)
+    assert [p.title for p in found[:2]] == ["France", "France"]
+    assert found[0].text.startswith("France is a country")
+    assert found[1].text == "Facts: Capital: Paris; Currency: Euro."
+    assert found[1].match == "title"
+
+
+def test_title_hit_without_facts_line_adds_nothing(tmp_path: Path):
+    articles = [("Germany", "Germany is a country in Central Europe with many old cities. " * 5)]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(articles), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("Tell me about Germany", limit=4)
+    assert [p.title for p in found] == ["Germany"]

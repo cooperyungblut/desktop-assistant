@@ -116,6 +116,9 @@ SAMPLE_PASSAGES = 100_000  # per slice
 SAMPLE_SLICES = (0.2, 0.5, 0.8)
 SMALL_INDEX = 50_000  # below this many passages every word counts as rare
 MAX_BODY_TERMS = 3
+# The infobox line written by the ZIM loader, and how many passages in to look for it.
+FACTS_PREFIX = "Facts: "
+FACTS_WITHIN = 8
 
 
 def _fts_query(terms: list[str], *, require_all: bool) -> str:
@@ -361,7 +364,7 @@ class WikiIndex:
             if used & set(range(i, j)):
                 continue
             row = self._db.execute(
-                "SELECT p.title, p.body FROM articles a"
+                "SELECT p.title, p.body, a.id, a.first_passage FROM articles a"
                 " JOIN passages p ON p.rowid = a.first_passage"
                 " WHERE a.title = ? COLLATE NOCASE LIMIT 1",
                 (" ".join(words[i:j]),),
@@ -369,9 +372,30 @@ class WikiIndex:
             if row:
                 used.update(range(i, j))
                 hits.append(Passage(row[0], row[1], score=100.0, match="title"))
-                if len(hits) >= 2:
+                facts = self._facts(row[2], row[3])
+                if facts and facts not in row[1]:
+                    hits.append(Passage(row[0], facts, score=99.0, match="title"))
+                if len(hits) >= 3:
                     break
         return hits
+
+    def _facts(self, article_id: int, first_passage: int) -> str | None:
+        """The article's "Facts: ..." line (its infobox: born, capital, ...), if any.
+
+        It sits right after the opening paragraphs, so it is often not in the first
+        passage. An article's passages have neighbouring rowids, so this is a few
+        rowid lookups, not a search.
+        """
+        rows = self._db.execute(
+            "SELECT body FROM passages WHERE rowid BETWEEN ? AND ? AND article_id = ?"
+            " ORDER BY rowid",
+            (first_passage, first_passage + FACTS_WITHIN, article_id),
+        ).fetchall()
+        for (body,) in rows:
+            at = body.find(FACTS_PREFIX)
+            if at >= 0:
+                return body[at:].split("\n", 1)[0]
+        return None
 
     def _title_words(self, terms: list[str], limit: int) -> list[Passage]:
         """Openings of articles whose title holds every key word ("Fall of the
