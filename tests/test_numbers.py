@@ -50,3 +50,22 @@ def test_say_year(year, said):
 )
 def test_spoken_years(text, spoken):
     assert spoken_years(text) == (spoken or text)
+
+
+@pytest.mark.parametrize(
+    ("text", "spoken"),
+    [
+        ("The call is at 10:30.", "The call is at ten thirty."),
+        ("Lunch at 9:05 with Dana.", "Lunch at nine oh five with Dana."),
+        ("It starts at 10:00.", "It starts at ten o'clock."),
+        ("Dinner at 7:00 pm, then 8:15 P.M.", "Dinner at seven PM, then eight fifteen PM."),
+        ("From 14:45 to 16:20", "From fourteen forty-five to sixteen twenty"),
+        ("Psalm 23:4 and ratio 1.5:2", "Psalm 23:4 and ratio 1.5:2"),
+        ("At 12:30:15 exactly", "At 12:30:15 exactly"),
+        ("Born in 1909, up at 6:30.", "Born in nineteen oh nine, up at six thirty."),
+    ],
+)
+def test_spoken_numbers_says_times_and_years(text, spoken):
+    from secretary.numbers import spoken_numbers
+
+    assert spoken_numbers(text) == spoken

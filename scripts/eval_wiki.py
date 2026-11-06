@@ -3,6 +3,8 @@
     uv run python scripts/eval_wiki.py              # one line per question + totals
     uv run python scripts/eval_wiki.py -v           # also show what she read on a miss
     uv run python scripts/eval_wiki.py --no-rerank  # keyword ranking only
+    uv run python scripts/eval_wiki.py --compare --model C:/data/wikipedia/bge-reranker
+                                                    # try another reranker model
     uv run python scripts/eval_wiki.py --compare    # keyword vs every rerank mode
 
 Questions live in evals/wiki_questions.yaml, each with the article(s) that
@@ -70,13 +72,16 @@ def main() -> None:
         "--no-rerank", action="store_true", help="skip wiki.rerank_model, keywords only"
     )
     parser.add_argument(
+        "--model", type=Path, help="a reranker model folder instead of wiki.rerank_model"
+    )
+    parser.add_argument(
         "--compare", action="store_true", help="keyword ranking vs every rerank mode"
     )
     args = parser.parse_args()
     cases = load_retrieval_cases(args.cases)
     results = []
     config = load_config(args.config).wiki
-    model = None if args.no_rerank else config.rerank_model
+    model = None if args.no_rerank else (args.model or config.rerank_model)
     logging.basicConfig(level=logging.WARNING, format="%(message)s")
     with make_reranked(WikiIndex(config.index_file), model, config.rerank_mode) as wiki:
         if isinstance(wiki, RerankedWiki):

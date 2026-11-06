@@ -16,7 +16,7 @@ import wave
 from typing import Protocol
 
 from .config import TtsConfig
-from .numbers import spoken_years
+from .numbers import spoken_numbers
 from .persona import Voice
 
 log = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def speak(kokoro, text: str, voice: Voice):
     import numpy as np
 
     style = resolve_voice(kokoro, voice.kokoro_voice)
-    text = spoken_years(text)  # "1909" -> "nineteen oh nine"; the chat keeps the digits
+    text = spoken_numbers(text)  # "1909" -> "nineteen oh nine"; the chat keeps the digits
     chunks = split_clauses(text) if voice.split_clauses else [text]
     parts, rate = [], 24000
     for chunk in chunks:
