@@ -14,6 +14,8 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
+from .wiki import FACTS_PREFIX
+
 log = logging.getLogger(__name__)
 
 # Only the start of an article matters (we keep a few thousand characters), and
@@ -103,7 +105,7 @@ def html_to_text(html: str) -> str:
 
     parts = lead
     if facts:
-        parts = [*parts, "Facts: " + "; ".join(facts) + "."]
+        parts = [*parts, FACTS_PREFIX + "; ".join(facts) + "."]
     return "\n".join([*parts, *rest])
 
 

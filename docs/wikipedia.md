@@ -48,10 +48,13 @@ sections of each article. Smaller means a smaller, faster index.
 
 ```powershell
 cd C:\dev\desktop-assistant
-uv sync --extra wiki
+uv sync --extra tts --extra stt --extra stt-gpu --extra wiki
 uv run python scripts/build_wiki_index.py --limit 20000   # trial run
 uv run python scripts/build_wiki_index.py --ask "What is Nicolas Cage's birthday?"
 ```
+
+`uv sync` uninstalls every extra you don't list, so keep the ones you already use
+(`tts` for her voice, `stt` and `stt-gpu` for Whisper) in the same command.
 
 The trial indexes only the first 20,000 articles, so a question can come back
 empty or about a different page. When it looks right, build the real one. Leave
