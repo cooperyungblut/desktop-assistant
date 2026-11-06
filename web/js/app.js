@@ -126,6 +126,7 @@ const handlers = {
     }
     // Brief content includes email text, so treat it as untrusted HTML.
     els.briefBody.innerHTML = DOMPurify.sanitize(marked.parse(b.display));
+    setBriefHidden(false, false); // show it while she reads it; the saved choice stays
     addMessage("note", `Reading the ${b.type} brief`);
   },
   say(e) { player.enqueue(e.text, e.audio); },
@@ -175,6 +176,25 @@ const handlers = {
 function handle(e) { handlers[e.type]?.(e); }
 
 // ---- user actions --------------------------------------------------------------
+
+// ---- brief panel: hide/show -----------------------------------------------------
+
+// Hiding the brief gives the chat the whole panel. The choice is remembered;
+// a brief being read shows itself again.
+const side = document.querySelector(".side");
+const briefToggle = $("brief-toggle");
+
+function setBriefHidden(hidden, remember = true) {
+  side.classList.toggle("brief-hidden", hidden);
+  briefToggle.textContent = hidden ? "Show" : "Hide";
+  briefToggle.title = hidden ? "Show the brief" : "Hide the brief (more room for the chat)";
+  briefToggle.setAttribute("aria-expanded", String(!hidden));
+  if (!remember) return;
+  try { localStorage.setItem("briefHidden", hidden ? "1" : ""); } catch { /* private mode */ }
+}
+
+briefToggle.addEventListener("click", () => setBriefHidden(!side.classList.contains("brief-hidden")));
+try { setBriefHidden(localStorage.getItem("briefHidden") === "1", false); } catch { /* ignore */ }
 
 function startBrief(id = readyId) {
   player.unlock();

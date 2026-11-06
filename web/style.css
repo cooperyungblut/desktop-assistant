@@ -69,6 +69,11 @@ body {
 .muted { color: var(--muted); }
 .sample-tag { font-size: 11px; font-weight: 700; letter-spacing: .05em; padding: 2px 6px; border-radius: 6px; background: #f2b33d; color: #2b1d00; vertical-align: middle; }
 
+/* Brief hidden (Hide button): its header stays, the chat takes the room. */
+.side.brief-hidden { grid-template-rows: auto minmax(0, 1fr); }
+.side.brief-hidden .brief-body { display: none; }
+.toggle { padding: 4px 10px; font-size: 13px; }
+
 .chat { display: flex; flex-direction: column; min-height: 0; }
 .messages { list-style: none; margin: 0; padding: 12px 16px; overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; }
 .messages li { max-width: 85%; padding: 8px 12px; border-radius: 14px; white-space: pre-wrap; }
