@@ -133,7 +133,7 @@ def _mentions(stems: set[str], wanted: str) -> bool:
 
 
 def _take_turns(first: list[Passage], second: list[Passage], limit: int) -> list[Passage]:
-    """Two from `first` (a named article's opening and Facts line), then one from
+    """Two from `first` (a named article's opening and best passage), then one from
     each list in turn, without repeats."""
     order = first[:2]
     rest = first[2:]
@@ -546,8 +546,8 @@ class WikiIndex:
         return None
 
     def _article_passages(self, row: tuple[str, str, int, int], others: list[str]) -> list[Passage]:
-        """For a named article: its opening, its Facts line, and the passage that best
-        matches the rest of the question ("who played the lead role")."""
+        """For a named article: its opening, the passage that best matches the rest
+        of the question ("who played the lead role"), and its Facts line."""
         title, opening, article_id, first = row
         found = [Passage(title, opening, score=100.0, match="title")]
         bodies = [
@@ -558,9 +558,6 @@ class WikiIndex:
                 (first, first + ARTICLE_PASSAGES, article_id),
             )
         ]
-        facts = _facts_line(bodies)
-        if facts and facts not in opening:
-            found.append(Passage(title, facts, score=99.0, match="title"))
         wanted = {_stem(w) for w in others}
         best, best_score = None, 0
         for body in bodies[1:]:
@@ -569,7 +566,11 @@ class WikiIndex:
             if score > best_score and FACTS_PREFIX not in body:
                 best, best_score = body, score
         if best is not None:
-            found.append(Passage(title, best, score=98.0, match="title"))
+            found.append(Passage(title, best, score=99.0, match="title"))
+        # The Facts line last: the opening usually has the key facts already.
+        facts = _facts_line(bodies)
+        if facts and facts not in opening:
+            found.append(Passage(title, facts, score=98.0, match="title"))
         return found
 
     def _article(self, name: str) -> tuple[str, str, int, int] | None:

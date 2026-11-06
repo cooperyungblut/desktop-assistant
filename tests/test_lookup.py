@@ -58,6 +58,21 @@ def _p(title: str, match: str) -> Passage:
     return Passage(title, f"{title} text.", 1.0, match)
 
 
+def test_usable_gives_one_article_two_slots_while_others_wait():
+    request = lookup_request("What is the longest river in Africa?")
+    found = [
+        Passage("Africa", "opening", 1.0, "title"),
+        Passage("Africa", "best", 1.0, "title"),
+        Passage("Orange River", "near miss", 1.0, "all"),
+        Passage("Africa", "facts", 1.0, "title"),
+        Passage("Nile", "answer", 1.0, "all"),
+    ]
+    kept = usable(found, request)
+    assert [p.title for p in kept] == ["Africa", "Africa", "Orange River", "Nile"]
+    # With nothing else to offer, the article gets the spare slot back.
+    assert len(usable(found[:2] + found[3:4], request)) == 3
+
+
 def test_usable_keeps_titles_and_multiword_all_matches_only():
     request = lookup_request("What is the Roman Empire?")
     found = [_p("A", "title"), _p("B", "all"), _p("C", "any")]
