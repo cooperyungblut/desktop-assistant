@@ -28,6 +28,7 @@ import asyncio
 import base64
 import datetime as dt
 import logging
+import random
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -100,6 +101,7 @@ class Assistant:
         self._wiki = wiki
         self._wiki_timeout = wiki_timeout
         self._wiki_notice_after = wiki_notice_after
+        self._last_looking_up: str | None = None
         self._now = now
         # The event she just read back (to add, or to remove), waiting for a yes,
         # and when she asked.
@@ -363,7 +365,7 @@ class Assistant:
                 found = await asyncio.wait_for(asyncio.shield(search), notice)
             except TimeoutError:
                 # Still looking: say so, then keep waiting for the rest of the time.
-                await self._interject(self.persona.lines.looking_up)
+                await self._interject(self._looking_up_line())
                 left = self._wiki_timeout - (time.perf_counter() - started)
                 found = await asyncio.wait_for(search, max(left, 0.01))
         except TimeoutError:
@@ -383,6 +385,13 @@ class Assistant:
             ", ".join(p.title for p in passages) or "nothing",
         )
         return render(passages) if passages else None
+
+    def _looking_up_line(self) -> str:
+        """A "one moment" line, not the same as last time when there's a choice."""
+        options = self.persona.lines.looking_up or ["One moment."]
+        fresh = [line for line in options if line != self._last_looking_up] or options
+        self._last_looking_up = random.choice(fresh)
+        return self._last_looking_up
 
     async def _interject(self, line: str) -> None:
         """A short line before the real answer ("one moment"). Shown and spoken, but

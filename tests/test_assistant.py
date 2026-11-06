@@ -597,9 +597,9 @@ async def test_a_slowish_lookup_says_one_moment_then_answers_from_it(env, fake_m
     a.ask("Who is Nicolas Cage?")
     await finish(a)
     said = [e["text"] for e in events if e["type"] == "say"]
-    assert said[0] == a.persona.lines.looking_up
+    assert said[0] in a.persona.lines.looking_up
     assert any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
-    assert all(t.content != a.persona.lines.looking_up for t in a.history)
+    assert all(t.content not in a.persona.lines.looking_up for t in a.history)
 
 
 async def test_a_quick_lookup_says_nothing_extra(env, fake_model):
@@ -607,4 +607,17 @@ async def test_a_quick_lookup_says_nothing_extra(env, fake_model):
     events = env[3]
     a.ask("Who is Nicolas Cage?")
     await finish(a)
-    assert a.persona.lines.looking_up not in [e.get("text") for e in events]
+    assert not any(e.get("text") in a.persona.lines.looking_up for e in events)
+
+
+def test_one_moment_lines_vary_and_never_repeat_back_to_back(env):
+    a, *_ = env
+    picks = [a._looking_up_line() for _ in range(40)]
+    assert all(x != y for x, y in zip(picks, picks[1:], strict=False))
+    assert len(set(picks)) > 2
+
+
+def test_a_single_one_moment_line_still_works(env):
+    a, *_ = env
+    a.persona.lines.looking_up = ["Hold on."]
+    assert [a._looking_up_line() for _ in range(3)] == ["Hold on."] * 3

@@ -49,7 +49,8 @@ Wikipedia (4,000 gave 20 GB but missed facts further into long articles).
 Smaller means a smaller, faster index.
 
 A lookup that runs past `notice_after_seconds` gets a short "One moment, I'm
-looking into it." first (persona line `looking_up`). One that runs past
+looking into it." or a similar line first (persona `lines.looking_up`, a list she
+picks from at random, never the same one twice in a row). One that runs past
 `timeout_seconds` is dropped and she answers without it.
 
 ## 3. Build the index
