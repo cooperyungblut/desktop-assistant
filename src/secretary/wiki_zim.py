@@ -48,7 +48,8 @@ _JUNK = (
     '|//*[contains(@class,"thumb")]|//*[contains(@class,"metadata")]'
     '|//*[contains(@class,"noprint")]|//*[contains(@class,"mw-editsection")]'
     '|//*[contains(@class,"sidebar")]|//*[contains(@class,"gallery")]'
-    '|//table[not(contains(@class,"infobox"))]'
+    '|//table[not(contains(@class,"infobox"))'
+    ' and not(ancestor::table[contains(@class,"infobox")])]'
 )
 _SPACE = re.compile(r"\s+")
 _CITATION = re.compile(r"\[(?:\d+|[a-z]|citation needed|note \d+)\]")
@@ -74,6 +75,13 @@ def html_to_text(html: str) -> str:
     for element in body.iter("br", "li", "div"):
         element.tail = " " + (element.tail or "")
 
+    # Junk goes first: infoboxes hold <style> blocks and footnote marks too.
+    for element in body.xpath(_JUNK):
+        # The page's own <html>/<body> can carry class names like "...sidebar...".
+        if element.tag in ("html", "body") or element.getparent() is None:
+            continue
+        element.drop_tree()
+
     facts: list[str] = []
     for box in body.xpath('//table[contains(@class,"infobox")]')[:1]:
         for row in box.xpath(".//tr"):
@@ -84,11 +92,9 @@ def html_to_text(html: str) -> str:
             name, text = _clean(label[0].text_content()), _clean(value[0].text_content())
             if name and text and len(facts) < INFOBOX_ROWS:
                 facts.append(f"{name}: {text[:INFOBOX_VALUE_CHARS]}")
-    for element in body.xpath(_JUNK + '|//table[contains(@class,"infobox")]'):
-        # The page's own <html>/<body> can carry class names like "...sidebar...".
-        if element.tag in ("html", "body") or element.getparent() is None:
-            continue
-        element.drop_tree()
+    for box in body.xpath('//table[contains(@class,"infobox")]'):
+        if box.getparent() is not None:
+            box.drop_tree()
 
     lead: list[str] = []
     rest: list[str] = []
@@ -103,9 +109,11 @@ def html_to_text(html: str) -> str:
         if len(text) > 1:
             (lead if in_lead else rest).append(text)
 
+    # Facts go right after the first paragraph: a long opening would otherwise push
+    # them past max_chars_per_article and out of the index.
     parts = lead
     if facts:
-        parts = [*parts, FACTS_PREFIX + "; ".join(facts) + "."]
+        parts = [*lead[:1], FACTS_PREFIX + "; ".join(facts) + ".", *lead[1:]]
     return "\n".join([*parts, *rest])
 
 

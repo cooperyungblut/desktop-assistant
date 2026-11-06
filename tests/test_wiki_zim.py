@@ -15,7 +15,8 @@ CAGE_HTML = """<!DOCTYPE html><html><head><title>Nicolas Cage</title>
 <tr><th colspan="2">Nicolas Cage</th></tr>
 <tr><th scope="row">Born</th><td>Nicolas Kim Coppola<br>January 7, 1964 (age 59)<br>
 Long Beach, California</td></tr>
-<tr><th scope="row">Occupation</th><td>Actor</td></tr>
+<tr><th scope="row">Occupation</th><td><style>.mw-parser-output .x{margin:0}</style>Actor</td></tr>
+<tr><th scope="row">Children</th><td><table><tr><td>3</td></tr></table></td></tr>
 <tr><td colspan="2">No label here</td></tr>
 </tbody></table>
 <p><b>Nicolas Kim Coppola</b> (born January 7, 1964), known professionally as
@@ -36,9 +37,11 @@ def test_html_to_text_orders_lead_facts_then_body():
     text = html_to_text(CAGE_HTML)
     lines = text.split("\n")
     assert lines[0].startswith("Nicolas Kim Coppola (born January 7, 1964), known professionally")
-    assert lines[1] == "He has appeared in dozens of films since the early 1980s."
-    assert lines[2].startswith("Facts: Born: Nicolas Kim Coppola January 7, 1964 (age 59)")
-    assert "Occupation: Actor" in lines[2]
+    # Facts follow the first paragraph so a long opening can't push them out.
+    assert lines[1].startswith("Facts: Born: Nicolas Kim Coppola January 7, 1964 (age 59)")
+    assert "Occupation: Actor;" in lines[1] and "Children: 3" in lines[1]
+    assert "mw-parser-output" not in text
+    assert lines[2] == "He has appeared in dozens of films since the early 1980s."
     assert lines[3].startswith("Cage was born in Long Beach")
 
 

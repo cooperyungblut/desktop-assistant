@@ -273,9 +273,10 @@ class WikiIndex:
     def search(self, question: str, limit: int = 3) -> list[Passage]:
         """The best passages for a question, best first.
 
-        In order: the opening of an article whose exact title is in the question;
-        articles whose title holds all the key words; passages holding all the rarer
-        key words; then passages holding any of them. `self.trace` keeps the time
+        In order: the opening and Facts line of an article whose exact title is in
+        the question; articles whose title holds all the key words; then, only when
+        no title matched exactly, passages holding all the rarer key words, then
+        passages holding any of them. `self.trace` keeps the time
         each stage took, for tuning.
         """
         started = time.perf_counter()
@@ -296,8 +297,13 @@ class WikiIndex:
             if not terms:
                 return []
             add(self._title_hits(question), "exact title")
+            named = bool(found)
             if len(terms) >= 2 and len(found) < limit:
                 add(self._title_words(terms, limit), "title words")
+            if named:
+                # The question names an article: its opening and facts are the answer.
+                # A body search can take seconds on a cold disk and only adds noise.
+                return found
             rare = self._rare_terms(terms)
             trace.append(("word counts", (time.perf_counter() - started) * 1000))
             for require_all in (True, False):
@@ -394,7 +400,11 @@ class WikiIndex:
         for (body,) in rows:
             at = body.find(FACTS_PREFIX)
             if at >= 0:
-                return body[at:].split("\n", 1)[0]
+                line = body[at + len(FACTS_PREFIX) :].split("\n", 1)[0]
+                # Indexes built before the loader dropped <style> blocks have CSS in
+                # some rows ("/* start ... */ .mw-parser-output ..."): leave those out.
+                rows = [r for r in line.split("; ") if "mw-parser-output" not in r]
+                return FACTS_PREFIX + "; ".join(rows) if rows else None
         return None
 
     def _title_words(self, terms: list[str], limit: int) -> list[Passage]:
