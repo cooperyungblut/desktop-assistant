@@ -566,6 +566,15 @@ async def test_nothing_usable_means_no_wikipedia_block(env, fake_model):
     a.ask("Who is Nicolas Cage?")
     await finish(a)
     assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
+    # ...but she is told it was looked up and nothing was found: no guessing, no /claude.
+    assert any("nothing about it was found" in m["content"] for m in fake_model.requests[-1])
+
+
+async def test_a_question_not_looked_up_gets_no_nothing_found_note(env, fake_model):
+    a = _with_wiki(env, FakeWiki())
+    a.ask("How are you today?")
+    await finish(a)
+    assert not any("nothing about it was found" in m["content"] for m in fake_model.requests[-1])
 
 
 async def test_a_slow_lookup_is_skipped_and_she_still_answers(env, fake_model):
