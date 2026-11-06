@@ -56,8 +56,9 @@ wiki:
   source: C:/data/wikipedia/wikipedia_en_all_nopic.zim   # Kiwix file (only for building)
   workers: 4           # CPU processes used while building the index
   index_file: C:/data/wikipedia/index.sqlite  # the search index
-  max_chars_per_article: 4000
-  timeout_seconds: 4   # a slower lookup is skipped and she answers without it
+  max_chars_per_article: 12000   # about 45 GB for all of English Wikipedia
+  timeout_seconds: 15  # a slower lookup is skipped and she answers without it
+  notice_after_seconds: 1.5   # a slower lookup gets a "one moment" line first
   warm_up: true        # read the index into the disk cache at startup (background)
 
 # Push-to-talk speech input (Milestone 2). Needs: uv sync --extra tts --extra stt

@@ -38,11 +38,19 @@ wiki:
   source: C:/data/wikipedia/wikipedia_en_all_nopic_2026-01.zim   # your file's name
   index_file: C:/data/wikipedia/index.sqlite
   workers: 4       # CPU processes used while building
-  max_chars_per_article: 4000
+  max_chars_per_article: 12000
+  timeout_seconds: 15
+  notice_after_seconds: 1.5
 ```
 
 `max_chars_per_article` keeps the opening, the infobox facts and the first
-sections of each article. Smaller means a smaller, faster index.
+sections of each article. 12,000 aims at about 45 GB for all of English
+Wikipedia (4,000 gave 20 GB but missed facts further into long articles).
+Smaller means a smaller, faster index.
+
+A lookup that runs past `notice_after_seconds` gets a short "One moment, I'm
+looking into it." first (persona line `looking_up`). One that runs past
+`timeout_seconds` is dropped and she answers without it.
 
 ## 3. Build the index
 

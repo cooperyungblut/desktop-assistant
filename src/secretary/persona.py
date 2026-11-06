@@ -25,6 +25,8 @@ class Lines(BaseModel):
     escalated: str = "Okay, I've passed that to Claude. The answer will be in your next brief."
     no_brief: str = "I don't have a brief loaded yet."
     model_unavailable: str = "Sorry, the local model isn't responding. Is Ollama running?"
+    # Said when a Wikipedia lookup is taking a few seconds.
+    looking_up: str = "One moment, I'm looking into it."
     # Calendar lines. {event} is the read-back, e.g.
     # "Dentist, Thursday, November 5, 3 to 4 PM"; {reason} is what went wrong.
     calendar_confirm: str = "{event}. Should I add it to your calendar?"

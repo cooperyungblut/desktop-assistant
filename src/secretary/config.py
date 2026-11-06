@@ -88,9 +88,11 @@ class WikiConfig(BaseModel):
     index_file: Path = Path("data/wikipedia.sqlite")
     # How much of each article goes into the index: the opening plus the first
     # sections. Raise it for deeper answers (bigger, slower to build).
-    max_chars_per_article: int = Field(default=4000, ge=500)
+    max_chars_per_article: int = Field(default=12_000, ge=500)
     # A lookup that takes longer than this is skipped, and she answers without it.
-    timeout_seconds: float = Field(default=4.0, ge=0.5, le=60.0)
+    timeout_seconds: float = Field(default=15.0, ge=0.5, le=60.0)
+    # A lookup still running after this long gets a short "one moment" line first.
+    notice_after_seconds: float = Field(default=1.5, ge=0.0, le=60.0)
     # Read the index into the OS cache at startup (in the background) so the first
     # question isn't slow.
     warm_up: bool = True
