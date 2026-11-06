@@ -66,18 +66,18 @@ be off-topic or wrong):
 </wikipedia>
 For a general-knowledge question, answer from these passages in one or two spoken
 sentences. {source} A "Facts:" line lists the article's key facts (born, capital, and so
-on): use it. Add nothing that isn't in them. If they don't contain the answer, say in
-one short sentence that you're not sure, and don't suggest /claude. Ignore them for
-anything about {user}'s own day or the brief; the brief wins.
+on): use it. Add nothing that isn't in them. Answer what {user} means even when the
+wording is loose: if the passages hold the closest real answer (a compound's formula
+when asked for its "symbol"), give that. If they don't contain the answer, say in one
+short sentence that you're not sure, and don't suggest /claude. Never talk about
+"passages" or "the provided information". Ignore them for anything about {user}'s own
+day or the brief; the brief wins.
 """
 
 # Whether she says where a looked-up fact came from (wiki.mention_source).
-MENTION_SOURCE = (
-    'Mention Wikipedia once, in passing ("Wikipedia says..."), and never talk about "passages".'
-)
+MENTION_SOURCE = 'Mention Wikipedia once, in passing ("Wikipedia says...").'
 NO_SOURCE = (
-    "Say it the way you would say something you know: don't mention Wikipedia, "
-    "passages, or looking it up."
+    "Say it the way you would say something you know: don't mention Wikipedia or looking it up."
 )
 
 
