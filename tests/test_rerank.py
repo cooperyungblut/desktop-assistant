@@ -183,3 +183,19 @@ def test_modes_reuse_the_scores_of_the_same_question():
 def test_an_unknown_mode_is_refused():
     with pytest.raises(ValueError):
         RerankedWiki(FakeIndex([], {}), WordScorer("x"), "best")
+
+
+def test_find_model_takes_a_folder_or_one_onnx_file(tmp_path):
+    from secretary.rerank import find_model
+
+    (tmp_path / "onnx").mkdir()
+    (tmp_path / "tokenizer.json").write_text("{}")
+    quantized = tmp_path / "onnx" / "model_quantized.onnx"
+    quantized.write_bytes(b"")
+    assert find_model(tmp_path) == (quantized, tmp_path / "tokenizer.json")
+    full = tmp_path / "onnx" / "model.onnx"
+    full.write_bytes(b"")
+    assert find_model(tmp_path)[0] == full  # the full model wins in a folder
+    assert find_model(quantized) == (quantized, tmp_path / "tokenizer.json")
+    with pytest.raises(FileNotFoundError):
+        find_model(tmp_path / "missing")
