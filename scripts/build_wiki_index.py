@@ -25,9 +25,10 @@ def ask(index_file: Path, question: str) -> None:
         started = time.perf_counter()
         passages = index.search(question)
         took = time.perf_counter() - started
+        stages = ", ".join(f"{name} {ms:.0f}" for name, ms in index.trace)
     for passage in passages:
-        print(f"\n[{passage.title}] {passage.url}\n{passage.text}")
-    print(f"\n{len(passages)} passages in {took * 1000:.0f} ms")
+        print(f"\n[{passage.title}] ({passage.match}) {passage.url}\n{passage.text}")
+    print(f"\n{len(passages)} passages in {took * 1000:.0f} ms (at ms: {stages})")
 
 
 def main() -> None:

@@ -81,6 +81,7 @@ class Assistant:
         calendar: Calendar | None = None,
         calendar_config: CalendarConfig | None = None,
         wiki: Lookup | None = None,
+        wiki_timeout: float = 4.0,
         now: Callable[[], dt.datetime] = dt.datetime.now,
     ):
         self.persona = persona
@@ -96,6 +97,7 @@ class Assistant:
         self._calendar = calendar or NoCalendar()
         self._calendar_config = calendar_config or CalendarConfig()
         self._wiki = wiki
+        self._wiki_timeout = wiki_timeout
         self._now = now
         # The event she just read back (to add, or to remove), waiting for a yes,
         # and when she asked.
@@ -353,7 +355,14 @@ class Assistant:
             return None
         started = time.perf_counter()
         try:
-            found = await asyncio.to_thread(self._wiki.search, request.query, 6)
+            found = await asyncio.wait_for(
+                asyncio.to_thread(self._wiki.search, request.query, 6), self._wiki_timeout
+            )
+        except TimeoutError:
+            log.warning(
+                "Wikipedia lookup took over %.0f s; answering without it", self._wiki_timeout
+            )
+            return None
         except Exception:
             log.exception("Wikipedia lookup failed")
             return None
