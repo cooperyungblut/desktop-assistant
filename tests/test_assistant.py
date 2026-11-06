@@ -621,3 +621,18 @@ def test_a_single_one_moment_line_still_works(env):
     a, *_ = env
     a.persona.lines.looking_up = ["Hold on."]
     assert [a._looking_up_line() for _ in range(3)] == ["Hold on."] * 3
+
+
+async def test_a_follow_up_question_is_looked_up_with_the_last_topic(env, fake_model):
+    from secretary.wiki import Passage
+
+    wiki = FakeWiki([Passage("StarCraft", "StarCraft is a franchise.", 100, "title")])
+    a = _with_wiki(env, wiki)
+    a.ask("What is StarCraft?")
+    await finish(a)
+    a.ask("What are those four species?")
+    await finish(a)
+    assert wiki.questions == [
+        "What is StarCraft?",
+        "What are those four species? (StarCraft)",
+    ]

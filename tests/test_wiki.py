@@ -319,3 +319,50 @@ def test_named_article_adds_its_passage_matching_the_rest_of_the_question(tmp_pa
         found = wiki.search("Why is Ada Lovelace called the first programmer?")
     assert [p.title for p in found] == ["Ada Lovelace", "Ada Lovelace"]
     assert "Analytical Engine" in found[1].text and found[1].match == "title"
+
+
+def _films_index(tmp_path: Path) -> Path:
+    def text(sentence: str) -> str:
+        return (sentence + " ") * 4
+
+    items = [
+        ("The Matrix", text("The Matrix is a 1999 film that stars Keanu Reeves as Neo.")),
+        ("Matrix", text("A matrix is a rectangular array of numbers in mathematics.")),
+        ("Played", text("Played is a 2006 crime film set in London's underworld.")),
+        ("Starred", text("Starred is a 2021 album by a pop singer from Sweden.")),
+        ("Role", text("A role is a set of behaviours expected of a person.")),
+        ("Four species", text("The four species are plants used during the Sukkot holiday.")),
+        (
+            "StarCraft",
+            "StarCraft is a science fiction media franchise created by Chris Metzen. " * 9
+            + "\nIt features four species: the Terrans, the Zerg, the Protoss and the Xel'Naga.",
+        ),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    return path
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Who played the main role in The Matrix?",
+        "Who starred in The Matrix?",
+        "Who played the lead role in The Matrix?",
+    ],
+)
+def test_capitalised_names_beat_plain_words(tmp_path: Path, question: str):
+    with WikiIndex(_films_index(tmp_path)) as wiki:
+        assert wiki.search(question)[0].title == "The Matrix"
+
+
+def test_capitalised_name_beats_a_longer_plain_title(tmp_path: Path):
+    with WikiIndex(_films_index(tmp_path)) as wiki:
+        found = wiki.search("What are the four species in Starcraft?", limit=4)
+    assert {p.title for p in found} == {"StarCraft"}
+    assert any("Zerg" in p.text for p in found)
+
+
+def test_all_lowercase_questions_still_find_titles(tmp_path: Path):
+    with WikiIndex(_films_index(tmp_path)) as wiki:
+        assert wiki.search("who starred in the matrix")[0].title == "The Matrix"

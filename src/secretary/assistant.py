@@ -52,7 +52,7 @@ from .expressions import TagFilter, strip_tags
 from .framing import BriefFramer, FrameLine, paragraphs, split_greeting, split_signoff
 from .google_calendar import Calendar, CalendarError, FoundEvent, NoCalendar
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
-from .lookup import Lookup, lookup_request, render, usable
+from .lookup import Lookup, follow_up, lookup_request, render, usable
 from .persona import Persona
 from .prompt import Turn, build_messages
 from .state import StateStore
@@ -102,6 +102,7 @@ class Assistant:
         self._wiki_timeout = wiki_timeout
         self._wiki_notice_after = wiki_notice_after
         self._last_looking_up: str | None = None
+        self._wiki_topic: str | None = None  # the article the last lookup named
         self._now = now
         # The event she just read back (to add, or to remove), waiting for a yes,
         # and when she asked.
@@ -358,7 +359,8 @@ class Assistant:
         if self._wiki is None or (request := lookup_request(text)) is None:
             return None
         started = time.perf_counter()
-        search = asyncio.ensure_future(asyncio.to_thread(self._wiki.search, request.query, 6))
+        query = follow_up(request.query, self._wiki_topic)
+        search = asyncio.ensure_future(asyncio.to_thread(self._wiki.search, query, 6))
         notice = min(self._wiki_notice_after, self._wiki_timeout)
         try:
             try:
@@ -377,12 +379,16 @@ class Assistant:
             log.exception("Wikipedia lookup failed")
             return None
         passages = usable(found, request)
+        named = next((p.title for p in passages if p.match == "title"), None)
+        if named:
+            self._wiki_topic = named  # for a follow-up like "what about his kids?"
         log.info(
-            "Wikipedia: %d of %d passages kept in %.0f ms (%s)",
+            "Wikipedia: %d of %d passages kept in %.0f ms (%s) for %r",
             len(passages),
             len(found),
             (time.perf_counter() - started) * 1000,
             ", ".join(p.title for p in passages) or "nothing",
+            query,
         )
         return render(passages) if passages else None
 

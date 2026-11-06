@@ -28,6 +28,8 @@ _EXPLICIT = re.compile(
 _ASKS = re.compile(
     r"^\s*(?:(?:hey|ok|okay|so|and|um|uh|well|now|then)\b[,\s]*)*"
     r"(who|whom|whose|what|what's|whats|when|where|why|how|which|"
+    # yes/no questions: "Is Keanu Reeves married?", "Does he have kids?"
+    r"is|are|was|were|does|do|did|has|have|had|"
     r"tell\s+me\s+about|explain|define|describe)\b",
     re.IGNORECASE,
 )
@@ -35,7 +37,10 @@ _ASKS = re.compile(
 _PERSONAL = re.compile(
     r"\b(my|mine|i|i'm|i've|i'll|me|you|you're|your|yours|we|our|brief|briefing|email|emails|"
     r"calendar|schedule|agenda|interview|meeting|appointment|application|today|tonight|"
-    r"tomorrow|yesterday|this\s+(?:morning|afternoon|evening|week))\b",
+    r"tomorrow|yesterday|this\s+(?:morning|afternoon|evening|week)|"
+    # someone getting back to the user: "Did Dana reply?", "Has the recruiter called?"
+    r"reply|replied|respond|responded|wrote\s+back|called|texted|messaged|heard\s+back|"
+    r"recruiter)\b",
     re.IGNORECASE,
 )
 # Live information she doesn't have: better to say so than quote an article.
@@ -57,6 +62,22 @@ class Lookup(Protocol):
     """Anything that can find passages for a question (see secretary.wiki.WikiIndex)."""
 
     def search(self, question: str, limit: int = 3) -> list[Passage]: ...
+
+
+# A follow-up that points back at the last topic ("What are those four species?").
+_BACK_REFERENCE = re.compile(
+    r"\b(those|these|it|its|they|them|their|theirs|he|him|his|she|her|hers)\b",
+    re.IGNORECASE,
+)
+
+
+def follow_up(question: str, topic: str | None) -> str:
+    """The question with the last looked-up topic added when it only points back
+    at it: "What are those four species?" after StarCraft becomes
+    "What are those four species? (StarCraft)"."""
+    if topic and topic.lower() not in question.lower() and _BACK_REFERENCE.search(question):
+        return f"{question} ({topic})"
+    return question
 
 
 @dataclass(frozen=True)

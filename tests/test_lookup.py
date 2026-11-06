@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from secretary.lookup import lookup_request, render, usable
+from secretary.lookup import follow_up, lookup_request, render, usable
 from secretary.wiki import Passage
 
 
@@ -80,3 +80,30 @@ def test_render_clips_long_passages_at_a_sentence():
     text = render([Passage("Title", long, 1.0, "title")])
     assert text.startswith("[Title] First sentence here.")
     assert len(text) < 700 and text.endswith(".")
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["Is Keanu Reeves married?", "Does Keanu Reeves have any kids?", "Was Rome founded in 753 BC?"],
+)
+def test_yes_no_questions_are_looked_up(question):
+    assert lookup_request(question) is not None
+
+
+@pytest.mark.parametrize("question", ["Is my interview today?", "Do you like music?"])
+def test_personal_yes_no_questions_are_not(question):
+    assert lookup_request(question) is None
+
+
+def test_follow_up_adds_the_last_topic_only_when_pointing_back():
+    assert follow_up("What are those four species?", "StarCraft") == (
+        "What are those four species? (StarCraft)"
+    )
+    assert follow_up("Does he have kids?", "Keanu Reeves") == "Does he have kids? (Keanu Reeves)"
+    assert follow_up("What is the capital of France?", "StarCraft") == (
+        "What is the capital of France?"
+    )
+    assert follow_up("Who made StarCraft and its sequel?", "StarCraft") == (
+        "Who made StarCraft and its sequel?"
+    )
+    assert follow_up("What are those?", None) == "What are those?"
