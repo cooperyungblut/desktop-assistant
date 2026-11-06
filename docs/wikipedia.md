@@ -41,6 +41,7 @@ wiki:
   max_chars_per_article: 12000
   timeout_seconds: 15
   notice_after_seconds: 1.5
+  mention_source: true
 ```
 
 `max_chars_per_article` keeps the opening, the infobox facts and the first
@@ -52,6 +53,11 @@ A lookup that runs past `notice_after_seconds` gets a short "One moment, I'm
 looking into it." or a similar line first (persona `lines.looking_up`, a list she
 picks from at random, never the same one twice in a row). One that runs past
 `timeout_seconds` is dropped and she answers without it.
+
+With `mention_source: true` she says "Wikipedia says..." once with a looked-up
+fact, which helps when checking what the lookup found. Set it to `false` and she
+says the fact as if she knew it. Either way she doesn't suggest `/claude` for
+general-knowledge questions; that's for things about your day and the brief.
 
 ## 3. Build the index
 

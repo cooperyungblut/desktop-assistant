@@ -84,6 +84,7 @@ class Assistant:
         wiki: Lookup | None = None,
         wiki_timeout: float = 15.0,
         wiki_notice_after: float = 1.5,
+        wiki_mention_source: bool = True,
         now: Callable[[], dt.datetime] = dt.datetime.now,
     ):
         self.persona = persona
@@ -101,6 +102,7 @@ class Assistant:
         self._wiki = wiki
         self._wiki_timeout = wiki_timeout
         self._wiki_notice_after = wiki_notice_after
+        self._wiki_mention_source = wiki_mention_source
         self._last_looking_up: str | None = None
         self._wiki_topic: str | None = None  # the article the last lookup named
         self._now = now
@@ -289,6 +291,7 @@ class Assistant:
             text,
             history_turns=self._history_turns,
             wikipedia=await self._wikipedia_for(text),
+            mention_source=self._wiki_mention_source,
         )
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
