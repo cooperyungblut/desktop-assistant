@@ -66,17 +66,44 @@ class Lookup(Protocol):
 
 # A follow-up that points back at the last topic ("What are those four species?").
 _BACK_REFERENCE = re.compile(
-    r"\b(those|these|it|its|they|them|their|theirs|he|him|his|she|her|hers)\b",
+    r"\b(those|these|it|its|they|them|their|theirs)\b"
+    # "that" on its own ("What year did that come out?"), not "the film that ..."
+    r"|\bthat\b(?!\s+(?:is|was|are|were|the|a|an|has|had|of)\b)",
     re.IGNORECASE,
 )
+_PERSON_REFERENCE = re.compile(r"\b(he|him|his|she|her|hers)\b", re.IGNORECASE)
+# Two or more capitalised words in a row: "Keanu Reeves", "Carrie-Anne Moss".
+_NAME = re.compile(r"\b[A-Z][\w'\u2019.-]+(?:\s+[A-Z][\w'\u2019.-]+)+")
+_NOT_A_NAME_START = {"The", "This", "That", "These", "Those", "It", "In", "On", "According"}
 
 
-def follow_up(question: str, topic: str | None) -> str:
-    """The question with the last looked-up topic added when it only points back
-    at it: "What are those four species?" after StarCraft becomes
-    "What are those four species? (StarCraft)"."""
-    if topic and topic.lower() not in question.lower() and _BACK_REFERENCE.search(question):
-        return f"{question} ({topic})"
+def first_name(text: str) -> str | None:
+    """The first name of a person or thing in a reply, if any ("Keanu Reeves
+    starred as Neo." -> "Keanu Reeves")."""
+    for match in _NAME.finditer(text):
+        words = match.group().split()
+        if words[0] in _NOT_A_NAME_START:
+            words = words[1:]
+        if len(words) >= 2:
+            return " ".join(words)
+    return None
+
+
+def follow_up(question: str, topic: str | None, last_reply: str | None = None) -> str:
+    """The question with what it points back at added, so the search can find it.
+
+    "he/his/her" -> the first name in her last answer ("What is his birthday?"
+    after "Keanu Reeves starred as Neo" -> "... (Keanu Reeves)"), falling back to
+    the last article she looked up; "it/that/those/they" -> that article
+    ("What are those four species?" after StarCraft -> "... (StarCraft)").
+    """
+    subject = None
+    if _PERSON_REFERENCE.search(question):
+        subject = (last_reply and first_name(last_reply)) or topic
+    elif _BACK_REFERENCE.search(question):
+        subject = topic
+    if subject and subject.lower() not in question.lower():
+        return f"{question} ({subject})"
     return question
 
 

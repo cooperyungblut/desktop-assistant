@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from secretary.lookup import follow_up, lookup_request, render, usable
+from secretary.lookup import first_name, follow_up, lookup_request, render, usable
 from secretary.wiki import Passage
 
 
@@ -100,6 +100,12 @@ def test_follow_up_adds_the_last_topic_only_when_pointing_back():
         "What are those four species? (StarCraft)"
     )
     assert follow_up("Does he have kids?", "Keanu Reeves") == "Does he have kids? (Keanu Reeves)"
+    assert follow_up("What year did that come out?", "The Matrix") == (
+        "What year did that come out? (The Matrix)"
+    )
+    assert follow_up("Who directed the film that is set in Rome?", "The Matrix") == (
+        "Who directed the film that is set in Rome?"
+    )
     assert follow_up("What is the capital of France?", "StarCraft") == (
         "What is the capital of France?"
     )
@@ -107,3 +113,29 @@ def test_follow_up_adds_the_last_topic_only_when_pointing_back():
         "Who made StarCraft and its sequel?"
     )
     assert follow_up("What are those?", None) == "What are those?"
+
+
+def test_he_and_his_point_at_the_name_in_her_last_answer():
+    reply = "Keanu Reeves starred as Neo in the film. This information comes from Wikipedia."
+    assert follow_up("What is his birthday?", "The Matrix", reply) == (
+        "What is his birthday? (Keanu Reeves)"
+    )
+    # "it" still means the article she looked up, not the person
+    assert follow_up("When did it come out?", "The Matrix", reply) == (
+        "When did it come out? (The Matrix)"
+    )
+    # no name in the answer: fall back to the article
+    assert follow_up("Who is she?", "Mona Lisa", "It is a painting.") == "Who is she? (Mona Lisa)"
+
+
+@pytest.mark.parametrize(
+    ("reply", "name"),
+    [
+        ("Keanu Reeves starred as Neo.", "Keanu Reeves"),
+        ("The Matrix stars Keanu Reeves and Carrie-Anne Moss.", "Keanu Reeves"),
+        ("This Information is odd. Hugo Weaving played Smith.", "Hugo Weaving"),
+        ("It came out in 1999.", None),
+    ],
+)
+def test_first_name_in_a_reply(reply, name):
+    assert first_name(reply) == name
