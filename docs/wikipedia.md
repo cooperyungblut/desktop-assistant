@@ -168,8 +168,18 @@ Then add this under `wiki:` in `config.yaml`:
   rerank_model: C:/data/wikipedia/reranker
 ```
 
-`uv run python scripts/eval_wiki.py` uses it, and `--no-rerank` runs the same
-questions without it, so you can compare the two. `--ask` and the app use it as
+`rerank_mode` sets how its scores are used:
+
+- `fuse` (the default) blends the keyword order with the model's order
+  (reciprocal rank fusion). A passage near the top of either list does well,
+  so a clear keyword hit survives even when the small model misreads a word.
+- `rerank` uses the model's order alone.
+- `keep` takes the keyword search's top two, then the model's order.
+
+`uv run python scripts/eval_wiki.py` uses the configured mode, and `--no-rerank`
+runs the same questions without the reranker. `--compare` runs every question
+with keyword ranking and with each mode side by side, scoring each question
+once. `--ask` and the app use it as
 soon as it's set. The startup log says "Wikipedia reranker ready". If the model
 or the extra is missing, she carries on with keyword ranking and logs why.
 

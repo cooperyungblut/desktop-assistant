@@ -746,7 +746,9 @@ def make_wiki(config) -> WikiIndex | RerankedWiki | None:
     log.info("Wikipedia lookup ready (%s)", config.index_file)
     from .rerank import make_reranked
 
-    wiki = make_reranked(index, getattr(config, "rerank_model", None))
+    wiki = make_reranked(
+        index, getattr(config, "rerank_model", None), getattr(config, "rerank_mode", "fuse")
+    )
     if getattr(config, "warm_up", False):
         import threading
 

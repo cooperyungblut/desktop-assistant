@@ -12,7 +12,14 @@ the eval and `--ask` use it unchanged:
 1. ask the index for more candidates than needed (CANDIDATES),
 2. add the other passages of the articles the question names (the VOC's
    dissolution sits deep in its article, worded nothing like the question),
-3. score every candidate with the model and return the best first.
+3. score every candidate with the model,
+4. order them by `mode`:
+   - "rerank": by the model's score alone,
+   - "fuse":   by reciprocal rank fusion of the keyword order and the model's
+               order (1/(K+keyword rank) + 1/(K+model rank)), so a clear
+               keyword hit (the article the question names) isn't thrown out
+               because a small model misreads one word ("mount" as a mountain),
+   - "keep":   the keyword search's first KEPT passages, then the model's order.
 
 The model is any cross-encoder exported to ONNX with a `tokenizer.json` beside
 it (docs/wikipedia.md: ms-marco-MiniLM-L6-v2, about 90 MB). Needs the `rerank`
@@ -36,6 +43,9 @@ EXPANDED_ARTICLES = 2  # named articles whose other passages join the pool
 MAX_POOL = 100  # passages scored per question (time grows with this)
 MAX_TOKENS = 256  # question + passage, cut beyond this
 BATCH = 16
+FUSION_K = 10  # small: with ~100 candidates, the top few ranks should count most
+KEPT = 2  # passages "keep" mode takes from the keyword order first
+MODES = ("fuse", "rerank", "keep")
 
 
 class Scorer(Protocol):
@@ -96,26 +106,31 @@ class CrossEncoder:
 class RerankedWiki:
     """The index's search, with the results re-ordered by a cross-encoder."""
 
-    def __init__(self, index: WikiIndex, scorer: Scorer):
+    def __init__(self, index: WikiIndex, scorer: Scorer, mode: str = "fuse"):
+        if mode not in MODES:
+            raise ValueError(f"unknown rerank mode {mode!r}; use one of {', '.join(MODES)}")
         self.index = index
         self.scorer = scorer
+        self.mode = mode
         self.trace: list[tuple[str, float]] = []
+        # The last question's pool and scores, so the eval can compare modes
+        # without scoring the same passages again.
+        self._last: tuple[tuple[str, int, bool], list[Passage], list[float], list] | None = None
 
     def search(self, question: str, limit: int = 3, *, loose: bool = True) -> list[Passage]:
-        started = time.perf_counter()
-        found = self.index.search(question, max(limit, CANDIDATES), loose=loose)
-        trace = [*getattr(self.index, "trace", [])]
-        pool = _with_article_passages(self.index, found)[:MAX_POOL]
-        if not pool:
-            self.trace = trace
-            return []
-        scores = self.scorer.score(question, [f"{p.title}. {p.text}" for p in pool])
-        ranked = sorted(zip(scores, range(len(pool)), pool, strict=True), reverse=True)
-        trace.append(("rerank", (time.perf_counter() - started) * 1000))
+        key = (question, limit, loose)
+        if self._last is not None and self._last[0] == key:
+            _, pool, scores, trace = self._last
+        else:
+            started = time.perf_counter()
+            found = self.index.search(question, max(limit, CANDIDATES), loose=loose)
+            trace = [*getattr(self.index, "trace", [])]
+            pool = _with_article_passages(self.index, found)[:MAX_POOL]
+            scores = self.scorer.score(question, [f"{p.title}. {p.text}" for p in pool])
+            trace.append(("rerank", (time.perf_counter() - started) * 1000))
+            self._last = (key, pool, scores, trace)
         self.trace = trace
-        return [
-            Passage(p.title, p.text, score=score, match=p.match) for score, _, p in ranked[:limit]
-        ]
+        return order(pool, scores, self.mode)[:limit]
 
     def interrupt(self) -> None:
         self.index.interrupt()
@@ -133,6 +148,28 @@ class RerankedWiki:
         self.close()
 
 
+def order(pool: list[Passage], scores: list[float], mode: str) -> list[Passage]:
+    """`pool` (in keyword order) re-ordered by `mode` (see the module notes)."""
+    by_model = sorted(range(len(pool)), key=lambda i: -scores[i])  # stable on ties
+    if mode == "rerank":
+        picked = [(scores[i], i) for i in by_model]
+    elif mode == "keep":
+        kept = list(range(min(KEPT, len(pool))))
+        rest = [i for i in by_model if i not in kept]
+        picked = [(scores[i], i) for i in kept + rest]
+    else:
+        model_rank = {i: at for at, i in enumerate(by_model)}
+        fused = [
+            (1 / (FUSION_K + 1 + i) + 1 / (FUSION_K + 1 + model_rank[i]), i)
+            for i in range(len(pool))
+        ]
+        picked = sorted(fused, key=lambda pair: (-pair[0], pair[1]))
+    return [
+        Passage(pool[i].title, pool[i].text, score=score, match=pool[i].match)
+        for score, i in picked
+    ]
+
+
 def _with_article_passages(index: WikiIndex, found: list[Passage]) -> list[Passage]:
     """The search's passages, then the rest of the articles the question names."""
     pool = list(found)
@@ -148,7 +185,9 @@ def _with_article_passages(index: WikiIndex, found: list[Passage]) -> list[Passa
     return pool
 
 
-def make_reranked(index: WikiIndex, model_dir: Path | None) -> WikiIndex | RerankedWiki:
+def make_reranked(
+    index: WikiIndex, model_dir: Path | None, mode: str = "fuse"
+) -> WikiIndex | RerankedWiki:
     """`index` wrapped with the reranker in `model_dir`, or `index` as is when
     there is no model or it can't load (she still answers, just without it)."""
     if model_dir is None:
@@ -162,4 +201,4 @@ def make_reranked(index: WikiIndex, model_dir: Path | None) -> WikiIndex | Reran
         log.warning("Wikipedia reranker not loaded: %s", exc)
         return index
     log.info("Wikipedia reranker ready (%s)", model_dir)
-    return RerankedWiki(index, scorer)
+    return RerankedWiki(index, scorer, mode)
