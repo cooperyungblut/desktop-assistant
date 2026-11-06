@@ -581,8 +581,9 @@ class WikiIndex:
         return None
 
     def _article_passages(self, row: tuple[str, str, int, int], others: list[str]) -> list[Passage]:
-        """For a named article: its opening, the passage that best matches the rest
-        of the question ("who played the lead role"), and its Facts line."""
+        """For a named article: its opening, then its Facts line and the passage that
+        best matches the rest of the question ("who played the lead role"), the
+        better fit of those two first."""
         title, opening, article_id, first = row
         found = [Passage(title, opening, score=100.0, match="title")]
         bodies = [
@@ -594,18 +595,26 @@ class WikiIndex:
             )
         ]
         wanted = {_stem(w) for w in others}
+
+        def matches(text: str) -> int:
+            stems = {_stem(w) for w in _WORD.findall(text.lower())}
+            return sum(1 for w in wanted if _mentions(stems, w))
+
         best, best_score = None, 0
         for body in bodies[1:]:
-            stems = {_stem(w) for w in _WORD.findall(body.lower())}
-            score = sum(1 for w in wanted if _mentions(stems, w))
+            score = matches(body)
             if score > best_score and FACTS_PREFIX not in body:
                 best, best_score = body, score
-        if best is not None:
-            found.append(Passage(title, best, score=99.0, match="title"))
-        # The Facts line last: the opening usually has the key facts already.
         facts = _facts_line(bodies)
-        if facts and facts not in opening:
-            found.append(Passage(title, facts, score=98.0, match="title"))
+        if facts and facts in opening:
+            facts = None
+        # Second place (an article gets two of her slots when others match too)
+        # goes to whichever fits the question better: the Facts line for "motto"
+        # or "currency code", the best passage for "who played the lead".
+        extra = [(matches(facts) if facts else 0, facts), (best_score, best)]
+        extra.sort(key=lambda pair: -pair[0])  # stable: the Facts line wins ties
+        for score, text in zip((99.0, 98.0), (t for _, t in extra if t is not None), strict=False):
+            found.append(Passage(title, text, score=score, match="title"))
         return found
 
     def _article(self, name: str, redirects: bool = True) -> tuple[str, str, int, int] | None:

@@ -569,3 +569,19 @@ def test_openings_drop_trailing_qualifiers_and_the_x_is_not_a_name(tmp_path: Pat
     titles = [p.title for p in found]
     assert "Take Care (album)" not in titles
     assert "Sahara" in titles
+
+
+def test_facts_line_comes_second_when_it_fits_the_question(tmp_path: Path):
+    opening = "The Isle of Man is a self-governing island in the Irish Sea. " * 9
+    text = (
+        opening
+        + "\nFacts: Motto: Quocunque jeceris stabit; Capital: Douglas."
+        + "\nIts official parliament is called Tynwald, one of the oldest. " * 12
+    )
+    path = tmp_path / "w.sqlite"
+    build_index(iter([("Isle of Man", text)]), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("What is the official motto of the Isle of Man?", limit=8)
+        laws = wiki.search("What is the parliament of the Isle of Man called?", limit=8)
+    assert "Motto" in found[1].text
+    assert "Tynwald" in laws[1].text
