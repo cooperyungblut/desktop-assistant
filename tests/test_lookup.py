@@ -147,6 +147,18 @@ def test_he_and_his_point_at_the_name_in_her_last_answer():
     assert follow_up("Who is she?", "Mona Lisa", "It is a painting.") == "Who is she? (Mona Lisa)"
 
 
+def test_he_stays_on_the_topic_when_her_answer_was_already_about_him():
+    reply = "He has been in a relationship with Alexandra Grant since around 2018."
+    assert follow_up("Does he have any children?", "Keanu Reeves", reply) == (
+        "Does he have any children? (Keanu Reeves)"
+    )
+    # A name before the pronoun is the new person.
+    reply = "Alexandra Grant is an artist; she met him in 2009."
+    assert follow_up("Where was she born?", "Keanu Reeves", reply) == (
+        "Where was she born? (Alexandra Grant)"
+    )
+
+
 @pytest.mark.parametrize(
     ("reply", "name"),
     [

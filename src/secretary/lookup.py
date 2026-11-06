@@ -104,6 +104,19 @@ def first_name(text: str) -> str | None:
     return None
 
 
+def _person_in(last_reply: str | None, topic: str | None) -> str | None:
+    """Who "he/she" means: the first name in her last answer, unless that answer
+    was already about someone she called "he/she" before naming anyone ("He has
+    been with Alexandra Grant..." is still about Keanu Reeves, the topic)."""
+    if not last_reply:
+        return topic
+    name = _NAME.search(last_reply)
+    pronoun = _PERSON_REFERENCE.search(last_reply)
+    if topic and pronoun and (name is None or pronoun.start() < name.start()):
+        return topic
+    return first_name(last_reply) or topic
+
+
 def follow_up(question: str, topic: str | None, last_reply: str | None = None) -> str:
     """The question with what it points back at added, so the search can find it.
 
@@ -114,7 +127,7 @@ def follow_up(question: str, topic: str | None, last_reply: str | None = None) -
     """
     subject = None
     if _PERSON_REFERENCE.search(question):
-        subject = (last_reply and first_name(last_reply)) or topic
+        subject = _person_in(last_reply, topic)
     elif _BACK_REFERENCE.search(question):
         subject = topic
     if subject and subject.lower() not in question.lower():
