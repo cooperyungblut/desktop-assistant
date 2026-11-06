@@ -40,12 +40,19 @@ _ASKS = re.compile(
 )
 # Questions about the user's own day or about her, which Wikipedia can't answer.
 _PERSONAL = re.compile(
-    r"\b(my|i'm|i've|i'll|me|you|you're|your|yours|we|our|brief|briefing|email|emails|"
-    r"calendar|schedule|agenda|interview|meeting|appointment|application|today|tonight|"
+    r"\b(my|i'm|i've|i'll|me|you|you're|your|yours|we|our|today|tonight|"
     r"tomorrow|yesterday|this\s+(?:morning|afternoon|evening|week)|"
     # someone getting back to the user: "Did Dana reply?", "Has the recruiter called?"
     r"reply|replied|respond|responded|wrote\s+back|texted|messaged|heard\s+back|"
     r"recruiter)\b",
+    re.IGNORECASE,
+)
+# Things in the user's day. They count only when the question names nothing
+# else: "When is the meeting?" is the user's, "What was the Yalta meeting?" and
+# "What is the Gregorian calendar?" are history.
+_ERRANDS = re.compile(
+    r"\b(brief|briefing|emails?|calendar|schedule|agenda|interviews?|meetings?|"
+    r"appointments?|application|recruiter)\b",
     re.IGNORECASE,
 )
 # Words that are about the user only sometimes: "I" isn't in "World War I" or
@@ -78,6 +85,8 @@ def _personal(text: str) -> bool:
     if _PERSONAL.search(text):
         return True
     words = _WORD.findall(text)
+    if _ERRANDS.search(text) and not any(w[:1].isupper() and w != "I" for w in words[1:]):
+        return True
     for i, word in enumerate(words):
         low = word.lower()
         before = words[i - 1] if i else ""

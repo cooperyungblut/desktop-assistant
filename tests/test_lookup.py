@@ -123,6 +123,9 @@ def test_personal_yes_no_questions_are_not(question):
         "When did Elizabeth I die?",
         "What is a baby kangaroo called?",
         "What was the ship called?",
+        "What was the Yalta meeting?",
+        "What is the Gregorian calendar?",
+        "Who wrote Interview with the Vampire?",
     ],
 )
 def test_names_and_nouns_that_look_personal_are_looked_up(question):
@@ -131,7 +134,15 @@ def test_names_and_nouns_that_look_personal_are_looked_up(question):
 
 @pytest.mark.parametrize(
     "question",
-    ["Is that mine?", "Has the recruiter called?", "Who called?", "What should I eat?"],
+    [
+        "Is that mine?",
+        "Has the recruiter called?",
+        "Who called?",
+        "What should I eat?",
+        "When is the meeting?",
+        "What's on the agenda?",
+        "Where is the interview?",
+    ],
 )
 def test_i_mine_and_called_about_the_user_are_not(question):
     assert lookup_request(question) is None
