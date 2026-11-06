@@ -22,6 +22,7 @@ import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 PASSAGE_CHARS = 600
 MIN_ARTICLE_CHARS = 200
@@ -101,6 +102,28 @@ def is_indexable(title: str, text: str) -> bool:
     return not re.search(r"\b(may|can) (also )?refer to\b", text[:300])
 
 
+def _facts_line(bodies: list[str]) -> str | None:
+    """The "Facts: ..." line (the infobox: born, capital, ...) among an article's
+    passages. It comes right after the first paragraph of the opening."""
+    for body in bodies:
+        at = body.find(FACTS_PREFIX)
+        if at >= 0:
+            line = body[at + len(FACTS_PREFIX) :].split("\n", 1)[0]
+            # Indexes built before the loader dropped <style> blocks have CSS in
+            # some rows ("/* start ... */ .mw-parser-output ..."): leave those out.
+            rows = [r for r in line.split("; ") if "mw-parser-output" not in r]
+            return FACTS_PREFIX + "; ".join(rows) if rows else None
+    return None
+
+
+def _stem(word: str) -> str:
+    """A rough stem, enough to match "played" with "plays" or "movies" with "movie"."""
+    for suffix, keep in (("ies", "y"), ("ing", ""), ("ed", ""), ("es", ""), ("s", "")):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            return word[: -len(suffix)] + keep
+    return word
+
+
 def query_terms(question: str) -> list[str]:
     """The words of a question that are worth searching for."""
     words = _WORD.findall(question.lower().replace("'s", ""))
@@ -118,7 +141,28 @@ SMALL_INDEX = 50_000  # below this many passages every word counts as rare
 MAX_BODY_TERMS = 3
 # The infobox line written by the ZIM loader, and how many passages in to look for it.
 FACTS_PREFIX = "Facts: "
-FACTS_WITHIN = 8
+ARTICLE_PASSAGES = 12  # an article holds max_chars_per_article (4000) / ~600 passages
+# Words in a question that point at one of several same-named articles.
+_FILM = ("film series", "film", "franchise")
+_QUALIFIERS: dict[str, tuple[str, ...]] = {
+    "movie": _FILM,
+    "movies": _FILM,
+    "film": _FILM,
+    "films": _FILM,
+    "show": ("TV series",),
+    "tv": ("TV series",),
+    "series": ("TV series", "film series"),
+    "episode": ("TV series",),
+    "episodes": ("TV series",),
+    "book": ("novel", "book"),
+    "novel": ("novel",),
+    "song": ("song",),
+    "album": ("album",),
+    "band": ("band",),
+    "game": ("video game",),
+    "play": ("play",),
+    "musical": ("musical",),
+}
 
 
 def _fts_query(terms: list[str], *, require_all: bool) -> str:
@@ -133,6 +177,10 @@ CREATE TABLE articles (
     title TEXT NOT NULL,
     first_passage INTEGER NOT NULL  -- rowid of the opening passage
 );
+CREATE TABLE redirects (
+    title TEXT NOT NULL,   -- the other name
+    target TEXT NOT NULL   -- the article's real title
+);
 CREATE VIRTUAL TABLE passages USING fts5(
     title, body, article_id UNINDEXED, seq UNINDEXED,
     tokenize = "{TOKENIZER}",
@@ -141,8 +189,9 @@ CREATE VIRTUAL TABLE passages USING fts5(
 """
 
 
-def iter_articles(source: Path, workers: int = 1) -> Iterator[tuple[str, str]]:
-    """Yield (title, text) from a Kiwix .zim file or a folder of parquet files."""
+def iter_articles(source: Path, workers: int = 1) -> Iterator[tuple[str, str] | Redirect]:
+    """Yield (title, text) from a Kiwix .zim file or a folder of parquet files.
+    A ZIM file also yields its redirects."""
     if source.suffix.lower() == ".zim":
         from secretary.wiki_zim import iter_zim_articles
 
@@ -167,15 +216,25 @@ def _iter_parquet(source_dir: Path, batch_size: int = 2000) -> Iterator[tuple[st
             yield from zip(columns["title"], columns["text"], strict=True)
 
 
+class Redirect(NamedTuple):
+    """Another name for an article ("Nicholas Cage" -> "Nicolas Cage").
+
+    A source may yield these between its (title, text) articles."""
+
+    title: str
+    target: str
+
+
 @dataclass
 class BuildStats:
     articles: int = 0
     skipped: int = 0
     passages: int = 0
+    redirects: int = 0
 
 
 def build_index(
-    articles: Iterator[tuple[str, str]],
+    articles: Iterator[tuple[str, str] | Redirect],
     index_file: Path,
     *,
     max_chars_per_article: int = 4000,
@@ -197,9 +256,15 @@ def build_index(
         db.execute("PRAGMA journal_mode = OFF")
         db.execute("PRAGMA synchronous = OFF")
         db.executescript(_SCHEMA)
-        for title, text in articles:
+        for item in articles:
             if limit is not None and stats.articles >= limit:
                 break
+            if isinstance(item, Redirect):
+                if item.title and item.target and item.title.lower() != item.target.lower():
+                    db.execute("INSERT INTO redirects VALUES (?, ?)", item)
+                    stats.redirects += 1
+                continue
+            title, text = item
             if not title or not text or not is_indexable(title, text):
                 stats.skipped += 1
                 continue
@@ -226,6 +291,7 @@ def build_index(
                 if progress:
                     progress(stats)
         db.execute("CREATE INDEX articles_title ON articles (title COLLATE NOCASE)")
+        db.execute("CREATE INDEX redirects_title ON redirects (title COLLATE NOCASE)")
         db.execute("INSERT INTO passages (passages) VALUES ('optimize')")
         db.commit()
     except BaseException:
@@ -253,6 +319,12 @@ class WikiIndex:
         # Read-only, so it is safe to search from a worker thread.
         self._db = sqlite3.connect(
             f"file:{index_file.as_posix()}?mode=ro", uri=True, check_same_thread=False
+        )
+        # Indexes built before redirects were stored don't have the table.
+        self._has_redirects = bool(
+            self._db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'redirects'"
+            ).fetchone()
         )
 
     def close(self) -> None:
@@ -369,43 +441,76 @@ class WikiIndex:
                 break  # a longer title was found: skip the lone words
             if used & set(range(i, j)):
                 continue
-            row = self._db.execute(
-                "SELECT p.title, p.body, a.id, a.first_passage FROM articles a"
-                " JOIN passages p ON p.rowid = a.first_passage"
-                " WHERE a.title = ? COLLATE NOCASE LIMIT 1",
-                (" ".join(words[i:j]),),
-            ).fetchone()
+            name = " ".join(words[i:j])
+            others = [
+                w
+                for k, w in enumerate(words)
+                if (k < i or k >= j) and w not in _STOPWORDS and len(w) > 1
+            ]
+            row = self._qualified(name, others) or self._article(name)
             if row:
                 used.update(range(i, j))
-                hits.append(Passage(row[0], row[1], score=100.0, match="title"))
-                facts = self._facts(row[2], row[3])
-                if facts and facts not in row[1]:
-                    hits.append(Passage(row[0], facts, score=99.0, match="title"))
+                hits += self._article_passages(row, others)
                 if len(hits) >= 3:
                     break
         return hits
 
-    def _facts(self, article_id: int, first_passage: int) -> str | None:
-        """The article's "Facts: ..." line (its infobox: born, capital, ...), if any.
+    def _qualified(self, name: str, others: list[str]) -> tuple[str, str, int, int] | None:
+        """ "Harry Potter" + "movies" -> the article "Harry Potter (film series)".
 
-        It sits right after the opening paragraphs, so it is often not in the first
-        passage. An article's passages have neighbouring rowids, so this is a few
-        rowid lookups, not a search.
+        Wikipedia tells same-named articles apart with a word in brackets. When the
+        question names the kind of thing, try those titles first.
         """
-        rows = self._db.execute(
-            "SELECT body FROM passages WHERE rowid BETWEEN ? AND ? AND article_id = ?"
-            " ORDER BY rowid",
-            (first_passage, first_passage + FACTS_WITHIN, article_id),
-        ).fetchall()
-        for (body,) in rows:
-            at = body.find(FACTS_PREFIX)
-            if at >= 0:
-                line = body[at + len(FACTS_PREFIX) :].split("\n", 1)[0]
-                # Indexes built before the loader dropped <style> blocks have CSS in
-                # some rows ("/* start ... */ .mw-parser-output ..."): leave those out.
-                rows = [r for r in line.split("; ") if "mw-parser-output" not in r]
-                return FACTS_PREFIX + "; ".join(rows) if rows else None
+        for word in others:
+            for qualifier in _QUALIFIERS.get(word, ()):
+                if row := self._article(f"{name} ({qualifier})"):
+                    return row
         return None
+
+    def _article_passages(self, row: tuple[str, str, int, int], others: list[str]) -> list[Passage]:
+        """For a named article: its opening, its Facts line, and the passage that best
+        matches the rest of the question ("who played the lead role")."""
+        title, opening, article_id, first = row
+        found = [Passage(title, opening, score=100.0, match="title")]
+        bodies = [
+            body
+            for (body,) in self._db.execute(
+                "SELECT body FROM passages WHERE rowid BETWEEN ? AND ? AND article_id = ?"
+                " ORDER BY rowid",
+                (first, first + ARTICLE_PASSAGES, article_id),
+            )
+        ]
+        facts = _facts_line(bodies)
+        if facts and facts not in opening:
+            found.append(Passage(title, facts, score=99.0, match="title"))
+        wanted = {_stem(w) for w in others}
+        best, best_score = None, 0
+        for body in bodies[1:]:
+            score = len(wanted & {_stem(w) for w in _WORD.findall(body.lower())})
+            if score > best_score and FACTS_PREFIX not in body:
+                best, best_score = body, score
+        if best is not None:
+            found.append(Passage(title, best, score=98.0, match="title"))
+        return found
+
+    def _article(self, name: str) -> tuple[str, str, int, int] | None:
+        """(title, opening, id, first passage) of the article called `name`,
+        directly or through a redirect ("Nicholas Cage", "Capital of France")."""
+        row = self._db.execute(
+            "SELECT p.title, p.body, a.id, a.first_passage FROM articles a"
+            " JOIN passages p ON p.rowid = a.first_passage"
+            " WHERE a.title = ? COLLATE NOCASE LIMIT 1",
+            (name,),
+        ).fetchone()
+        if row or not self._has_redirects:
+            return row
+        return self._db.execute(
+            "SELECT p.title, p.body, a.id, a.first_passage FROM redirects r"
+            " JOIN articles a ON a.title = r.target COLLATE NOCASE"
+            " JOIN passages p ON p.rowid = a.first_passage"
+            " WHERE r.title = ? COLLATE NOCASE LIMIT 1",
+            (name,),
+        ).fetchone()
 
     def _title_words(self, terms: list[str], limit: int) -> list[Passage]:
         """Openings of articles whose title holds every key word ("Fall of the

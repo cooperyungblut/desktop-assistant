@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pyarrow as pa
@@ -7,6 +8,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from secretary.wiki import (
+    Redirect,
     WikiIndex,
     build_index,
     is_indexable,
@@ -261,3 +263,59 @@ def test_facts_rows_with_leftover_css_are_left_out(tmp_path: Path):
     with WikiIndex(path) as wiki:
         found = wiki.search("What is Nicolas Cage's birthday?", limit=4)
     assert found[1].text == "Facts: Born: January 7, 1964; Children: 3."
+
+
+def test_redirect_names_lead_to_the_article(tmp_path: Path):
+    paris = "Paris is the capital and largest city of France, on the Seine. " * 4
+    items = [
+        Redirect("Capital of France", "Paris"),  # may come before its target
+        ("Paris", paris),
+        Redirect("Paris", "Paris"),  # pointless: not stored
+    ]
+    path = tmp_path / "w.sqlite"
+    stats = build_index(iter(items), path)
+    assert stats.redirects == 1
+    with WikiIndex(path) as wiki:
+        found = wiki.search("What is the capital of France?")
+    assert found[0].title == "Paris" and found[0].match == "title"
+
+
+def test_index_without_redirect_table_still_searches(tmp_path: Path):
+    path = tmp_path / "w.sqlite"
+    build_index(iter(ARTICLES), path)
+    with sqlite3.connect(path) as db:
+        db.execute("DROP TABLE redirects")
+    with WikiIndex(path) as wiki:
+        assert wiki.search("Who is Nicolas Cage?")[0].title == "Nicolas Cage"
+
+
+def test_kind_of_thing_in_the_question_picks_the_bracketed_article(tmp_path: Path):
+    books = "Harry Potter is a series of seven fantasy novels written by J. K. Rowling. " * 3
+    films = (
+        "Harry Potter is a film series based on the novels by J. K. Rowling. "
+        "Daniel Radcliffe starred as Harry Potter in all eight films. " * 2
+    )
+    items = [("Harry Potter", books), ("Harry Potter (film series)", films)]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        movie = wiki.search("Who played the lead role in the Harry Potter movies?")
+        book = wiki.search("Who wrote Harry Potter?")
+    assert movie[0].title == "Harry Potter (film series)"
+    assert book[0].title == "Harry Potter"
+
+
+def test_named_article_adds_its_passage_matching_the_rest_of_the_question(tmp_path: Path):
+    opening = "Ada Lovelace was an English mathematician and writer of the 1800s. " * 9
+    later = [
+        "She was born in London to the poet Lord Byron and Anne Isabella Milbanke.",
+        "Her notes on the Analytical Engine include the first published algorithm "
+        "intended to be carried out by a machine, so she is called the first programmer.",
+        "She died of uterine cancer in 1852 at the age of 36.",
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter([("Ada Lovelace", "\n".join([opening, *later]))]), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("Why is Ada Lovelace called the first programmer?")
+    assert [p.title for p in found] == ["Ada Lovelace", "Ada Lovelace"]
+    assert "Analytical Engine" in found[1].text and found[1].match == "title"
