@@ -38,16 +38,17 @@ wiki:
   source: C:/data/wikipedia/wikipedia_en_all_nopic_2026-01.zim   # your file's name
   index_file: C:/data/wikipedia/index.sqlite
   workers: 4       # CPU processes used while building
-  max_chars_per_article: 12000
+  max_chars_per_article: 24000
   timeout_seconds: 15
   notice_after_seconds: 1.5
   mention_source: true
 ```
 
 `max_chars_per_article` keeps the opening, the infobox facts and the first
-sections of each article. 12,000 aims at about 45 GB for all of English
-Wikipedia (4,000 gave 20 GB but missed facts further into long articles).
-Smaller means a smaller, faster index.
+sections of each article. 24,000 reaches facts deep in long articles (4,000
+missed many, and 12,000 still cut some). Most articles are shorter than this,
+so the index grows by much less than double. Smaller means a smaller, faster
+index.
 
 A lookup that runs past `notice_after_seconds` gets a short "One moment, I'm
 looking into it." or a similar line first (persona `lines.looking_up`, a list she
@@ -120,3 +121,24 @@ one question and are not kept in the chat history. She answers in a sentence or 
 and says it comes from Wikipedia. If the passages don't answer it, she says she
 couldn't find it. Matching is done in code, not by the model, so it's predictable;
 the log line "Wikipedia: 2 of 6 passages kept in 25 ms (...)" shows what she found.
+
+## Checking the search
+
+`evals/wiki_questions.yaml` holds about 30 questions, each with the article(s)
+that answer it and a pattern for the answer. To run them:
+
+```powershell
+uv run python scripts/eval_wiki.py        # one line per question, then totals
+uv run python scripts/eval_wiki.py -v     # also shows what she read on a miss
+```
+
+It runs the same steps as the app (decide whether to look it up, search, keep
+the best passages, clip them) without the chat model, and reports:
+
+- **article:** the right article is among the passages she gets (recall@4).
+- **answer:** the answer itself is in the text she reads.
+- **MRR:** how near the top the right article sits.
+
+A miss here is a search problem. A hit that she still answers wrong is a prompt
+or model problem. Run it before and after a search change to see whether the
+change helped.

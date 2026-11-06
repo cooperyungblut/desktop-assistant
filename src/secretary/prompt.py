@@ -69,10 +69,10 @@ add a second only if it says something new, never a restatement of the first.
 {source} A "Facts:" line lists the article's key facts (born, capital, and so on):
 use it. Add nothing that isn't in them. Answer what {user} means even when the
 wording is loose: if the passages hold the closest real answer (a compound's formula
-when asked for its "symbol"), give that. If they don't contain the answer, say in one
-short sentence that you're not sure, and don't suggest /claude. Never talk about
-"passages" or "the provided information". Ignore them for anything about {user}'s own
-day or the brief; the brief wins.
+when asked for its "symbol"), give that. If they don't contain the answer, just say
+you don't know that one, in one short sentence, and don't suggest /claude. Never
+mention "passages", "the provided information" or what they do or don't list.
+Ignore the passages for anything about {user}'s own day or the brief; the brief wins.
 """
 
 # Whether she says where a looked-up fact came from (wiki.mention_source).

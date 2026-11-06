@@ -20,9 +20,11 @@ log = logging.getLogger(__name__)
 
 # Only the start of an article matters (we keep a few thousand characters), and
 # the infobox and opening sit at the top, so a huge page is cut before parsing.
-MAX_HTML_CHARS = 400_000
+MAX_HTML_CHARS = 800_000
 INFOBOX_ROWS = 14
 INFOBOX_VALUE_CHARS = 160
+# A full-width infobox row that names itself: one to three capitalised words, a colon.
+_LABELLED = re.compile(r"([A-Z][a-z]+(?: [a-z]+){0,2}) ?: ?(\S.*)")
 CHUNK = 2000  # entries handed to a worker at a time
 
 # Sections after which there is nothing worth reading.
@@ -87,9 +89,18 @@ def html_to_text(html: str) -> str:
         for row in box.xpath(".//tr"):
             label = row.xpath("./th")
             value = row.xpath("./td")
-            if len(label) != 1 or len(value) != 1:
+            if len(label) == 1 and len(value) == 1:
+                name, text = _clean(label[0].text_content()), _clean(value[0].text_content())
+            elif not label and len(value) == 1:
+                # Full-width rows carry their own label: "Motto: Quocunque Jeceris
+                # Stabit", "Anthem: ..." in country boxes. Unlabelled ones (a map
+                # caption) are skipped.
+                found = _LABELLED.match(_clean(value[0].text_content()))
+                if not found:
+                    continue
+                name, text = found.group(1), found.group(2)
+            else:
                 continue
-            name, text = _clean(label[0].text_content()), _clean(value[0].text_content())
             if name and text and len(facts) < INFOBOX_ROWS:
                 facts.append(f"{name}: {text[:INFOBOX_VALUE_CHARS]}")
     for box in body.xpath('//table[contains(@class,"infobox")]'):

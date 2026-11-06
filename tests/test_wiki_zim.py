@@ -45,6 +45,21 @@ def test_html_to_text_orders_lead_facts_then_body():
     assert lines[3].startswith("Cage was born in Long Beach")
 
 
+def test_full_width_infobox_rows_keep_their_own_label():
+    html = (
+        '<html><body><table class="infobox ib-country"><tbody>'
+        "<tr><th colspan=2>Isle of Man</th></tr>"
+        '<tr><td colspan="2"><div>Motto:&nbsp;<i>Quocunque Jeceris Stabit</i>'
+        "<sup>[1]</sup> (Latin)</div></td></tr>"
+        "<tr><td colspan=2>Location of the Isle of Man (green) in Europe</td></tr>"
+        "<tr><th>Capital</th><td>Douglas</td></tr></tbody></table>"
+        "<p>The Isle of Man is a self-governing British Crown Dependency in the Irish Sea.</p>"
+        "</body></html>"
+    )
+    facts = html_to_text(html).split("\n")[1]
+    assert facts == "Facts: Motto: Quocunque Jeceris Stabit (Latin); Capital: Douglas."
+
+
 def test_html_to_text_leaves_out_the_junk():
     text = html_to_text(CAGE_HTML)
     for junk in ("redirects here", "Table text", "A caption", "Citation text", "Navigation", "[1]"):

@@ -17,6 +17,8 @@ from secretary.wiki import Passage
         "Hey, what's the capital of Australia?",
         "Look up Alan Turing",
         "what does wikipedia say about octopuses",
+        "In which year did the Dutch East India Company cease operations?",
+        "By whom was the Eiffel Tower designed?",
     ],
 )
 def test_factual_questions_are_looked_up(text):
@@ -37,6 +39,8 @@ def test_factual_questions_are_looked_up(text):
         "Read me this morning's brief",
         "Thanks, that's all",
         "Add lunch to my calendar",
+        "In which room is my interview?",
+        "In the morning remind me to call",
     ],
 )
 def test_personal_live_and_chat_questions_are_not(text):

@@ -199,8 +199,8 @@ _QUESTION_FILLER = frozenset(
 # The infobox line written by the ZIM loader, and how many passages in to look for it.
 FACTS_PREFIX = "Facts: "
 # How many passages of one article to read when looking inside it. Generous: an
-# article holds about max_chars_per_article / 600 of them (20 at 12,000).
-ARTICLE_PASSAGES = 40
+# article holds about max_chars_per_article / 600 of them (40 at 24,000).
+ARTICLE_PASSAGES = 60
 # Openings fetched for the all-key-words stage; those that hold the question's
 # words in the question's order go first. Longest run of words tried as a phrase.
 OPENING_POOL = 300
@@ -304,7 +304,7 @@ def build_index(
     articles: Iterator[tuple[str, str] | Redirect],
     index_file: Path,
     *,
-    max_chars_per_article: int = 12_000,
+    max_chars_per_article: int = 24_000,
     limit: int | None = None,
     progress: Callable[[BuildStats], None] | None = None,
 ) -> BuildStats:
