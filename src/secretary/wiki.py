@@ -534,7 +534,9 @@ class WikiIndex:
                 if not content or len(" ".join(chunk)) <= 2:
                     continue
                 lettered = [k for k in content if not words[k].isdigit()]
-                named = bool(lettered) and all(capital[k] for k in lettered)
+                # A name starts with a capital; later words may be lowercase
+                # ("Bhutanese ngultrum", "Bengal tiger").
+                named = bool(lettered) and capital[lettered[0]]
                 edge = (chunk[0] in _STOPWORDS and chunk[0] != "the") + (chunk[-1] in _STOPWORDS)
                 spans.append((named, len(content), edge, i, j))
         spans.sort(key=lambda s: (not s[0], -s[1], s[2], s[3] - s[4], s[3]))
@@ -595,10 +597,14 @@ class WikiIndex:
             )
         ]
         wanted = {_stem(w) for w in others}
+        in_opening = {_stem(w) for w in _WORD.findall(opening.lower())}
 
         def matches(text: str) -> int:
+            """Question words the text holds. A word the opening already has
+            ("Hindu god" for Ganesha) counts half as much as one it doesn't
+            ("mount"): the second slot should add what the opening lacks."""
             stems = {_stem(w) for w in _WORD.findall(text.lower())}
-            return sum(1 for w in wanted if _mentions(stems, w))
+            return sum(1 if _mentions(in_opening, w) else 2 for w in wanted if _mentions(stems, w))
 
         best, best_score = None, 0
         for body in bodies[1:]:
@@ -608,6 +614,12 @@ class WikiIndex:
         facts = _facts_line(bodies)
         if facts and facts in opening:
             facts = None
+        if facts:
+            # A long Facts line is cut for her prompt: put the rows the question
+            # asks about ("Motto: ...") first so they survive.
+            rows = facts[len(FACTS_PREFIX) :].split("; ")
+            rows.sort(key=lambda row: -matches(row))
+            facts = FACTS_PREFIX + "; ".join(rows)
         # Second place (an article gets two of her slots when others match too)
         # goes to whichever fits the question better: the Facts line for "motto"
         # or "currency code", the best passage for "who played the lead".

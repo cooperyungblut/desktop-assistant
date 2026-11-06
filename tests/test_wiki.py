@@ -585,3 +585,40 @@ def test_facts_line_comes_second_when_it_fits_the_question(tmp_path: Path):
         laws = wiki.search("What is the parliament of the Isle of Man called?", limit=8)
     assert "Motto" in found[1].text
     assert "Tynwald" in laws[1].text
+
+
+def test_name_with_a_lowercase_second_word_beats_a_shorter_one(tmp_path: Path):
+    items = [
+        ("The Bhutanese", "The Bhutanese is a newspaper based in Bhutan. " * 5),
+        ("Bhutanese ngultrum", "The ngultrum is the currency of Bhutan, code BTN. " * 5),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("What is the currency code for the Bhutanese ngultrum?", limit=8)
+    assert found[0].title == "Bhutanese ngultrum"
+
+
+def test_facts_rows_the_question_asks_about_come_first(tmp_path: Path):
+    opening = "The Isle of Man is a self-governing island in the Irish Sea. " * 9
+    rows = "; ".join(f"Row {n}: value number {n}" for n in range(40))
+    text = opening + f"\nFacts: {rows}; Motto: Quocunque jeceris stabit." + "\nMore. " * 3
+    path = tmp_path / "w.sqlite"
+    build_index(iter([("Isle of Man", text)]), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("What is the motto of the Isle of Man?", limit=8)
+    assert found[1].text.startswith("Facts: Motto: Quocunque")
+
+
+def test_second_slot_adds_what_the_opening_lacks(tmp_path: Path):
+    opening = "Ganesha is a Hindu god, one of the best-known deities in Hinduism. " * 8
+    text = (
+        opening
+        + "\nFacts: Abode: Kailasha with his parents; Mount: Mouse; Consort: Buddhi and Siddhi."
+        + "\nGanesha is a Hindu god mentioned in many texts over the centuries. " * 9
+    )
+    path = tmp_path / "w.sqlite"
+    build_index(iter([("Ganesha", text)]), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("What is the mount of the Hindu god Ganesha?", limit=8)
+    assert "Mount: Mouse" in found[1].text
