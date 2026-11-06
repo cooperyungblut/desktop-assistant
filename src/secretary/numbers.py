@@ -1,14 +1,15 @@
 """Years and times written as digits, rewritten the way people say them
 (speech only). She writes digits, so the chat shows "1909" and "10:30".
 
-Kokoro reads "1909" as "nineteen zero nine" and "2005" as "twenty zero five".
-People say "nineteen oh nine" and "two thousand five". Her chat text keeps the
-digits; only the text handed to the voice is rewritten.
+Kokoro reads years digit-group by digit-group: "1909" as "nineteen zero nine",
+"1945" as "nineteen hundred forty five", "2005" as "twenty zero five". People
+say "nineteen oh nine", "nineteen forty-five", "two thousand five". Her chat
+text keeps the digits; only the text handed to the voice is rewritten.
 
-Only years with a 0 in the tens place are rewritten (Kokoro already says
-"nineteen sixty-four" and "nineteen hundred" fine), and only where the number
-reads as a year: after "in", "since", a month and so on, before "BC"/"AD", in a
-range ("1901-1909"), or at the end of a clause. "1909 meters" is left alone.
+Years 1100-2099 are rewritten where the number reads as a year: after "in",
+"since", a month and so on, before "BC"/"AD", in a range ("1939-1945"), or at
+the end of a clause. "1945 meters" is left alone. Decades too: "1990s" ->
+"nineteen nineties".
 
 Clock times: "10:30" -> "ten thirty", "9:05" -> "nine oh five", "10:00" ->
 "ten o'clock", "7:00 pm" -> "seven PM".
@@ -31,34 +32,90 @@ _FIRST = {
     19: "nineteen",
 }
 
+_TENS_WORDS = {
+    2: "twenty",
+    3: "thirty",
+    4: "forty",
+    5: "fifty",
+    6: "sixty",
+    7: "seventy",
+    8: "eighty",
+    9: "ninety",
+}
+_TEENS = [
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+]
+
 _BEFORE = (
     "in|since|from|until|till|by|of|during|before|after|around|circa|c\\.|year|born|died|"
     "early|late|mid|between|and|to|"
     "january|february|march|april|may|june|july|august|september|october|november|december|"
     "jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec"
 )
-# A candidate: 11x0y or 200y, not part of a longer number, a decimal or money.
-_YEAR = re.compile(r"(?<![\d$£€.,])\b(1[1-9]0[1-9]|200[1-9])\b(?![\d,.]\d|%)")
+# A candidate year (1100-2099) or decade ("1990s"), not part of a longer number,
+# a decimal or money.
+_YEAR = re.compile(r"(?<![\d$£€.,])\b(1[1-9]\d\d|20\d\d)(s?)\b(?![\d,.]\d|%)")
 _PREV_WORD = re.compile(rf"(?:\b(?:{_BEFORE})|\d{{1,2}},?|[-–—])\s*$", re.IGNORECASE)
 _NEXT = re.compile(
     r"^\s*(?:$|[.,;:!?)\]\"'’”]|[-–—]|(?:BC|AD|BCE|CE)\b|'s\b)",
 )
 
 
-def say_year(year: int) -> str:
-    """1909 -> "nineteen oh nine", 2005 -> "two thousand five"."""
-    if 2001 <= year <= 2009:
-        return f"two thousand {_ONES[year - 2001]}"
-    return f"{_FIRST[year // 100]} oh {_ONES[year % 10 - 1]}"
+def _under_100(n: int) -> str:
+    if n < 10:
+        return _ONES[n - 1]
+    if n < 20:
+        return _TEENS[n - 10]
+    tens, ones = divmod(n, 10)
+    return _TENS_WORDS[tens] + (f"-{_ONES[ones - 1]}" if ones else "")
+
+
+def _plural(words: str) -> str:
+    """ "nineteen ninety" -> "nineteen nineties", "... hundred" -> "... hundreds"."""
+    if words.endswith("y"):
+        return words[:-1] + "ies"
+    return words + "s"
+
+
+def say_year(year: int, decade: bool = False) -> str:
+    """1909 -> "nineteen oh nine", 1945 -> "nineteen forty-five", 1900 ->
+    "nineteen hundred", 2005 -> "two thousand five", 2026 -> "twenty twenty-six".
+    With decade: 1990 -> "nineteen nineties"."""
+    century, rest = divmod(year, 100)
+    if 2000 <= year <= 2009:
+        words = "two thousand" + (f" {_ONES[rest - 1]}" if rest else "")
+    else:
+        first = "twenty" if century == 20 else _FIRST[century]
+        if rest == 0:
+            words = f"{first} hundred"
+        elif rest < 10:
+            words = f"{first} oh {_ONES[rest - 1]}"
+        else:
+            words = f"{first} {_under_100(rest)}"
+    return _plural(words) if decade else words
 
 
 def spoken_years(text: str) -> str:
     """`text` with its "1909"-style years written out as they're spoken."""
 
     def replace(match: re.Match[str]) -> str:
+        year, decade = int(match.group(1)), bool(match.group(2))
+        if decade:
+            if year % 10 == 0:
+                return say_year(year, decade=True)
+            return match.group(0)
         before, after = text[: match.start()], text[match.end() :]
         if _PREV_WORD.search(before) or _NEXT.match(after):
-            return say_year(int(match.group(1)))
+            return say_year(year)
         return match.group(0)
 
     return _YEAR.sub(replace, text)

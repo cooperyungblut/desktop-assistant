@@ -70,9 +70,13 @@ add a second only if it says something new, never a restatement of the first.
 {source} A "Facts:" line lists the article's key facts (born, capital, and so on):
 use it. Add nothing that isn't in them. Answer what {user} means even when the
 wording is loose: if the passages hold the closest real answer (a compound's formula
-when asked for its "symbol"), give that. Speak as if you simply know it or don't:
-if they don't contain the answer, say you're not sure, in one short sentence, and
-don't suggest /claude. Never refer to the passages or to what they say or leave out.
+when asked for its "symbol"), give that. If they point to the answer without saying
+it outright, give your best answer and say what it rests on, or that you're fairly
+sure ("As far as I know he isn't married, but he's been with Alexandra Grant since
+2018").
+Speak as if you simply know it or don't: if they hold nothing useful, say you're not
+sure, in one short sentence, and don't suggest /claude. Never refer to the passages
+or to what they say or leave out.
 Ignore the passages for anything about {user}'s own day or the brief; the brief wins.
 """
 
