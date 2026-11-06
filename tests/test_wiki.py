@@ -10,6 +10,7 @@ import pytest
 from secretary.wiki import (
     Redirect,
     WikiIndex,
+    _phrase,
     build_index,
     is_indexable,
     iter_articles,
@@ -460,3 +461,26 @@ def test_openings_stage_only_returns_first_passages(tmp_path: Path):
         stages = (wiki.search("What is the longest river in Africa?"), wiki.trace)[1]
     assert [p.title for p in found] == ["Nile"]
     assert "openings" in [name for name, _ in stages]
+
+
+def test_openings_that_say_it_the_way_the_question_does_come_first(tmp_path: Path):
+    items = [
+        ("Africa", "Africa is the second-largest continent. " * 5),
+        ("Orange River", "The Orange River is the longest river in South Africa. " * 5),
+        ("Nile", "The Nile is the longest river in Africa. It flows north. " * 5),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        ranked = wiki._ranked
+
+        def short_first(terms, limit, *, require_all, openings_only=False):
+            # On the full index BM25 puts short "South Africa" openings ahead.
+            found = ranked(terms, limit, require_all=require_all, openings_only=openings_only)
+            return sorted(found, key=lambda p: p.title != "Orange River")
+
+        wiki._ranked = short_first
+        found = wiki.search("What is the longest river in Africa?", limit=4)
+    assert [p.title for p in found if p.match != "title"][0] == "Nile"
+    assert _phrase("What is the longest river in Africa?", ["longest", "river", "africa"])
+    assert _phrase("Who is Keanu?", ["keanu"]) is None

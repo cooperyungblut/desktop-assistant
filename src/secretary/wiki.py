@@ -133,7 +133,7 @@ def _mentions(stems: set[str], wanted: str) -> bool:
 
 
 def _take_turns(first: list[Passage], second: list[Passage], limit: int) -> list[Passage]:
-    """Two from `first` (a named article's opening and Facts line), then one from
+    """Two from `first` (a named article's opening and best passage), then one from
     each list in turn, without repeats."""
     order = first[:2]
     rest = first[2:]
@@ -147,6 +147,18 @@ def _take_turns(first: list[Passage], second: list[Passage], limit: int) -> list
             seen.add(key)
             found.append(passage)
     return found
+
+
+def _phrase(question: str, terms: list[str]) -> re.Pattern[str] | None:
+    """The question's run of words from its first key word to its last, as a
+    pattern ("longest river in africa"), or None if that run is under two key
+    words or too long to expect word for word."""
+    words = _WORD.findall(question.lower().replace("'s", ""))
+    places = [i for i, w in enumerate(words) if w in terms]
+    if len(places) < 2 or places[-1] - places[0] >= PHRASE_WORDS:
+        return None
+    run = words[places[0] : places[-1] + 1]
+    return re.compile(r"\b" + r"\W+".join(map(re.escape, run)) + r"\b")
 
 
 def query_terms(question: str) -> list[str]:
@@ -178,6 +190,10 @@ FACTS_PREFIX = "Facts: "
 # How many passages of one article to read when looking inside it. Generous: an
 # article holds about max_chars_per_article / 600 of them (20 at 12,000).
 ARTICLE_PASSAGES = 40
+# Openings fetched for the all-key-words stage; those that hold the question's
+# words in the question's order go first. Longest run of words tried as a phrase.
+OPENING_POOL = 100
+PHRASE_WORDS = 8
 # Words in a question that point at one of several same-named articles.
 _FILM = ("film series", "film", "franchise")
 _QUALIFIERS: dict[str, tuple[str, ...]] = {
@@ -411,13 +427,20 @@ class WikiIndex:
             # Openings that hold every key word: an article's first lines define
             # it ("Photosynthesis is ... by which plants convert light energy into
             # chemical energy"), so they beat a stray mention deep in some page.
-            by_text = [
+            # Among those, the ones that say it the way the question does ("the
+            # longest river in Africa", not "the longest river in South Africa")
+            # come first.
+            openings = [
                 p
                 for p in self._ranked(
-                    opening_terms, limit * 3, require_all=True, openings_only=True
+                    opening_terms, OPENING_POOL, require_all=True, openings_only=True
                 )
                 if p.title not in named
-            ][:limit]
+            ]
+            phrase = _phrase(question, opening_terms)
+            if phrase:
+                openings.sort(key=lambda p: not phrase.search(p.text.lower()))
+            by_text = openings[:limit]
             mark("openings")
             for require_all in (True, False):
                 if rare and len(by_text) < limit:
@@ -523,8 +546,8 @@ class WikiIndex:
         return None
 
     def _article_passages(self, row: tuple[str, str, int, int], others: list[str]) -> list[Passage]:
-        """For a named article: its opening, its Facts line, and the passage that best
-        matches the rest of the question ("who played the lead role")."""
+        """For a named article: its opening, the passage that best matches the rest
+        of the question ("who played the lead role"), and its Facts line."""
         title, opening, article_id, first = row
         found = [Passage(title, opening, score=100.0, match="title")]
         bodies = [
@@ -535,9 +558,6 @@ class WikiIndex:
                 (first, first + ARTICLE_PASSAGES, article_id),
             )
         ]
-        facts = _facts_line(bodies)
-        if facts and facts not in opening:
-            found.append(Passage(title, facts, score=99.0, match="title"))
         wanted = {_stem(w) for w in others}
         best, best_score = None, 0
         for body in bodies[1:]:
@@ -546,7 +566,11 @@ class WikiIndex:
             if score > best_score and FACTS_PREFIX not in body:
                 best, best_score = body, score
         if best is not None:
-            found.append(Passage(title, best, score=98.0, match="title"))
+            found.append(Passage(title, best, score=99.0, match="title"))
+        # The Facts line last: the opening usually has the key facts already.
+        facts = _facts_line(bodies)
+        if facts and facts not in opening:
+            found.append(Passage(title, facts, score=98.0, match="title"))
         return found
 
     def _article(self, name: str) -> tuple[str, str, int, int] | None:

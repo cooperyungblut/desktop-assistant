@@ -18,6 +18,8 @@ from typing import Protocol
 from .wiki import Passage, query_terms
 
 MAX_PASSAGES = 4
+# Passages from one article, while other articles have something to offer.
+PER_ARTICLE = 2
 PASSAGE_CHARS = 600  # per passage shown to the model: four of these are ~600 tokens
 
 _EXPLICIT = re.compile(
@@ -142,7 +144,15 @@ def usable(passages: Sequence[Passage], request: LookupRequest) -> list[Passage]
             or request.forced
         ):
             keep.append(passage)
-    return keep[:MAX_PASSAGES]
+    # No article takes more than PER_ARTICLE slots ahead of the others: "the
+    # longest river in Africa" needs the Nile, not three passages of "Africa".
+    first: list[Passage] = []
+    spare: list[Passage] = []
+    taken: dict[str, int] = {}
+    for passage in keep:
+        taken[passage.title] = taken.get(passage.title, 0) + 1
+        (first if taken[passage.title] <= PER_ARTICLE else spare).append(passage)
+    return (first + spare)[:MAX_PASSAGES]
 
 
 def render(passages: Sequence[Passage]) -> str:
