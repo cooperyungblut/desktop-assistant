@@ -38,16 +38,17 @@ wiki:
   source: C:/data/wikipedia/wikipedia_en_all_nopic_2026-01.zim   # your file's name
   index_file: C:/data/wikipedia/index.sqlite
   workers: 4       # CPU processes used while building
-  max_chars_per_article: 12000
+  max_chars_per_article: 24000
   timeout_seconds: 15
   notice_after_seconds: 1.5
   mention_source: true
 ```
 
 `max_chars_per_article` keeps the opening, the infobox facts and the first
-sections of each article. 12,000 aims at about 45 GB for all of English
-Wikipedia (4,000 gave 20 GB but missed facts further into long articles).
-Smaller means a smaller, faster index.
+sections of each article. 24,000 reaches facts deep in long articles (4,000
+missed many, and 12,000 still cut some). Most articles are shorter than this,
+so the index grows by much less than double. Smaller means a smaller, faster
+index.
 
 A lookup that runs past `notice_after_seconds` gets a short "One moment, I'm
 looking into it." or a similar line first (persona `lines.looking_up`, a list she

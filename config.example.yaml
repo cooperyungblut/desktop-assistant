@@ -56,7 +56,7 @@ wiki:
   source: C:/data/wikipedia/wikipedia_en_all_nopic.zim   # Kiwix file (only for building)
   workers: 4           # CPU processes used while building the index
   index_file: C:/data/wikipedia/index.sqlite  # the search index
-  max_chars_per_article: 12000   # about 45 GB for all of English Wikipedia
+  max_chars_per_article: 24000   # longer articles are cut here; bigger index, deeper facts
   timeout_seconds: 15  # a slower lookup is skipped and she answers without it
   notice_after_seconds: 1.5   # a slower lookup gets a "one moment" line first
   mention_source: true # she says "Wikipedia says..."; false: she just says the fact

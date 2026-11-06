@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 
 # Only the start of an article matters (we keep a few thousand characters), and
 # the infobox and opening sit at the top, so a huge page is cut before parsing.
-MAX_HTML_CHARS = 400_000
+MAX_HTML_CHARS = 800_000
 INFOBOX_ROWS = 14
 INFOBOX_VALUE_CHARS = 160
 # A full-width infobox row that names itself: one to three capitalised words, a colon.
