@@ -154,3 +154,34 @@ def test_he_and_his_point_at_the_name_in_her_last_answer():
 )
 def test_first_name_in_a_reply(reply, name):
     assert first_name(reply) == name
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "What is 8 times 12?",
+        "What is 13? Divided by 3.",
+        "What is the square root of 144?",
+        "What is the derivative of x to the third?",
+        "What is 15% of 80?",
+        "What is the smallest prime number greater than 100?",
+        "What is 2^10?",
+    ],
+)
+def test_math_is_worked_out_not_looked_up(question):
+    assert lookup_request(question) is None
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "What is a derivative in finance?",
+        "What is a prime number?",
+        "When did World War 2 end?",
+        "Who was the 16th president of the United States?",
+        "What happened on 9/11?",
+        "What happened in Europe in 1939-1945?",
+    ],
+)
+def test_questions_with_numbers_are_still_looked_up(question):
+    assert lookup_request(question) is not None
