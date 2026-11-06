@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from secretary.rerank import CrossEncoder, RerankedWiki, make_reranked
+from secretary.rerank import CrossEncoder, RerankedWiki, make_reranked, order
 from secretary.wiki import Passage
 
 VOC = "Dutch East India Company"
@@ -48,13 +48,13 @@ class WordScorer:
         return [float(sum(w in t for w in self.words)) for t in texts]
 
 
-def make(scorer=None) -> tuple[RerankedWiki, FakeIndex]:
+def make(scorer=None, mode: str = "rerank") -> tuple[RerankedWiki, FakeIndex]:
     index = FakeIndex(
         [OPENING, FACTS, NOISE],
         # The raw Facts passage and the opening are already in the pool.
         {VOC: [OPENING.text, "Facts: Founded: 20 March 1602.", DEEP, "It traded spices."]},
     )
-    return RerankedWiki(index, scorer or WordScorer("dissolved", "1799")), index
+    return RerankedWiki(index, scorer or WordScorer("dissolved", "1799"), mode), index
 
 
 def test_a_deep_passage_of_the_named_article_can_win():
@@ -143,3 +143,43 @@ def test_cross_encoder_scores_question_passage_pairs(tmp_path):
     assert scores == [2.0, 4.0, 2.0] * 7
     long = encoder.score("when", ["a " * 20])
     assert long == [8.0 - 3.0]  # [CLS] when [SEP] + 5 passage tokens incl. [SEP]
+
+
+def _pool(n: int) -> list[Passage]:
+    return [Passage(f"T{i}", f"text {i}", 0.0, "all") for i in range(n)]
+
+
+def test_fuse_keeps_a_clear_keyword_hit_the_model_dislikes():
+    pool = _pool(10)
+    # The model likes the keyword order backwards, except it also likes #8.
+    scores = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 9.5, 8.0]
+    assert [p.title for p in order(pool, scores, "rerank")][:2] == ["T8", "T9"]
+    fused = [p.title for p in order(pool, scores, "fuse")]
+    # Keyword #1 stays near the top; the model's favourite still climbs.
+    assert fused.index("T0") < 4 and fused.index("T8") < 4
+    assert len(fused) == 10 and len(set(fused)) == 10
+
+
+def test_keep_takes_the_keyword_top_two_then_the_model():
+    pool = _pool(5)
+    scores = [0.0, 1.0, 3.0, 4.0, 5.0]
+    assert [p.title for p in order(pool, scores, "keep")] == ["T0", "T1", "T4", "T3", "T2"]
+
+
+def test_modes_reuse_the_scores_of_the_same_question():
+    scorer = WordScorer("dissolved")
+    calls = []
+    original = scorer.score
+    scorer.score = lambda q, texts: calls.append(q) or original(q, texts)
+    wiki, _ = make(scorer)
+    first = wiki.search("When did the VOC end?", 4)
+    wiki.mode = "fuse"
+    wiki.search("When did the VOC end?", 4)
+    assert len(calls) == 1 and first[0].text == DEEP
+    wiki.search("Something else?", 4)
+    assert len(calls) == 2
+
+
+def test_an_unknown_mode_is_refused():
+    with pytest.raises(ValueError):
+        RerankedWiki(FakeIndex([], {}), WordScorer("x"), "best")
