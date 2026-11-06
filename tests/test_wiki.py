@@ -287,3 +287,35 @@ def test_index_without_redirect_table_still_searches(tmp_path: Path):
         db.execute("DROP TABLE redirects")
     with WikiIndex(path) as wiki:
         assert wiki.search("Who is Nicolas Cage?")[0].title == "Nicolas Cage"
+
+
+def test_kind_of_thing_in_the_question_picks_the_bracketed_article(tmp_path: Path):
+    books = "Harry Potter is a series of seven fantasy novels written by J. K. Rowling. " * 3
+    films = (
+        "Harry Potter is a film series based on the novels by J. K. Rowling. "
+        "Daniel Radcliffe starred as Harry Potter in all eight films. " * 2
+    )
+    items = [("Harry Potter", books), ("Harry Potter (film series)", films)]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        movie = wiki.search("Who played the lead role in the Harry Potter movies?")
+        book = wiki.search("Who wrote Harry Potter?")
+    assert movie[0].title == "Harry Potter (film series)"
+    assert book[0].title == "Harry Potter"
+
+
+def test_named_article_adds_its_passage_matching_the_rest_of_the_question(tmp_path: Path):
+    opening = "Ada Lovelace was an English mathematician and writer of the 1800s. " * 9
+    later = [
+        "She was born in London to the poet Lord Byron and Anne Isabella Milbanke.",
+        "Her notes on the Analytical Engine include the first published algorithm "
+        "intended to be carried out by a machine, so she is called the first programmer.",
+        "She died of uterine cancer in 1852 at the age of 36.",
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter([("Ada Lovelace", "\n".join([opening, *later]))]), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("Why is Ada Lovelace called the first programmer?")
+    assert [p.title for p in found] == ["Ada Lovelace", "Ada Lovelace"]
+    assert "Analytical Engine" in found[1].text and found[1].match == "title"

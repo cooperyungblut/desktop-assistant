@@ -102,6 +102,28 @@ def is_indexable(title: str, text: str) -> bool:
     return not re.search(r"\b(may|can) (also )?refer to\b", text[:300])
 
 
+def _facts_line(bodies: list[str]) -> str | None:
+    """The "Facts: ..." line (the infobox: born, capital, ...) among an article's
+    passages. It comes right after the first paragraph of the opening."""
+    for body in bodies:
+        at = body.find(FACTS_PREFIX)
+        if at >= 0:
+            line = body[at + len(FACTS_PREFIX) :].split("\n", 1)[0]
+            # Indexes built before the loader dropped <style> blocks have CSS in
+            # some rows ("/* start ... */ .mw-parser-output ..."): leave those out.
+            rows = [r for r in line.split("; ") if "mw-parser-output" not in r]
+            return FACTS_PREFIX + "; ".join(rows) if rows else None
+    return None
+
+
+def _stem(word: str) -> str:
+    """A rough stem, enough to match "played" with "plays" or "movies" with "movie"."""
+    for suffix, keep in (("ies", "y"), ("ing", ""), ("ed", ""), ("es", ""), ("s", "")):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            return word[: -len(suffix)] + keep
+    return word
+
+
 def query_terms(question: str) -> list[str]:
     """The words of a question that are worth searching for."""
     words = _WORD.findall(question.lower().replace("'s", ""))
@@ -119,7 +141,28 @@ SMALL_INDEX = 50_000  # below this many passages every word counts as rare
 MAX_BODY_TERMS = 3
 # The infobox line written by the ZIM loader, and how many passages in to look for it.
 FACTS_PREFIX = "Facts: "
-FACTS_WITHIN = 8
+ARTICLE_PASSAGES = 12  # an article holds max_chars_per_article (4000) / ~600 passages
+# Words in a question that point at one of several same-named articles.
+_FILM = ("film series", "film", "franchise")
+_QUALIFIERS: dict[str, tuple[str, ...]] = {
+    "movie": _FILM,
+    "movies": _FILM,
+    "film": _FILM,
+    "films": _FILM,
+    "show": ("TV series",),
+    "tv": ("TV series",),
+    "series": ("TV series", "film series"),
+    "episode": ("TV series",),
+    "episodes": ("TV series",),
+    "book": ("novel", "book"),
+    "novel": ("novel",),
+    "song": ("song",),
+    "album": ("album",),
+    "band": ("band",),
+    "game": ("video game",),
+    "play": ("play",),
+    "musical": ("musical",),
+}
 
 
 def _fts_query(terms: list[str], *, require_all: bool) -> str:
@@ -398,16 +441,57 @@ class WikiIndex:
                 break  # a longer title was found: skip the lone words
             if used & set(range(i, j)):
                 continue
-            row = self._article(" ".join(words[i:j]))
+            name = " ".join(words[i:j])
+            others = [
+                w
+                for k, w in enumerate(words)
+                if (k < i or k >= j) and w not in _STOPWORDS and len(w) > 1
+            ]
+            row = self._qualified(name, others) or self._article(name)
             if row:
                 used.update(range(i, j))
-                hits.append(Passage(row[0], row[1], score=100.0, match="title"))
-                facts = self._facts(row[2], row[3])
-                if facts and facts not in row[1]:
-                    hits.append(Passage(row[0], facts, score=99.0, match="title"))
+                hits += self._article_passages(row, others)
                 if len(hits) >= 3:
                     break
         return hits
+
+    def _qualified(self, name: str, others: list[str]) -> tuple[str, str, int, int] | None:
+        """ "Harry Potter" + "movies" -> the article "Harry Potter (film series)".
+
+        Wikipedia tells same-named articles apart with a word in brackets. When the
+        question names the kind of thing, try those titles first.
+        """
+        for word in others:
+            for qualifier in _QUALIFIERS.get(word, ()):
+                if row := self._article(f"{name} ({qualifier})"):
+                    return row
+        return None
+
+    def _article_passages(self, row: tuple[str, str, int, int], others: list[str]) -> list[Passage]:
+        """For a named article: its opening, its Facts line, and the passage that best
+        matches the rest of the question ("who played the lead role")."""
+        title, opening, article_id, first = row
+        found = [Passage(title, opening, score=100.0, match="title")]
+        bodies = [
+            body
+            for (body,) in self._db.execute(
+                "SELECT body FROM passages WHERE rowid BETWEEN ? AND ? AND article_id = ?"
+                " ORDER BY rowid",
+                (first, first + ARTICLE_PASSAGES, article_id),
+            )
+        ]
+        facts = _facts_line(bodies)
+        if facts and facts not in opening:
+            found.append(Passage(title, facts, score=99.0, match="title"))
+        wanted = {_stem(w) for w in others}
+        best, best_score = None, 0
+        for body in bodies[1:]:
+            score = len(wanted & {_stem(w) for w in _WORD.findall(body.lower())})
+            if score > best_score and FACTS_PREFIX not in body:
+                best, best_score = body, score
+        if best is not None:
+            found.append(Passage(title, best, score=98.0, match="title"))
+        return found
 
     def _article(self, name: str) -> tuple[str, str, int, int] | None:
         """(title, opening, id, first passage) of the article called `name`,
@@ -427,28 +511,6 @@ class WikiIndex:
             " WHERE r.title = ? COLLATE NOCASE LIMIT 1",
             (name,),
         ).fetchone()
-
-    def _facts(self, article_id: int, first_passage: int) -> str | None:
-        """The article's "Facts: ..." line (its infobox: born, capital, ...), if any.
-
-        It sits right after the opening paragraphs, so it is often not in the first
-        passage. An article's passages have neighbouring rowids, so this is a few
-        rowid lookups, not a search.
-        """
-        rows = self._db.execute(
-            "SELECT body FROM passages WHERE rowid BETWEEN ? AND ? AND article_id = ?"
-            " ORDER BY rowid",
-            (first_passage, first_passage + FACTS_WITHIN, article_id),
-        ).fetchall()
-        for (body,) in rows:
-            at = body.find(FACTS_PREFIX)
-            if at >= 0:
-                line = body[at + len(FACTS_PREFIX) :].split("\n", 1)[0]
-                # Indexes built before the loader dropped <style> blocks have CSS in
-                # some rows ("/* start ... */ .mw-parser-output ..."): leave those out.
-                rows = [r for r in line.split("; ") if "mw-parser-output" not in r]
-                return FACTS_PREFIX + "; ".join(rows) if rows else None
-        return None
 
     def _title_words(self, terms: list[str], limit: int) -> list[Passage]:
         """Openings of articles whose title holds every key word ("Fall of the
