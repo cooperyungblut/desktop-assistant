@@ -19,7 +19,9 @@ the eval and `--ask` use it unchanged:
                order (1/(K+keyword rank) + 1/(K+model rank)), so a clear
                keyword hit (the article the question names) isn't thrown out
                because a small model misreads one word ("mount" as a mountain),
-   - "keep":   the keyword search's first KEPT passages, then the model's order.
+   - "keep":   the keyword search's first KEPT passages, then the model's order
+               (the default: best on evals/wiki_questions.yaml, 28/31 answers
+               vs 25 keyword-only, 26 fuse, 27 rerank).
 
 The model is any cross-encoder exported to ONNX with a `tokenizer.json` beside
 it (docs/wikipedia.md: ms-marco-MiniLM-L6-v2, about 90 MB). Needs the `rerank`
@@ -106,7 +108,7 @@ class CrossEncoder:
 class RerankedWiki:
     """The index's search, with the results re-ordered by a cross-encoder."""
 
-    def __init__(self, index: WikiIndex, scorer: Scorer, mode: str = "fuse"):
+    def __init__(self, index: WikiIndex, scorer: Scorer, mode: str = "keep"):
         if mode not in MODES:
             raise ValueError(f"unknown rerank mode {mode!r}; use one of {', '.join(MODES)}")
         self.index = index
@@ -186,7 +188,7 @@ def _with_article_passages(index: WikiIndex, found: list[Passage]) -> list[Passa
 
 
 def make_reranked(
-    index: WikiIndex, model_dir: Path | None, mode: str = "fuse"
+    index: WikiIndex, model_dir: Path | None, mode: str = "keep"
 ) -> WikiIndex | RerankedWiki:
     """`index` wrapped with the reranker in `model_dir`, or `index` as is when
     there is no model or it can't load (she still answers, just without it)."""

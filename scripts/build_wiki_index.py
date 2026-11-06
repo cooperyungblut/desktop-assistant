@@ -22,7 +22,7 @@ from secretary.wiki import BuildStats, WikiIndex, build_index, iter_articles
 
 
 def ask(
-    index_file: Path, question: str, rerank_model: Path | None = None, mode: str = "fuse"
+    index_file: Path, question: str, rerank_model: Path | None = None, mode: str = "keep"
 ) -> None:
     with make_reranked(WikiIndex(index_file), rerank_model, mode) as index:
         started = time.perf_counter()

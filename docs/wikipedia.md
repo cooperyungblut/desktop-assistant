@@ -170,11 +170,14 @@ Then add this under `wiki:` in `config.yaml`:
 
 `rerank_mode` sets how its scores are used:
 
-- `fuse` (the default) blends the keyword order with the model's order
-  (reciprocal rank fusion). A passage near the top of either list does well,
-  so a clear keyword hit survives even when the small model misreads a word.
-- `rerank` uses the model's order alone.
-- `keep` takes the keyword search's top two, then the model's order.
+- `keep` (the default) takes the keyword search's top two passages, usually
+  the named article's opening and its best match, then fills the rest in the
+  model's order. It scored best in testing: 28 of 31 answers, against 25 for
+  keywords alone.
+- `fuse` blends the keyword order with the model's order (reciprocal rank
+  fusion). It scored 26 of 31.
+- `rerank` uses the model's order alone. It scored 27 of 31, but it dropped
+  clear keyword hits such as "the mount of Ganesha".
 
 `uv run python scripts/eval_wiki.py` uses the configured mode, and `--no-rerank`
 runs the same questions without the reranker. `--compare` runs every question
