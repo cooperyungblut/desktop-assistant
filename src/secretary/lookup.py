@@ -40,14 +40,60 @@ _ASKS = re.compile(
 )
 # Questions about the user's own day or about her, which Wikipedia can't answer.
 _PERSONAL = re.compile(
-    r"\b(my|mine|i|i'm|i've|i'll|me|you|you're|your|yours|we|our|brief|briefing|email|emails|"
+    r"\b(my|i'm|i've|i'll|me|you|you're|your|yours|we|our|brief|briefing|email|emails|"
     r"calendar|schedule|agenda|interview|meeting|appointment|application|today|tonight|"
     r"tomorrow|yesterday|this\s+(?:morning|afternoon|evening|week)|"
     # someone getting back to the user: "Did Dana reply?", "Has the recruiter called?"
-    r"reply|replied|respond|responded|wrote\s+back|called|texted|messaged|heard\s+back|"
+    r"reply|replied|respond|responded|wrote\s+back|texted|messaged|heard\s+back|"
     r"recruiter)\b",
     re.IGNORECASE,
 )
+# Words that are about the user only sometimes: "I" isn't in "World War I" or
+# "Charles I", "mine" isn't in "the Scofield Mine disaster", and "called" isn't
+# in "What is a baby kangaroo called?". See `_personal`.
+_WORD = re.compile(r"[A-Za-z']+")
+_NOT_POSSESSIVE = {
+    "a",
+    "an",
+    "the",
+    "coal",
+    "gold",
+    "silver",
+    "copper",
+    "iron",
+    "salt",
+    "diamond",
+    "tin",
+    "lead",
+    "uranium",
+    "land",
+    "naval",
+    "sea",
+}  # "the mine", "a coal mine"
+_TO_BE = {"is", "are", "was", "were", "be", "being", "been", "what's", "it's"}
+
+
+def _personal(text: str) -> bool:
+    """Whether a question is about the user (their day, their things) or about her."""
+    if _PERSONAL.search(text):
+        return True
+    words = _WORD.findall(text)
+    for i, word in enumerate(words):
+        low = word.lower()
+        before = words[i - 1] if i else ""
+        # After a capitalized word that isn't the first one, it's part of a name:
+        # "Elizabeth I", "When did World War I end?", "the Scofield Mine disaster".
+        named = (i > 1 and before[:1].isupper()) or before == "War"
+        if low == "i" and not (word == "I" and named):
+            return True
+        if low == "mine" and not named and before.lower() not in _NOT_POSSESSIVE:
+            return True
+        # "Has Dana called?" and "Who called?", but not "What is it called?"
+        if low == "called" and not any(w.lower() in _TO_BE for w in words[:i]):
+            return True
+    return False
+
+
 # Live information she doesn't have: better to say so than quote an article.
 _LIVE = re.compile(
     r"\b(weather|forecast|news|headlines|stocks?|traffic|right\s+now|latest|currently|"
@@ -149,7 +195,7 @@ def lookup_request(text: str) -> LookupRequest | None:
     if len(text.split()) > 30 or not _ASKS.match(text):
         return None
     rest = re.sub(r"\btell\s+me\s+about\b", " ", text, flags=re.IGNORECASE)
-    if _PERSONAL.search(rest) or _LIVE.search(text) or _MATH.search(text):
+    if _personal(rest) or _LIVE.search(text) or _MATH.search(text):
         return None
     return LookupRequest(query=text, forced=False)
 
