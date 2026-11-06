@@ -10,7 +10,8 @@ import pytest
 from secretary.wiki import (
     Redirect,
     WikiIndex,
-    _phrase,
+    _phrase_rank,
+    _phrases,
     build_index,
     is_indexable,
     iter_articles,
@@ -482,5 +483,37 @@ def test_openings_that_say_it_the_way_the_question_does_come_first(tmp_path: Pat
         wiki._ranked = short_first
         found = wiki.search("What is the longest river in Africa?", limit=4)
     assert [p.title for p in found if p.match != "title"][0] == "Nile"
-    assert _phrase("What is the longest river in Africa?", ["longest", "river", "africa"])
-    assert _phrase("Who is Keanu?", ["keanu"]) is None
+    phrases = _phrases("What is the longest river in Africa?", ["longest", "river", "africa"])
+    assert [
+        _phrase_rank(text, phrases)
+        for text in (
+            "The Nile is the longest river in Africa.",
+            "The Zambezi is the fourth-longest river in Africa.",
+            "The Orange is the longest river in South Africa.",
+        )
+    ] == [0, 1, 2]
+    assert _phrases("Who is Keanu?", ["keanu"]) == []
+
+
+def test_the_answer_beats_runners_up_and_portal_pages(tmp_path: Path):
+    items = [
+        ("Africa", "Africa is the second-largest continent. " * 5),
+        ("Zambezi", "The Zambezi is the fourth-longest river in Africa. " * 5),
+        ("Portal:Rivers/Selected article/3", "The longest river in Africa flows north. " * 5),
+        ("Nile", "The Nile is the longest river in Africa. It flows north. " * 5),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        ranked = wiki._ranked
+
+        def runners_up_first(terms, limit, *, require_all, openings_only=False):
+            # On the full index BM25 puts the Zambezi ahead.
+            found = ranked(terms, limit, require_all=require_all, openings_only=openings_only)
+            return sorted(found, key=lambda p: p.title != "Zambezi")
+
+        wiki._ranked = runners_up_first
+        found = wiki.search("What is the longest river in Africa?", limit=4)
+        stray = ranked(["longest", "river", "africa"], 9, require_all=True)
+    assert [p.title for p in found if p.match != "title"][0] == "Nile"
+    assert not any(p.title.startswith("Portal:") for p in stray)
