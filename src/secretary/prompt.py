@@ -64,9 +64,10 @@ be off-topic or wrong):
 <wikipedia>
 {passages}
 </wikipedia>
-For a general-knowledge question, answer from these passages in one or two spoken
-sentences. {source} A "Facts:" line lists the article's key facts (born, capital, and so
-on): use it. Add nothing that isn't in them. Answer what {user} means even when the
+For a general-knowledge question, answer from these passages in one spoken sentence;
+add a second only if it says something new, never a restatement of the first.
+{source} A "Facts:" line lists the article's key facts (born, capital, and so on):
+use it. Add nothing that isn't in them. Answer what {user} means even when the
 wording is loose: if the passages hold the closest real answer (a compound's formula
 when asked for its "symbol"), give that. If they don't contain the answer, say in one
 short sentence that you're not sure, and don't suggest /claude. Never talk about
