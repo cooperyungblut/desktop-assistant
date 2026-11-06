@@ -52,6 +52,16 @@ _LIVE = re.compile(
     r"scores?\s+of|live)\b",
     re.IGNORECASE,
 )
+# Math she works out herself: Wikipedia has no sentence that says "8 times 12 is 96".
+# No "-", "/" or "x": "1939-1945", "9/11" and "4x4" are things to look up.
+_MATH = re.compile(
+    r"\d[\s?.,]*(?:[+*×÷^]|times|plus|minus|divided\s+by|multiplied\s+by|"
+    r"to\s+the(?:\s+power\s+of)?)[\s?.,]*\d"
+    r"|\b(?:square|cube)\s+root\s+of\b|\b(?:derivative|integral)\s+of\b|\bfactorial\b"
+    r"|\b\d+\s+(?:squared|cubed)\b|\d\s*(?:%|percent)\s+of\s+\d"
+    r"|\bprimes?(?:\s+numbers?)?\s+(?:greater|less|bigger|smaller|after|before|between|over|under)\b",
+    re.IGNORECASE,
+)
 _COMMAND_WORDS = re.compile(
     r"\b(please|can\s+you|could\s+you|look\s*up|search\s+(?:for|up|wikipedia)|"
     r"(?:on|in|from)\s+wiki(?:pedia)?|wiki(?:pedia)?|what\s+does\s+\w+\s+say\s+about|"
@@ -123,7 +133,7 @@ def lookup_request(text: str) -> LookupRequest | None:
     if len(text.split()) > 30 or not _ASKS.match(text):
         return None
     rest = re.sub(r"\btell\s+me\s+about\b", " ", text, flags=re.IGNORECASE)
-    if _PERSONAL.search(rest) or _LIVE.search(text):
+    if _PERSONAL.search(rest) or _LIVE.search(text) or _MATH.search(text):
         return None
     return LookupRequest(query=text, forced=False)
 
