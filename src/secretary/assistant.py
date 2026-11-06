@@ -359,7 +359,10 @@ class Assistant:
         if self._wiki is None or (request := lookup_request(text)) is None:
             return None
         started = time.perf_counter()
-        query = follow_up(request.query, self._wiki_topic)
+        last_reply = next(
+            (t.content for t in reversed(self.history) if t.role == "assistant"), None
+        )
+        query = follow_up(request.query, self._wiki_topic, last_reply and strip_tags(last_reply))
         search = asyncio.ensure_future(asyncio.to_thread(self._wiki.search, query, 6))
         notice = min(self._wiki_notice_after, self._wiki_timeout)
         try:
