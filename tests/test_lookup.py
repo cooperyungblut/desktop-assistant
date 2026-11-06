@@ -114,6 +114,29 @@ def test_personal_yes_no_questions_are_not(question):
     assert lookup_request(question) is None
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        "When was the Scofield Mine disaster?",
+        "Where is the deepest coal mine?",
+        "When did World War I end?",
+        "When did Elizabeth I die?",
+        "What is a baby kangaroo called?",
+        "What was the ship called?",
+    ],
+)
+def test_names_and_nouns_that_look_personal_are_looked_up(question):
+    assert lookup_request(question) is not None
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["Is that mine?", "Has the recruiter called?", "Who called?", "What should I eat?"],
+)
+def test_i_mine_and_called_about_the_user_are_not(question):
+    assert lookup_request(question) is None
+
+
 def test_follow_up_adds_the_last_topic_only_when_pointing_back():
     assert follow_up("What are those four species?", "StarCraft") == (
         "What are those four species? (StarCraft)"
