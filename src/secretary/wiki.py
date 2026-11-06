@@ -22,7 +22,10 @@ import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
+
+if TYPE_CHECKING:
+    from .rerank import RerankedWiki
 
 PASSAGE_CHARS = 600
 MIN_ARTICLE_CHARS = 200
@@ -629,6 +632,22 @@ class WikiIndex:
             found.append(Passage(title, text, score=score, match="title"))
         return found
 
+    def article_texts(self, title: str) -> list[str]:
+        """The passages of the article called exactly `title`, in order (for the
+        reranker, which looks for the answer anywhere in a named article)."""
+        row = self._article(title, redirects=False)
+        if row is None:
+            return []
+        _, _, article_id, first = row
+        return [
+            body
+            for (body,) in self._db.execute(
+                "SELECT body FROM passages WHERE rowid BETWEEN ? AND ? AND article_id = ?"
+                " ORDER BY rowid",
+                (first, first + ARTICLE_PASSAGES, article_id),
+            )
+        ]
+
     def _article(self, name: str, redirects: bool = True) -> tuple[str, str, int, int] | None:
         """(title, opening, id, first passage) of the article called `name`,
         directly or through a redirect ("Nicholas Cage", "Capital of France")."""
@@ -710,7 +729,7 @@ WARM_UP_QUESTIONS = (
 )
 
 
-def make_wiki(config) -> WikiIndex | None:
+def make_wiki(config) -> WikiIndex | RerankedWiki | None:
     """The index for `wiki:` in config.yaml, or None when it is off or not built yet."""
     import logging
 
@@ -725,6 +744,9 @@ def make_wiki(config) -> WikiIndex | None:
         log.warning("Wikipedia lookup is on but has no index: %s", exc)
         return None
     log.info("Wikipedia lookup ready (%s)", config.index_file)
+    from .rerank import make_reranked
+
+    wiki = make_reranked(index, getattr(config, "rerank_model", None))
     if getattr(config, "warm_up", False):
         import threading
 
@@ -733,4 +755,4 @@ def make_wiki(config) -> WikiIndex | None:
             log.info("Wikipedia index warmed up in %.0f s", seconds)
 
         threading.Thread(target=warm, name="wiki-warm-up", daemon=True).start()
-    return index
+    return wiki

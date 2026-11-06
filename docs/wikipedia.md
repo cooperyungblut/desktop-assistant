@@ -142,3 +142,37 @@ the best passages, clip them) without the chat model, and reports:
 A miss here is a search problem. A hit that she still answers wrong is a prompt
 or model problem. Run it before and after a search change to see whether the
 change helped.
+
+## Optional: a reranker
+
+Keyword search finds passages that share the question's words. It can't tell
+that "cease operations" and "was dissolved in 1799" mean the same thing, and a
+common word ("adult" in "bones in the adult human body") can pull in the wrong
+article. A reranker fixes much of that. It's a small model (a cross-encoder)
+that reads the question and each candidate passage together and scores how well
+the passage answers it. The search then gathers a wider pool: 20 passages, plus
+the rest of the articles the question names. The reranker picks the best from
+that pool. It runs on the CPU, so it costs no VRAM.
+
+```powershell
+uv sync --extra tts --extra stt --extra stt-gpu --extra wiki --extra rerank
+uvx --from huggingface_hub hf download cross-encoder/ms-marco-MiniLM-L6-v2 onnx/model.onnx tokenizer.json --local-dir C:/data/wikipedia/reranker
+```
+
+If that download can't find `onnx/model.onnx`, the same model is also at
+`Xenova/ms-marco-MiniLM-L-6-v2` (same command, same two files).
+
+Then add this under `wiki:` in `config.yaml`:
+
+```yaml
+  rerank_model: C:/data/wikipedia/reranker
+```
+
+`uv run python scripts/eval_wiki.py` uses it, and `--no-rerank` runs the same
+questions without it, so you can compare the two. `--ask` and the app use it as
+soon as it's set. The startup log says "Wikipedia reranker ready". If the model
+or the extra is missing, she carries on with keyword ranking and logs why.
+
+Any cross-encoder exported to ONNX works the same way (one score per question
+and passage pair). A bigger one, such as `BAAI/bge-reranker-base`, is usually
+more accurate but several times slower.

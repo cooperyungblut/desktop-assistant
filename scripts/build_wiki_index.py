@@ -17,11 +17,12 @@ import time
 from pathlib import Path
 
 from secretary.config import load_config
+from secretary.rerank import make_reranked
 from secretary.wiki import BuildStats, WikiIndex, build_index, iter_articles
 
 
-def ask(index_file: Path, question: str) -> None:
-    with WikiIndex(index_file) as index:
+def ask(index_file: Path, question: str, rerank_model: Path | None = None) -> None:
+    with make_reranked(WikiIndex(index_file), rerank_model) as index:
         started = time.perf_counter()
         # The same search the app runs for a question (not an explicit "look up").
         passages = index.search(question, 8, loose=False)
@@ -43,7 +44,7 @@ def main() -> None:
     args = parser.parse_args()
     wiki = load_config(args.config).wiki
     if args.ask:
-        ask(wiki.index_file, args.ask)
+        ask(wiki.index_file, args.ask, wiki.rerank_model)
         return
     if not wiki.source.exists():
         sys.exit(f"wiki.source not found: {wiki.source} (see docs/wikipedia.md)")

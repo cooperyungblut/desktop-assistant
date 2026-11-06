@@ -96,6 +96,10 @@ class WikiConfig(BaseModel):
     # Whether she says "Wikipedia says..." with a looked-up fact. Handy while
     # checking her lookups; turn off to have her say it as if she knew it.
     mention_source: bool = True
+    # Folder with a cross-encoder (model.onnx + tokenizer.json) that re-orders the
+    # search's passages by how well they answer the question. Needs the rerank
+    # extra; leave unset for keyword ranking only (docs/wikipedia.md).
+    rerank_model: Path | None = None
     # Read the index into the OS cache at startup (in the background) so the first
     # question isn't slow.
     warm_up: bool = True

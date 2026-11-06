@@ -1,0 +1,165 @@
+"""Re-rank Wikipedia passages with a small cross-encoder on the CPU.
+
+Keyword search (wiki.py) finds candidates fast but only by shared words: it
+can't tell that "cease operations" and "was dissolved in 1799" mean the same
+thing, and a common word ("adult") can pull in the wrong article. A
+cross-encoder reads the question and one passage together and scores how well
+the passage answers it, so it can pick the right passage from a wider pool.
+
+`RerankedWiki` wraps the index and keeps its `search()` signature, so the app,
+the eval and `--ask` use it unchanged:
+
+1. ask the index for more candidates than needed (CANDIDATES),
+2. add the other passages of the articles the question names (the VOC's
+   dissolution sits deep in its article, worded nothing like the question),
+3. score every candidate with the model and return the best first.
+
+The model is any cross-encoder exported to ONNX with a `tokenizer.json` beside
+it (docs/wikipedia.md: ms-marco-MiniLM-L6-v2, about 90 MB). Needs the `rerank`
+extra (onnxruntime, tokenizers); no VRAM.
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Protocol
+
+from .wiki import FACTS_PREFIX, Passage, WikiIndex
+
+log = logging.getLogger(__name__)
+
+CANDIDATES = 20  # passages asked of the keyword search
+EXPANDED_ARTICLES = 2  # named articles whose other passages join the pool
+MAX_POOL = 100  # passages scored per question (time grows with this)
+MAX_TOKENS = 256  # question + passage, cut beyond this
+BATCH = 16
+
+
+class Scorer(Protocol):
+    def score(self, question: str, texts: Sequence[str]) -> list[float]: ...
+
+
+class CrossEncoder:
+    """An ONNX cross-encoder: higher score = better answer to the question."""
+
+    def __init__(self, model_dir: Path, max_tokens: int = MAX_TOKENS):
+        import onnxruntime
+        from tokenizers import Tokenizer
+
+        model_dir = Path(model_dir)
+        model = next(
+            (
+                p
+                for p in (model_dir / "model.onnx", model_dir / "onnx" / "model.onnx")
+                if p.exists()
+            ),
+            None,
+        )
+        tokenizer = model_dir / "tokenizer.json"
+        if model is None or not tokenizer.exists():
+            raise FileNotFoundError(
+                f"{model_dir} needs model.onnx (or onnx/model.onnx) and tokenizer.json"
+            )
+        self._tokenizer = Tokenizer.from_file(str(tokenizer))
+        self._tokenizer.enable_truncation(max_length=max_tokens)
+        self._tokenizer.enable_padding()
+        options = onnxruntime.SessionOptions()
+        options.log_severity_level = 3
+        self._session = onnxruntime.InferenceSession(
+            str(model), options, providers=["CPUExecutionProvider"]
+        )
+        self._inputs = {i.name for i in self._session.get_inputs()}
+
+    def score(self, question: str, texts: Sequence[str]) -> list[float]:
+        import numpy as np
+
+        scores: list[float] = []
+        for start in range(0, len(texts), BATCH):
+            batch = self._tokenizer.encode_batch(
+                [(question, t) for t in texts[start : start + BATCH]]
+            )
+            feed = {
+                "input_ids": np.array([e.ids for e in batch], dtype=np.int64),
+                "attention_mask": np.array([e.attention_mask for e in batch], dtype=np.int64),
+                "token_type_ids": np.array([e.type_ids for e in batch], dtype=np.int64),
+            }
+            (logits,) = self._session.run(
+                None, {k: v for k, v in feed.items() if k in self._inputs}
+            )
+            scores.extend(float(row[0]) for row in np.asarray(logits).reshape(len(batch), -1))
+        return scores
+
+
+class RerankedWiki:
+    """The index's search, with the results re-ordered by a cross-encoder."""
+
+    def __init__(self, index: WikiIndex, scorer: Scorer):
+        self.index = index
+        self.scorer = scorer
+        self.trace: list[tuple[str, float]] = []
+
+    def search(self, question: str, limit: int = 3, *, loose: bool = True) -> list[Passage]:
+        started = time.perf_counter()
+        found = self.index.search(question, max(limit, CANDIDATES), loose=loose)
+        trace = [*getattr(self.index, "trace", [])]
+        pool = _with_article_passages(self.index, found)[:MAX_POOL]
+        if not pool:
+            self.trace = trace
+            return []
+        scores = self.scorer.score(question, [f"{p.title}. {p.text}" for p in pool])
+        ranked = sorted(zip(scores, range(len(pool)), pool, strict=True), reverse=True)
+        trace.append(("rerank", (time.perf_counter() - started) * 1000))
+        self.trace = trace
+        return [
+            Passage(p.title, p.text, score=score, match=p.match) for score, _, p in ranked[:limit]
+        ]
+
+    def interrupt(self) -> None:
+        self.index.interrupt()
+
+    def warm_up(self) -> float:
+        return self.index.warm_up()
+
+    def close(self) -> None:
+        self.index.close()
+
+    def __enter__(self) -> RerankedWiki:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+
+def _with_article_passages(index: WikiIndex, found: list[Passage]) -> list[Passage]:
+    """The search's passages, then the rest of the articles the question names."""
+    pool = list(found)
+    seen = {(p.title, p.text) for p in pool}
+    named = list(dict.fromkeys(p.title for p in found if p.match == "title"))
+    for title in named[:EXPANDED_ARTICLES]:
+        for text in index.article_texts(title):
+            # The Facts line is already in the pool, with the asked-about rows first.
+            if (title, text) in seen or FACTS_PREFIX in text:
+                continue
+            seen.add((title, text))
+            pool.append(Passage(title, text, score=0.0, match="title"))
+    return pool
+
+
+def make_reranked(index: WikiIndex, model_dir: Path | None) -> WikiIndex | RerankedWiki:
+    """`index` wrapped with the reranker in `model_dir`, or `index` as is when
+    there is no model or it can't load (she still answers, just without it)."""
+    if model_dir is None:
+        return index
+    try:
+        scorer = CrossEncoder(model_dir)
+    except ImportError:
+        log.warning("wiki.rerank_model is set but the rerank extra isn't installed")
+        return index
+    except Exception as exc:  # a missing or broken model file
+        log.warning("Wikipedia reranker not loaded: %s", exc)
+        return index
+    log.info("Wikipedia reranker ready (%s)", model_dir)
+    return RerankedWiki(index, scorer)
