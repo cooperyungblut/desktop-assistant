@@ -132,6 +132,23 @@ def _mentions(stems: set[str], wanted: str) -> bool:
     return len(wanted) >= 4 and any(stem.startswith(wanted) for stem in stems)
 
 
+def _take_turns(first: list[Passage], second: list[Passage], limit: int) -> list[Passage]:
+    """Two from `first` (a named article's opening and Facts line), then one from
+    each list in turn, without repeats."""
+    order = first[:2]
+    rest = first[2:]
+    for i in range(max(len(rest), len(second))):
+        order += second[i : i + 1] + rest[i : i + 1]
+    found: list[Passage] = []
+    seen: set[tuple[str, str]] = set()
+    for passage in order:
+        key = (passage.title, passage.text)
+        if key not in seen and len(found) < limit:
+            seen.add(key)
+            found.append(passage)
+    return found
+
+
 def query_terms(question: str) -> list[str]:
     """The words of a question that are worth searching for."""
     words = _WORD.findall(question.lower().replace("'s", ""))
@@ -355,43 +372,37 @@ class WikiIndex:
     def search(self, question: str, limit: int = 3) -> list[Passage]:
         """The best passages for a question, best first.
 
-        In order: the opening and Facts line of an article whose exact title is in
-        the question; articles whose title holds all the key words; then, only when
-        no title matched exactly, passages holding all the rarer key words, then
-        passages holding any of them. `self.trace` keeps the time
-        each stage took, for tuning.
+        Two kinds of match, taken in turns so neither crowds out the other:
+        - by title: the opening, Facts line and best-matching passage of an article
+          the question names, then articles whose title holds all the key words;
+        - by text: passages holding all the rarer key words, then any of them.
+        The text search matters when the answer is a name the question doesn't
+        say ("the longest river in Africa" -> Nile, while "Africa" is the title
+        match). `self.trace` keeps the time each stage took, for tuning.
         """
         started = time.perf_counter()
         trace: list[tuple[str, float]] = []
         terms = list(dict.fromkeys(query_terms(question)))
-        found: list[Passage] = []
-        seen: set[tuple[str, str]] = set()
 
-        def add(passages: list[Passage], stage: str) -> None:
+        def mark(stage: str) -> None:
             trace.append((stage, (time.perf_counter() - started) * 1000))
-            for passage in passages:
-                key = (passage.title, passage.text)
-                if key not in seen and len(found) < limit:
-                    seen.add(key)
-                    found.append(passage)
 
         try:
             if not terms:
                 return []
-            add(self._title_hits(question), "exact title")
-            named = bool(found)
-            if len(terms) >= 2 and len(found) < limit:
-                add(self._title_words(terms, limit), "title words")
-            if named:
-                # The question names an article: its opening and facts are the answer.
-                # A body search can take seconds on a cold disk and only adds noise.
-                return found
+            by_title = self._title_hits(question)
+            mark("exact title")
+            if len(terms) >= 2:
+                by_title += self._title_words(terms, limit)
+                mark("title words")
             rare = self._rare_terms(terms)
-            trace.append(("word counts", (time.perf_counter() - started) * 1000))
+            mark("word counts")
+            by_text: list[Passage] = []
             for require_all in (True, False):
-                if rare and len(found) < limit:
-                    add(self._ranked(rare, limit, require_all=require_all), "body")
-            return found
+                if rare and len(by_text) < limit:
+                    by_text += self._ranked(rare, limit, require_all=require_all)
+                    mark("body")
+            return _take_turns(by_title, by_text, limit)
         finally:
             self.trace = trace
 
