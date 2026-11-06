@@ -80,6 +80,12 @@ or to what they say or leave out.
 Ignore the passages for anything about {user}'s own day or the brief; the brief wins.
 """
 
+# A general-knowledge question was looked up and nothing usable came back.
+NOTHING_FOUND = """\
+This is a general-knowledge question, and nothing about it was found to answer from.
+Say in one short sentence that you're not sure. Don't guess, and don't suggest /claude.
+"""
+
 # Whether she says where a looked-up fact came from (wiki.mention_source).
 MENTION_SOURCE = 'Mention Wikipedia once, in passing ("Wikipedia says...").'
 NO_SOURCE = (
@@ -159,6 +165,8 @@ def build_messages(
             source=MENTION_SOURCE if mention_source else NO_SOURCE,
         )
         messages.append({"role": "system", "content": rules})
+    elif wikipedia == "":
+        messages.append({"role": "system", "content": NOTHING_FOUND})
     messages.append({"role": "system", "content": reminder(persona)})
     messages.append({"role": "user", "content": question})
     return messages

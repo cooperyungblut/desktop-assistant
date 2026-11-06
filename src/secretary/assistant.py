@@ -357,8 +357,10 @@ class Assistant:
         await self._emit({"type": "speech_done"})
 
     async def _wikipedia_for(self, text: str) -> str | None:
-        """Passages for a general-knowledge question, or None (not asked, nothing
-        good found, or the index failed: she then answers as usual)."""
+        """Passages for a general-knowledge question; "" when it was looked up but
+        nothing usable came back (timeout, failure, no match), so she says she's
+        not sure instead of guessing or suggesting /claude; None when the
+        question isn't one to look up."""
         if self._wiki is None or (request := lookup_request(text)) is None:
             return None
         started = time.perf_counter()
@@ -390,10 +392,10 @@ class Assistant:
                 interrupt()
             # It ends with an "interrupted" error nobody waits for: keep it quiet.
             search.add_done_callback(lambda f: f.cancelled() or f.exception())
-            return None
+            return ""
         except Exception:
             log.exception("Wikipedia lookup failed")
-            return None
+            return ""
         passages = usable(found, request)
         named = next((p.title for p in passages if p.match == "title"), None)
         if named:
@@ -406,7 +408,7 @@ class Assistant:
             ", ".join(p.title for p in passages) or "nothing",
             query,
         )
-        return render(passages) if passages else None
+        return render(passages) if passages else ""
 
     def _looking_up_line(self) -> str:
         """A "one moment" line, not the same as last time when there's a choice."""

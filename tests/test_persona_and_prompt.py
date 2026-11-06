@@ -74,3 +74,13 @@ def test_wikipedia_source_mention_can_be_turned_off(persona):
     off = rules(mention_source=False)
     assert "Wikipedia says" not in off and "don't mention Wikipedia" in off
     assert "don't suggest /claude" in off
+
+
+def test_nothing_found_note_only_when_a_lookup_ran(persona):
+    def notes(wikipedia):
+        messages = build_messages(persona, None, [], "Who wrote Dune?", wikipedia=wikipedia)
+        return [m["content"] for m in messages if "nothing about it was found" in m["content"]]
+
+    assert notes(None) == []
+    (note,) = notes("")
+    assert "don't suggest /claude" in note
