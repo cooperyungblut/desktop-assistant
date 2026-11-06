@@ -536,8 +536,12 @@ class WikiIndex:
         used: set[int] = set()
         hits: list[Passage] = []
         for named, content, _edge, i, j in spans:
-            if hits and not named and (any_named or content == 1):
-                break  # a name was found: skip plain words and lone words
+            # A name was found: skip plain words and lone words. Except the thing a
+            # plain title is "of" or "for": "the chemical symbol for salt" wants
+            # "Salt" as well as "Chemical symbol".
+            subject = not any_named and i > 0 and words[i - 1] in ("of", "for")
+            if hits and not named and (any_named or content == 1) and not subject:
+                continue
             if used & set(range(i, j)):
                 continue
             name = " ".join(words[i:j])
@@ -550,7 +554,7 @@ class WikiIndex:
             if row:
                 used.update(range(i, j))
                 hits += self._article_passages(row, others)
-                if len(hits) >= 3:
+                if len({p.title for p in hits}) >= 2:
                     break
         return hits
 
