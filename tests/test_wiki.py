@@ -196,8 +196,12 @@ def test_search_records_stage_timings(tmp_path: Path):
     build_index(iter(ARTICLES), path)
     with WikiIndex(path) as index:
         index.search("What is Nicolas Cage's birthday?")
-        stages = [name for name, _ in index.trace]
-    assert stages[0] == "exact title" and "word counts" in stages
+        named = [name for name, _ in index.trace]
+        index.search("Which actor was born in Long Beach?")
+        searched = [name for name, _ in index.trace]
+    # A named article skips the slow body search; other questions run it.
+    assert named[0] == "exact title" and "word counts" not in named
+    assert searched[0] == "exact title" and "word counts" in searched
 
 
 def test_warm_up_runs_without_touching_the_main_connection(tmp_path: Path):
@@ -244,3 +248,16 @@ def test_title_hit_without_facts_line_adds_nothing(tmp_path: Path):
     with WikiIndex(path) as wiki:
         found = wiki.search("Tell me about Germany", limit=4)
     assert [p.title for p in found] == ["Germany"]
+
+
+def test_facts_rows_with_leftover_css_are_left_out(tmp_path: Path):
+    css = "Occupations: /* start https://en.wikipedia.org/ */ .mw-parser-output .hlist dl"
+    text = (
+        "Nicolas Cage is an American actor and film producer known for many roles. " * 9
+        + f"\nFacts: Born: January 7, 1964; {css}; Children: 3."
+    )
+    path = tmp_path / "w.sqlite"
+    build_index(iter([("Nicolas Cage", text)]), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("What is Nicolas Cage's birthday?", limit=4)
+    assert found[1].text == "Facts: Born: January 7, 1964; Children: 3."
