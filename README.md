@@ -7,7 +7,8 @@ scheduled Claude task reads my email and calendar and writes a short brief
 into a synced Google Drive folder. This app picks the brief up, shows a
 **brief ready** indicator, and when I click, a VRM avatar reads it aloud with
 lip sync. Then I can ask follow-up questions, which a local LLM answers in
-character.
+character, and general-knowledge questions, which she answers from an
+offline copy of Wikipedia.
 
 Everything on the PC runs locally: no cloud calls and no running costs.
 
@@ -54,6 +55,16 @@ https://github.com/user-attachments/assets/f6dc1b93-f154-4ee3-8c28-ec2f78aa97e9
   Calendar only after a yes. She can remove events she added the same way,
   and never touches ones you made. "What's on my calendar tomorrow?" reads
   the day from Google, built in code rather than summarized by the model. Setup in [`docs/calendar.md`](docs/calendar.md).
+- **Offline Wikipedia**: "Who played the lead in The Matrix?" or "When was
+  the Scofield Mine disaster?" is looked up in a local copy of English
+  Wikipedia (6.3 million articles), and she answers in a sentence or two from
+  the passages found. Search is SQLite FTS5 (BM25) with title and infobox
+  matching, then an optional cross-encoder reranker (ONNX, CPU). Follow-ups
+  like "Is he married?" carry the topic over. When nothing is found she says
+  she isn't sure instead of guessing. Questions about your own day, math and
+  live news are never looked up. Setup in [`docs/wikipedia.md`](docs/wikipedia.md).
+- **Natural numbers in speech**: the chat shows "1909" and "10:30", and she
+  says "nineteen oh nine" and "ten thirty".
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
 
@@ -66,8 +77,10 @@ Measured on my PC (RTX 4070 Ti Super, 16 GB), with `gemma4:12b` in Ollama:
 | First word of a reply | about 0.4 s (was 7–35 s until hidden "thinking" was turned off) |
 | Speech to text | 0.3–0.6 s per question (Whisper `small.en` on the GPU) |
 | Model eval | 100% on facts kept, "I don't know" and mood tags (15 cases × 3 runs) |
+| Wikipedia retrieval eval | answer in what she reads: 25/32 with keyword search alone, 30/32 with the bge reranker (`scripts/eval_wiki.py`) |
+| Wikipedia lookup | about 3 s with the reranker on CPU (keyword search alone is well under 1 s) |
 | Desktop window, idle | about 1.4% CPU, WebGL on the GPU, 30 fps cap |
-| Tests | 118 Python (pytest) + desktop shell helpers (node), on Windows and Linux CI |
+| Tests | 467 Python (pytest) + desktop shell helpers (node), on Windows and Linux CI |
 
 The stories behind these numbers are in
 [`docs/interview-notes.md`](docs/interview-notes.md).
@@ -113,6 +126,7 @@ flowchart LR
 | STT | `stt.py` | faster-whisper on CPU: the GPU is reserved for the LLM. Audio is decoded with PyAV directly. A VAD filter plus a tiny deny-list handles Whisper's "silence hallucinations". |
 | TTS | `tts.py` | `kokoro-onnx` on CPU: no PyTorch install, faster than real time, and it leaves VRAM for the LLM. |
 | Front end | `web/` | Plain ES modules with an import map: no Node, no bundler. Markdown from briefs is sanitized with DOMPurify, since it contains email text. |
+| Wikipedia lookup | `lookup.py`, `wiki.py`, `rerank.py` | Rules in code decide what gets looked up, so a question about your day never reaches Wikipedia. FTS5 keyword search on CPU leaves VRAM for the LLM; a small cross-encoder reranks the top candidates, and keyword hits that name the article stay first. A 32-question retrieval eval tracks every change. |
 | Desktop shell | `desktop/` | Electron, because transparent, frameless, click-through windows are reliable on Windows there. It only loads the app's page with `?desktop` (avatar-only layout), so the Python app stays the single source of truth. The page gets a few narrow calls through a preload bridge, never Node. |
 
 ## Quick start (Windows, PowerShell)
@@ -174,8 +188,8 @@ Google Calendar sign-in), `models/` and avatar files are git-ignored. Everything
 ## Roadmap
 
 Milestones 1–4 are done. Next up, in [`docs/plan.md`](docs/plan.md): a wake
-word, allow-listed actions, an offline Wikipedia she can look things up in,
-and watching the screen to comment on a game.
+word, allow-listed actions, and watching the screen to comment on a game.
+The offline Wikipedia lookup is done.
 
 ## AI assistance
 
