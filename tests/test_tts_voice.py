@@ -90,3 +90,19 @@ def test_speak_gives_every_comma_the_same_pause():
         v.model_copy(update={"split_clauses": False}),
     )
     assert k.calls == ["First the phone screen, then the coffee chat."]
+
+
+def test_speak_says_years_the_way_people_do():
+    from secretary.persona import Voice
+    from secretary.tts import speak
+
+    class FakeKokoro:
+        calls = []
+
+        def create(self, text, voice, speed, lang):
+            self.calls.append(text)
+            return np.zeros(240, dtype=np.float32), 24000
+
+    k = FakeKokoro()
+    speak(k, "He was born in 1909.", Voice(kokoro_voice="af_heart", split_clauses=False))
+    assert k.calls == ["He was born in nineteen oh nine."]
