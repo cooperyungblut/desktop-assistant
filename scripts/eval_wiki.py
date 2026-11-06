@@ -2,6 +2,7 @@
 
     uv run python scripts/eval_wiki.py        # one line per question + totals
     uv run python scripts/eval_wiki.py -v     # also show what she read on a miss
+    uv run python scripts/eval_wiki.py --no-rerank   # keyword ranking only
 
 Questions live in evals/wiki_questions.yaml, each with the article(s) that
 answer it and a pattern for the answer. Uses the index in config.yaml and the
@@ -14,6 +15,7 @@ import argparse
 from pathlib import Path
 
 from secretary.config import load_config
+from secretary.rerank import make_reranked
 from secretary.retrieval_eval import load_retrieval_cases, run_retrieval_case, summary
 from secretary.wiki import WikiIndex
 
@@ -27,10 +29,16 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=Path("config.yaml"))
     parser.add_argument("--cases", type=Path, default=ROOT / "evals" / "wiki_questions.yaml")
     parser.add_argument("-v", "--verbose", action="store_true", help="show passages on a miss")
+    parser.add_argument(
+        "--no-rerank", action="store_true", help="skip wiki.rerank_model, keywords only"
+    )
     args = parser.parse_args()
     cases = load_retrieval_cases(args.cases)
     results = []
-    with WikiIndex(load_config(args.config).wiki.index_file) as wiki:
+    config = load_config(args.config).wiki
+    model = None if args.no_rerank else config.rerank_model
+    print(f"reranker: {model or 'off'}")
+    with make_reranked(WikiIndex(config.index_file), model) as wiki:
         for case in cases:
             result = run_retrieval_case(wiki, case)
             results.append(result)

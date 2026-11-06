@@ -24,7 +24,7 @@
   article: Iron
   answer: \b[Ii]ron\b
 - question: What is the chemical symbol for salt?
-  article: Sodium chloride
+  article: [Sodium chloride, Salt]
   answer: NaCl
   note: loose wording; the formula is the closest real answer
 - question: What is the largest desert in the world?

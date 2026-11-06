@@ -21,6 +21,8 @@ stt = ["faster-whisper>=1.1"]
 # pyarrow reads the Hugging Face dump, libzim + lxml read a Kiwix ZIM file.
 # Searching the finished index uses nothing beyond the standard library.
 wiki = ["pyarrow>=15", "libzim>=3", "lxml>=5"]
+# Optional reranker for the Wikipedia lookup (wiki.rerank_model), CPU only.
+rerank = ["onnxruntime>=1.17", "tokenizers>=0.15", "numpy>=1.26"]
 # Only for stt.device: cuda on Windows. Large downloads (~1 GB).
 # cuBLAS 12.9.3 shipped Linux wheels only, so stay below it until Windows wheels exist.
 stt-gpu = ["nvidia-cublas-cu12>=12.4,<12.9.3", "nvidia-cudnn-cu12>=9,<10"]

@@ -60,6 +60,7 @@ wiki:
   timeout_seconds: 15  # a slower lookup is skipped and she answers without it
   notice_after_seconds: 1.5   # a slower lookup gets a "one moment" line first
   mention_source: true # she says "Wikipedia says..."; false: she just says the fact
+  # rerank_model: C:/data/wikipedia/reranker   # optional, CPU; see docs/wikipedia.md
   warm_up: true        # read the index into the disk cache at startup (background)
 
 # Push-to-talk speech input (Milestone 2). Needs: uv sync --extra tts --extra stt

@@ -622,3 +622,22 @@ def test_second_slot_adds_what_the_opening_lacks(tmp_path: Path):
     with WikiIndex(path) as wiki:
         found = wiki.search("What is the mount of the Hindu god Ganesha?", limit=8)
     assert "Mount: Mouse" in found[1].text
+
+
+def test_article_texts_lists_one_articles_passages_in_order(tmp_path: Path):
+    opening = " ".join(
+        f"France is a country in Western Europe with a long history, sentence {n}."
+        for n in range(20)
+    )
+    articles = [
+        ("France", f"{opening}\nFacts: Capital: Paris; Currency: Euro.\nHistory goes on here."),
+        ("Germany", "Germany is a country in Central Europe with many old cities. " * 5),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(articles), path)
+    with WikiIndex(path) as wiki:
+        texts = wiki.article_texts("france")
+        assert texts[0].startswith("France is a country")
+        assert any("Facts: Capital: Paris" in t for t in texts)
+        assert all("Germany" not in t for t in texts)
+        assert wiki.article_texts("Atlantis") == []
