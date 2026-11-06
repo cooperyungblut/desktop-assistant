@@ -150,9 +150,11 @@ def _take_turns(first: list[Passage], second: list[Passage], limit: int) -> list
 
 
 def query_terms(question: str) -> list[str]:
-    """The words of a question that are worth searching for."""
+    """The words of a question that are worth searching for. A lone capital
+    letter counts ("the chemical symbol K"), but not "I" or "A"."""
     words = _WORD.findall(question.lower().replace("'s", ""))
-    return [w for w in words if w not in _STOPWORDS and len(w) > 1]
+    letters = {m.lower() for m in re.findall(r"\b([B-HJ-Z])\b", question)}
+    return [w for w in words if w not in _STOPWORDS and (len(w) > 1 or w in letters)]
 
 
 # A word in more than this share of passages (history, war, france) barely helps
@@ -400,7 +402,10 @@ class WikiIndex:
             by_text: list[Passage] = []
             for require_all in (True, False):
                 if rare and len(by_text) < limit:
-                    by_text += self._ranked(rare, limit, require_all=require_all)
+                    found = self._ranked(rare, limit * 3, require_all=require_all)
+                    # Other articles only: the named ones are already in by_title.
+                    named = {p.title for p in by_title}
+                    by_text += [p for p in found if p.title not in named][:limit]
                     mark("body")
             return _take_turns(by_title, by_text, limit)
         finally:
@@ -557,10 +562,14 @@ class WikiIndex:
         return [Passage(title, body, score=-rank, match="all") for title, body, rank in rows]
 
     def _ranked(self, terms: list[str], limit: int, *, require_all: bool) -> list[Passage]:
-        query = _fts_query(terms, require_all=require_all)
+        """Passages whose text holds the words. Titles don't count here: the title
+        stages already cover them, and a title word ("N3 (South Africa)") would
+        otherwise beat the passage that answers ("the Nile ... longest river in
+        Africa")."""
+        query = "body : (" + _fts_query(terms, require_all=require_all) + ")"
         rows = self._db.execute(
-            # bm25 weights: title 10x the body. Lower (more negative) is better.
-            "SELECT title, body, bm25(passages, 10.0, 1.0) AS rank FROM passages"
+            # Lower (more negative) bm25 is better.
+            "SELECT title, body, bm25(passages, 0.0, 1.0) AS rank FROM passages"
             " WHERE passages MATCH ? ORDER BY rank LIMIT ?",
             (query, limit),
         ).fetchall()
