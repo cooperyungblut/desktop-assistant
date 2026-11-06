@@ -198,12 +198,8 @@ def test_search_records_stage_timings(tmp_path: Path):
     build_index(iter(ARTICLES), path)
     with WikiIndex(path) as index:
         index.search("What is Nicolas Cage's birthday?")
-        named = [name for name, _ in index.trace]
-        index.search("Which actor was born in Long Beach?")
-        searched = [name for name, _ in index.trace]
-    # A named article skips the slow body search; other questions run it.
-    assert named[0] == "exact title" and "word counts" not in named
-    assert searched[0] == "exact title" and "word counts" in searched
+        stages = [name for name, _ in index.trace]
+    assert stages[0] == "exact title" and "word counts" in stages and "body" in stages
 
 
 def test_warm_up_runs_without_touching_the_main_connection(tmp_path: Path):
@@ -359,10 +355,31 @@ def test_capitalised_names_beat_plain_words(tmp_path: Path, question: str):
 def test_capitalised_name_beats_a_longer_plain_title(tmp_path: Path):
     with WikiIndex(_films_index(tmp_path)) as wiki:
         found = wiki.search("What are the four species in Starcraft?", limit=4)
-    assert {p.title for p in found} == {"StarCraft"}
-    assert any("Zerg" in p.text for p in found)
+    # The named article leads; the text search may add others after it.
+    assert found[0].title == "StarCraft" and found[0].match == "title"
+    assert any("Zerg" in p.text for p in found if p.title == "StarCraft")
+    assert all(p.match != "title" for p in found if p.title != "StarCraft")
 
 
 def test_all_lowercase_questions_still_find_titles(tmp_path: Path):
     with WikiIndex(_films_index(tmp_path)) as wiki:
         assert wiki.search("who starred in the matrix")[0].title == "The Matrix"
+
+
+def test_answer_named_nowhere_in_the_question_is_found_by_its_text(tmp_path: Path):
+    def text(sentence: str) -> str:
+        return (sentence + " ") * 4
+
+    items = [
+        ("Africa", text("Africa is the second-largest continent, home to many countries.")),
+        ("Nile", text("The Nile is the longest river in Africa, flowing north to the sea.")),
+        ("Congo River", text("The Congo River is the deepest river in the world.")),
+        ("Sahara", text("The Sahara is a desert covering much of North Africa.")),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("What is the longest river in Africa?", limit=8)
+    titles = [p.title for p in found]
+    assert titles[0] == "Africa"  # the title match still leads
+    assert "Nile" in titles  # and the passage that answers it is there too

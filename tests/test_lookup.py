@@ -71,8 +71,8 @@ def test_single_keyword_all_matches_are_not_enough():
 
 def test_forced_lookup_accepts_weak_matches_and_caps_the_count():
     request = lookup_request("look up quasars")
-    found = [_p(c, "any") for c in "ABCDE"]
-    assert len(usable(found, request)) == 3
+    found = [_p(c, "any") for c in "ABCDEF"]
+    assert len(usable(found, request)) == 4
 
 
 def test_render_clips_long_passages_at_a_sentence():

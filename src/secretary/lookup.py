@@ -17,8 +17,8 @@ from typing import Protocol
 
 from .wiki import Passage, query_terms
 
-MAX_PASSAGES = 3
-PASSAGE_CHARS = 600  # per passage shown to the model: three of these are ~450 tokens
+MAX_PASSAGES = 4
+PASSAGE_CHARS = 600  # per passage shown to the model: four of these are ~600 tokens
 
 _EXPLICIT = re.compile(
     r"\b(look\s*up|search\s+(?:for|up|wikipedia)|(?:on|in|from|says?|said)\s+wiki(?:pedia)?"
