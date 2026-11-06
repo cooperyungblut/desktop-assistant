@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pyarrow as pa
@@ -7,6 +8,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from secretary.wiki import (
+    Redirect,
     WikiIndex,
     build_index,
     is_indexable,
@@ -261,3 +263,27 @@ def test_facts_rows_with_leftover_css_are_left_out(tmp_path: Path):
     with WikiIndex(path) as wiki:
         found = wiki.search("What is Nicolas Cage's birthday?", limit=4)
     assert found[1].text == "Facts: Born: January 7, 1964; Children: 3."
+
+
+def test_redirect_names_lead_to_the_article(tmp_path: Path):
+    paris = "Paris is the capital and largest city of France, on the Seine. " * 4
+    items = [
+        Redirect("Capital of France", "Paris"),  # may come before its target
+        ("Paris", paris),
+        Redirect("Paris", "Paris"),  # pointless: not stored
+    ]
+    path = tmp_path / "w.sqlite"
+    stats = build_index(iter(items), path)
+    assert stats.redirects == 1
+    with WikiIndex(path) as wiki:
+        found = wiki.search("What is the capital of France?")
+    assert found[0].title == "Paris" and found[0].match == "title"
+
+
+def test_index_without_redirect_table_still_searches(tmp_path: Path):
+    path = tmp_path / "w.sqlite"
+    build_index(iter(ARTICLES), path)
+    with sqlite3.connect(path) as db:
+        db.execute("DROP TABLE redirects")
+    with WikiIndex(path) as wiki:
+        assert wiki.search("Who is Nicolas Cage?")[0].title == "Nicolas Cage"

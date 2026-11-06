@@ -22,6 +22,7 @@ import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 PASSAGE_CHARS = 600
 MIN_ARTICLE_CHARS = 200
@@ -133,6 +134,10 @@ CREATE TABLE articles (
     title TEXT NOT NULL,
     first_passage INTEGER NOT NULL  -- rowid of the opening passage
 );
+CREATE TABLE redirects (
+    title TEXT NOT NULL,   -- the other name
+    target TEXT NOT NULL   -- the article's real title
+);
 CREATE VIRTUAL TABLE passages USING fts5(
     title, body, article_id UNINDEXED, seq UNINDEXED,
     tokenize = "{TOKENIZER}",
@@ -141,8 +146,9 @@ CREATE VIRTUAL TABLE passages USING fts5(
 """
 
 
-def iter_articles(source: Path, workers: int = 1) -> Iterator[tuple[str, str]]:
-    """Yield (title, text) from a Kiwix .zim file or a folder of parquet files."""
+def iter_articles(source: Path, workers: int = 1) -> Iterator[tuple[str, str] | Redirect]:
+    """Yield (title, text) from a Kiwix .zim file or a folder of parquet files.
+    A ZIM file also yields its redirects."""
     if source.suffix.lower() == ".zim":
         from secretary.wiki_zim import iter_zim_articles
 
@@ -167,15 +173,25 @@ def _iter_parquet(source_dir: Path, batch_size: int = 2000) -> Iterator[tuple[st
             yield from zip(columns["title"], columns["text"], strict=True)
 
 
+class Redirect(NamedTuple):
+    """Another name for an article ("Nicholas Cage" -> "Nicolas Cage").
+
+    A source may yield these between its (title, text) articles."""
+
+    title: str
+    target: str
+
+
 @dataclass
 class BuildStats:
     articles: int = 0
     skipped: int = 0
     passages: int = 0
+    redirects: int = 0
 
 
 def build_index(
-    articles: Iterator[tuple[str, str]],
+    articles: Iterator[tuple[str, str] | Redirect],
     index_file: Path,
     *,
     max_chars_per_article: int = 4000,
@@ -197,9 +213,15 @@ def build_index(
         db.execute("PRAGMA journal_mode = OFF")
         db.execute("PRAGMA synchronous = OFF")
         db.executescript(_SCHEMA)
-        for title, text in articles:
+        for item in articles:
             if limit is not None and stats.articles >= limit:
                 break
+            if isinstance(item, Redirect):
+                if item.title and item.target and item.title.lower() != item.target.lower():
+                    db.execute("INSERT INTO redirects VALUES (?, ?)", item)
+                    stats.redirects += 1
+                continue
+            title, text = item
             if not title or not text or not is_indexable(title, text):
                 stats.skipped += 1
                 continue
@@ -226,6 +248,7 @@ def build_index(
                 if progress:
                     progress(stats)
         db.execute("CREATE INDEX articles_title ON articles (title COLLATE NOCASE)")
+        db.execute("CREATE INDEX redirects_title ON redirects (title COLLATE NOCASE)")
         db.execute("INSERT INTO passages (passages) VALUES ('optimize')")
         db.commit()
     except BaseException:
@@ -253,6 +276,12 @@ class WikiIndex:
         # Read-only, so it is safe to search from a worker thread.
         self._db = sqlite3.connect(
             f"file:{index_file.as_posix()}?mode=ro", uri=True, check_same_thread=False
+        )
+        # Indexes built before redirects were stored don't have the table.
+        self._has_redirects = bool(
+            self._db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'redirects'"
+            ).fetchone()
         )
 
     def close(self) -> None:
@@ -369,12 +398,7 @@ class WikiIndex:
                 break  # a longer title was found: skip the lone words
             if used & set(range(i, j)):
                 continue
-            row = self._db.execute(
-                "SELECT p.title, p.body, a.id, a.first_passage FROM articles a"
-                " JOIN passages p ON p.rowid = a.first_passage"
-                " WHERE a.title = ? COLLATE NOCASE LIMIT 1",
-                (" ".join(words[i:j]),),
-            ).fetchone()
+            row = self._article(" ".join(words[i:j]))
             if row:
                 used.update(range(i, j))
                 hits.append(Passage(row[0], row[1], score=100.0, match="title"))
@@ -384,6 +408,25 @@ class WikiIndex:
                 if len(hits) >= 3:
                     break
         return hits
+
+    def _article(self, name: str) -> tuple[str, str, int, int] | None:
+        """(title, opening, id, first passage) of the article called `name`,
+        directly or through a redirect ("Nicholas Cage", "Capital of France")."""
+        row = self._db.execute(
+            "SELECT p.title, p.body, a.id, a.first_passage FROM articles a"
+            " JOIN passages p ON p.rowid = a.first_passage"
+            " WHERE a.title = ? COLLATE NOCASE LIMIT 1",
+            (name,),
+        ).fetchone()
+        if row or not self._has_redirects:
+            return row
+        return self._db.execute(
+            "SELECT p.title, p.body, a.id, a.first_passage FROM redirects r"
+            " JOIN articles a ON a.title = r.target COLLATE NOCASE"
+            " JOIN passages p ON p.rowid = a.first_passage"
+            " WHERE r.title = ? COLLATE NOCASE LIMIT 1",
+            (name,),
+        ).fetchone()
 
     def _facts(self, article_id: int, first_passage: int) -> str | None:
         """The article's "Facts: ..." line (its infobox: born, capital, ...), if any.

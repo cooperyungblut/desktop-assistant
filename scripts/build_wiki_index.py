@@ -64,7 +64,10 @@ def main() -> None:
         progress=progress,
     )
     size_gb = wiki.index_file.stat().st_size / 1e9
-    print(f"Done: {stats.articles:,} articles, {size_gb:.1f} GB at {wiki.index_file}")
+    print(
+        f"Done: {stats.articles:,} articles, {stats.redirects:,} redirects, "
+        f"{size_gb:.1f} GB at {wiki.index_file}"
+    )
 
 
 if __name__ == "__main__":

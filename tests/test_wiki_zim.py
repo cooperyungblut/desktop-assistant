@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from secretary.wiki import WikiIndex, build_index, iter_articles
+from secretary.wiki import Redirect, WikiIndex, build_index, iter_articles
 from secretary.wiki_zim import html_to_text, iter_zim_articles
 
 CAGE_HTML = """<!DOCTYPE html><html><head><title>Nicolas Cage</title>
@@ -123,9 +123,12 @@ def zim_file(tmp_path: Path) -> Path:
     return path
 
 
-def test_zim_articles_skip_redirects_and_non_html(zim_file: Path):
-    titles = sorted(title for title, _ in iter_zim_articles(zim_file))
-    assert titles == ["Nicolas Cage", "Paris"]
+def test_zim_articles_skip_non_html_and_list_redirects(zim_file: Path):
+    items = list(iter_zim_articles(zim_file))
+    articles = sorted(item[0] for item in items if not isinstance(item, Redirect))
+    redirects = [item for item in items if isinstance(item, Redirect)]
+    assert articles == ["Nicolas Cage", "Paris"]
+    assert Redirect("Nicholas Cage", "Nicolas Cage") in redirects
 
 
 def test_zim_with_worker_processes_gives_the_same_articles(zim_file: Path):
@@ -135,7 +138,8 @@ def test_zim_with_worker_processes_gives_the_same_articles(zim_file: Path):
 
 
 def test_iter_articles_picks_the_zim_reader_by_suffix(zim_file: Path):
-    assert {title for title, _ in iter_articles(zim_file)} == {"Nicolas Cage", "Paris"}
+    articles = {i[0] for i in iter_articles(zim_file) if not isinstance(i, Redirect)}
+    assert articles == {"Nicolas Cage", "Paris"}
 
 
 def test_missing_zim_is_an_error(tmp_path: Path):
@@ -148,5 +152,6 @@ def test_birthday_question_end_to_end_from_a_zim(zim_file: Path, tmp_path: Path)
     build_index(iter_articles(zim_file), index_file)
     with WikiIndex(index_file) as index:
         top = index.search("What is Nicholas Cage's birthday?")[0]
-    assert top.title == "Nicolas Cage"
+    # "Nicholas Cage" is a redirect in the ZIM: it leads to the real article.
+    assert top.title == "Nicolas Cage" and top.match == "title"
     assert "January 7, 1964" in top.text

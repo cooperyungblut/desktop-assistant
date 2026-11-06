@@ -14,7 +14,7 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
-from .wiki import FACTS_PREFIX
+from .wiki import FACTS_PREFIX, Redirect
 
 log = logging.getLogger(__name__)
 
@@ -127,14 +127,16 @@ def _open(path: str) -> None:
     _archive = Archive(path)
 
 
-def _read_chunk(bounds: tuple[int, int]) -> list[tuple[str, str]]:
-    """Articles for entry ids in [start, stop). Runs inside a worker."""
+def _read_chunk(bounds: tuple[int, int]) -> list[tuple[str, str] | Redirect]:
+    """Articles and redirects for entry ids in [start, stop). Runs inside a worker."""
     assert _archive is not None
     start, stop = bounds
-    found: list[tuple[str, str]] = []
+    found: list[tuple[str, str] | Redirect] = []
     for index in range(start, min(stop, _archive.all_entry_count)):
         entry = _archive.get_entry_by_id(index)
         if entry.is_redirect:
+            if (target := _redirect_target(entry)) is not None:
+                found.append(Redirect(entry.title, target))
             continue
         item = entry.get_item()
         if not item.mimetype.startswith("text/html"):
@@ -149,8 +151,21 @@ def _read_chunk(bounds: tuple[int, int]) -> list[tuple[str, str]]:
     return found
 
 
-def iter_zim_articles(path: Path, workers: int = 1) -> Iterator[tuple[str, str]]:
-    """Yield (title, text) for every article in a ZIM file, in file order."""
+def _redirect_target(entry) -> str | None:
+    """The title of the article a redirect leads to (following a few hops)."""
+    try:
+        for _ in range(3):
+            entry = entry.get_redirect_entry()
+            if not entry.is_redirect:
+                return entry.title
+    except Exception:  # a broken redirect is not worth stopping for
+        return None
+    return None
+
+
+def iter_zim_articles(path: Path, workers: int = 1) -> Iterator[tuple[str, str] | Redirect]:
+    """Yield (title, text) for every article in a ZIM file, in file order, and a
+    `Redirect` for every other name an article has."""
     from libzim.reader import Archive
 
     if not path.is_file():
