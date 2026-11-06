@@ -247,6 +247,13 @@ def test_agenda_requests(text, day):
     assert parse_agenda(text, NOW, name="Juniper") == AgendaRequest(day)
 
 
+@pytest.mark.parametrize(
+    "text", ["What is the Gregorian Calendar?", "How does the lunar calendar work?"]
+)
+def test_a_named_calendar_is_not_an_agenda_request(text):
+    assert parse_agenda(text, NOW) is None
+
+
 def test_agenda_asks_when_the_day_is_unclear():
     assert isinstance(parse_agenda("what's on my calendar this week", NOW), Problem)
     assert isinstance(parse_agenda("what's on my calendar tomorrow and friday", NOW), Problem)
