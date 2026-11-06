@@ -375,6 +375,8 @@ def test_answer_named_nowhere_in_the_question_is_found_by_its_text(tmp_path: Pat
         ("Nile", text("The Nile is the longest river in Africa, flowing north to the sea.")),
         ("Congo River", text("The Congo River is the deepest river in the world.")),
         ("Sahara", text("The Sahara is a desert covering much of North Africa.")),
+        # a title full of the question's words: must not beat the Nile's text
+        ("N3 (South Africa)", text("The N3 is the longest national route in South Africa.")),
     ]
     path = tmp_path / "w.sqlite"
     build_index(iter(items), path)
@@ -382,4 +384,24 @@ def test_answer_named_nowhere_in_the_question_is_found_by_its_text(tmp_path: Pat
         found = wiki.search("What is the longest river in Africa?", limit=8)
     titles = [p.title for p in found]
     assert titles[0] == "Africa"  # the title match still leads
-    assert "Nile" in titles  # and the passage that answers it is there too
+    assert "Nile" in titles[:3]  # and the passage that answers it is right behind
+    assert titles.index("Nile") < titles.index("N3 (South Africa)")
+
+
+def test_a_lone_capital_letter_is_a_search_word(tmp_path: Path):
+    def text(sentence: str) -> str:
+        return (sentence + " ") * 4
+
+    items = [
+        ("Chemical symbol", text("A chemical symbol is a short code for a chemical element.")),
+        ("Sodium", text("Sodium is a chemical element; it has the symbol Na.")),
+        ("Potassium", text("Potassium is a chemical element; it has the symbol K.")),
+        ("Calcium", text("Calcium is a chemical element; it has the symbol Ca.")),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("Which element has the chemical symbol K?", limit=4)
+    assert "Potassium" in [p.title for p in found[:2]]
+    assert "k" in query_terms("Which element has the chemical symbol K?")
+    assert "i" not in query_terms("Do I know what A means?")
