@@ -405,3 +405,58 @@ def test_a_lone_capital_letter_is_a_search_word(tmp_path: Path):
     assert "Potassium" in [p.title for p in found[:2]]
     assert "k" in query_terms("Which element has the chemical symbol K?")
     assert "i" not in query_terms("Do I know what A means?")
+
+
+def test_openings_holding_every_word_beat_short_stray_mentions(tmp_path: Path):
+    filler = " ".join(f"Other fact number {n} about this subject." for n in range(12))
+    items = [
+        (
+            "Photosynthesis",
+            "Photosynthesis is a system of biological processes by which most plants "
+            "convert light energy, usually from sunlight, into chemical energy. "
+            + filler
+            + "\\nLater sections cover leaves and chloroplasts in detail. " * 3,
+        ),
+        (
+            "Nile",
+            "The Nile is a major north-flowing river in northeastern Africa. It is the "
+            "longest river in Africa and flows into the Mediterranean Sea. " + filler,
+        ),
+        # Short passages deep in other articles that happen to hold the words.
+        (
+            "Namibia Premier League",
+            "Intro. " * 40 + "\\nA river club from Africa won the longest final.",
+        ),
+        (
+            "Thermal energy",
+            "Intro. " * 40 + "\\nPlants convert light energy into chemical energy too.",
+        ),
+        ("Chemical energy", "Chemical energy is energy stored in chemical bonds. " * 5),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        river = wiki.search("What is the longest river in Africa?", limit=4)
+        plants = wiki.search(
+            "What is the name of the process by which plants convert light energy "
+            "into chemical energy?",
+            limit=4,
+        )
+    assert "Nile" in [p.title for p in river[:3]]
+    assert "Photosynthesis" in [p.title for p in plants[:3]]
+
+
+def test_openings_stage_only_returns_first_passages(tmp_path: Path):
+    items = [
+        ("Nile", "The Nile is the longest river in Africa. " * 6),
+        ("Rally", "Intro text for the rally. " * 30 + "\nThe longest river stage in Africa."),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        found = wiki._ranked(
+            ["longest", "river", "africa"], 5, require_all=True, openings_only=True
+        )
+        stages = (wiki.search("What is the longest river in Africa?"), wiki.trace)[1]
+    assert [p.title for p in found] == ["Nile"]
+    assert "openings" in [name for name, _ in stages]
