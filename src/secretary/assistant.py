@@ -28,6 +28,7 @@ import asyncio
 import base64
 import datetime as dt
 import logging
+import random
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -81,7 +82,8 @@ class Assistant:
         calendar: Calendar | None = None,
         calendar_config: CalendarConfig | None = None,
         wiki: Lookup | None = None,
-        wiki_timeout: float = 4.0,
+        wiki_timeout: float = 15.0,
+        wiki_notice_after: float = 1.5,
         now: Callable[[], dt.datetime] = dt.datetime.now,
     ):
         self.persona = persona
@@ -98,6 +100,8 @@ class Assistant:
         self._calendar_config = calendar_config or CalendarConfig()
         self._wiki = wiki
         self._wiki_timeout = wiki_timeout
+        self._wiki_notice_after = wiki_notice_after
+        self._last_looking_up: str | None = None
         self._now = now
         # The event she just read back (to add, or to remove), waiting for a yes,
         # and when she asked.
@@ -354,10 +358,16 @@ class Assistant:
         if self._wiki is None or (request := lookup_request(text)) is None:
             return None
         started = time.perf_counter()
+        search = asyncio.ensure_future(asyncio.to_thread(self._wiki.search, request.query, 6))
+        notice = min(self._wiki_notice_after, self._wiki_timeout)
         try:
-            found = await asyncio.wait_for(
-                asyncio.to_thread(self._wiki.search, request.query, 6), self._wiki_timeout
-            )
+            try:
+                found = await asyncio.wait_for(asyncio.shield(search), notice)
+            except TimeoutError:
+                # Still looking: say so, then keep waiting for the rest of the time.
+                await self._interject(self._looking_up_line())
+                left = self._wiki_timeout - (time.perf_counter() - started)
+                found = await asyncio.wait_for(search, max(left, 0.01))
         except TimeoutError:
             log.warning(
                 "Wikipedia lookup took over %.0f s; answering without it", self._wiki_timeout
@@ -375,6 +385,22 @@ class Assistant:
             ", ".join(p.title for p in passages) or "nothing",
         )
         return render(passages) if passages else None
+
+    def _looking_up_line(self) -> str:
+        """A "one moment" line, not the same as last time when there's a choice."""
+        options = self.persona.lines.looking_up or ["One moment."]
+        fresh = [line for line in options if line != self._last_looking_up] or options
+        self._last_looking_up = random.choice(fresh)
+        return self._last_looking_up
+
+    async def _interject(self, line: str) -> None:
+        """A short line before the real answer ("one moment"). Shown and spoken, but
+        not kept in the chat history, so the model never sees it."""
+        rid = self._next_reply_id()
+        await self._emit({"type": "reply_start", "id": rid})
+        await self._emit({"type": "reply_end", "id": rid, "text": line})
+        await self._express("neutral")
+        await self._say(line)
 
     async def _read_requested(self, req: commands.BriefRequest) -> None:
         """ "Read me this morning's brief": read it out verbatim, never via the model."""

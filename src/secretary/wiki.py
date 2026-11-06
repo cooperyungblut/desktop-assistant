@@ -141,7 +141,9 @@ SMALL_INDEX = 50_000  # below this many passages every word counts as rare
 MAX_BODY_TERMS = 3
 # The infobox line written by the ZIM loader, and how many passages in to look for it.
 FACTS_PREFIX = "Facts: "
-ARTICLE_PASSAGES = 12  # an article holds max_chars_per_article (4000) / ~600 passages
+# How many passages of one article to read when looking inside it. Generous: an
+# article holds about max_chars_per_article / 600 of them (20 at 12,000).
+ARTICLE_PASSAGES = 40
 # Words in a question that point at one of several same-named articles.
 _FILM = ("film series", "film", "franchise")
 _QUALIFIERS: dict[str, tuple[str, ...]] = {
@@ -237,7 +239,7 @@ def build_index(
     articles: Iterator[tuple[str, str] | Redirect],
     index_file: Path,
     *,
-    max_chars_per_article: int = 4000,
+    max_chars_per_article: int = 12_000,
     limit: int | None = None,
     progress: Callable[[BuildStats], None] | None = None,
 ) -> BuildStats:
