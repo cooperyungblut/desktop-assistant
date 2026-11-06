@@ -57,6 +57,8 @@ wiki:
   workers: 4           # CPU processes used while building the index
   index_file: C:/data/wikipedia/index.sqlite  # the search index
   max_chars_per_article: 4000
+  timeout_seconds: 4   # a slower lookup is skipped and she answers without it
+  warm_up: true        # read the index into the disk cache at startup (background)
 
 # Push-to-talk speech input (Milestone 2). Needs: uv sync --extra tts --extra stt
 stt:

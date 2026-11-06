@@ -91,6 +91,7 @@ def create_app(config: AppConfig) -> FastAPI:
         calendar=calendar,
         calendar_config=config.calendar,
         wiki=wiki,
+        wiki_timeout=config.wiki.timeout_seconds,
     )
 
     async def poll_forever() -> None:

@@ -149,37 +149,63 @@ def test_empty_source_dir_is_an_error(tmp_path: Path):
         next(iter_articles(tmp_path))
 
 
-def test_common_words_are_left_out_when_a_rarer_one_exists(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("secretary.wiki.COMMON_FLOOR", 0)
+def test_rare_terms_drop_common_unknown_and_stay_in_order(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("secretary.wiki.SMALL_INDEX", 0)
     filler = "The history of this place is long and the history matters. "
     articles = [(f"Town {n}", filler * 5) for n in range(200)]
     articles.append(("Zanzibar", "Zanzibar is an archipelago off the coast of Tanzania. " * 5))
     path = tmp_path / "w.sqlite"
     build_index(iter(articles), path)
     with WikiIndex(path) as index:
-        assert index._prune_common(["history", "zanzibar"]) == ["zanzibar"]
-        assert index._prune_common(["history"]) == ["history"]
-        assert index._prune_common(["history", "qwxyz"]) == ["history"]
-        # Stemming: "histories" is counted as the common stem "histori".
-        assert index._prune_common(["histories", "zanzibar"]) == ["zanzibar"]
+        assert index._rare_terms(["history", "zanzibar"]) == ["zanzibar"]
+        assert index._rare_terms(["histories", "zanzibar"]) == ["zanzibar"]  # stemmed
+        assert index._rare_terms(["zanzibar", "qwxyz"]) == ["zanzibar"]  # never seen
+        assert index._rare_terms(["history"]) == []  # only common words: no body search
         assert index.search("history of zanzibar")[0].title == "Zanzibar"
 
 
-def test_full_name_title_beats_single_word_titles(tmp_path: Path):
+def test_small_indexes_never_drop_words(tmp_path: Path):
+    path = tmp_path / "w.sqlite"
+    build_index(iter(ARTICLES), path)
+    with WikiIndex(path) as index:
+        assert set(index._rare_terms(["paris", "city", "river"])) == {"paris", "city", "river"}
+
+
+def test_title_with_more_real_words_beats_a_filler_start(tmp_path: Path):
     articles = [
-        ("Birthday", "A birthday is the anniversary of the birth of a person. " * 5),
-        ("Cage", "A cage is an enclosure made of mesh, bars or wires. " * 5),
-        ("Nicolas Cage", CAGE),
-        ("Pride", "Pride is an inwardly directed emotion about oneself. " * 5),
-        ("Pride and Prejudice", "Pride and Prejudice is an 1813 novel by Jane Austen. " * 5),
+        ("The Roman", "The Roman is a novel by Mika Waltari published in 1964. " * 4),
+        ("Roman Empire", "The Roman Empire was the state ruled by the Romans. " * 4),
+        (
+            "Fall of the Western Roman Empire",
+            "The fall of the Western Roman Empire was a long decline. " * 4,
+        ),
     ]
     path = tmp_path / "w.sqlite"
     build_index(iter(articles), path)
     with WikiIndex(path) as index:
-        assert index.search("What is Nicolas Cage's birthday?")[0].title == "Nicolas Cage"
-        assert index.search("Who wrote Pride and Prejudice?")[0].title == "Pride and Prejudice"
-        # With no longer title in the question, a lone word's article is fine.
-        assert index.search("what is a cage")[0].title == "Cage"
+        found = index.search("Why did the Roman Empire fall?")
+        titles = [p.title for p in found]
+        assert titles[0] == "Roman Empire"
+        # every key word is in this title, so it is found without a body search
+        assert "Fall of the Western Roman Empire" in titles
+        assert "The Roman" not in titles[:1]
+
+
+def test_search_records_stage_timings(tmp_path: Path):
+    path = tmp_path / "w.sqlite"
+    build_index(iter(ARTICLES), path)
+    with WikiIndex(path) as index:
+        index.search("What is Nicolas Cage's birthday?")
+        stages = [name for name, _ in index.trace]
+    assert stages[0] == "exact title" and "word counts" in stages
+
+
+def test_warm_up_runs_without_touching_the_main_connection(tmp_path: Path):
+    path = tmp_path / "w.sqlite"
+    build_index(iter(ARTICLES), path)
+    with WikiIndex(path) as index:
+        assert index.warm_up() >= 0
+        assert index.search("Who is Nicolas Cage?")[0].title == "Nicolas Cage"
 
 
 def test_passages_say_how_they_were_found(tmp_path: Path):

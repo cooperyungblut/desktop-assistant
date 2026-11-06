@@ -560,3 +560,19 @@ async def test_nothing_usable_means_no_wikipedia_block(env, fake_model):
     a.ask("Who is Nicolas Cage?")
     await finish(a)
     assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
+
+
+async def test_a_slow_lookup_is_skipped_and_she_still_answers(env, fake_model):
+    import time
+
+    class SlowWiki(FakeWiki):
+        def search(self, question, limit=3):
+            time.sleep(0.4)
+            return super().search(question, limit)
+
+    a = _with_wiki(env, SlowWiki())
+    a._wiki_timeout = 0.05
+    a.ask("Who is Nicolas Cage?")
+    await finish(a)
+    assert fake_model.requests
+    assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
