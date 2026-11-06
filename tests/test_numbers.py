@@ -13,6 +13,11 @@ from secretary.numbers import say_year, spoken_years
         (1805, "eighteen oh five"),
         (2001, "two thousand one"),
         (2009, "two thousand nine"),
+        (1945, "nineteen forty-five"),
+        (1900, "nineteen hundred"),
+        (1812, "eighteen twelve"),
+        (2000, "two thousand"),
+        (2026, "twenty twenty-six"),
     ],
 )
 def test_say_year(year, said):
@@ -25,7 +30,7 @@ def test_say_year(year, said):
         ("He was born in 1909.", "He was born in nineteen oh nine."),
         (
             "It was founded on 20 March 1602 and dissolved in 1799.",
-            "It was founded on 20 March sixteen oh two and dissolved in 1799.",
+            "It was founded on 20 March sixteen oh two and dissolved in seventeen ninety-nine.",
         ),
         (
             "The company closed on 31 December 1909.",
@@ -41,7 +46,15 @@ def test_say_year(year, said):
         ("Version 1.1909 shipped.", None),
         ("About 12,1909 people.", None),
         ("It fell 1909% overnight.", None),
-        ("He was born in 1964.", None),  # Kokoro reads these fine already
+        ("He was born in 1964.", "He was born in nineteen sixty-four."),
+        (
+            "The war ended in 1945, not 1900.",
+            "The war ended in nineteen forty-five, not nineteen hundred.",
+        ),
+        ("Music of the 1990s and 2000s", "Music of the nineteen nineties and two thousands"),
+        ("He worked there 1995s", "He worked there 1995s"),
+        ("In 2026 and 2010.", "In twenty twenty-six and twenty ten."),
+        ("The peak is 1945 meters high.", None),
         (
             "Wikipedia says 1908's flood was the worst.",
             "Wikipedia says nineteen oh eight's flood was the worst.",
