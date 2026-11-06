@@ -529,3 +529,19 @@ def test_loose_matches_are_skipped_when_not_wanted(tmp_path: Path):
         wiki.search("Which birds live in a cage at the zoo?")
         loose = [name for name, _ in wiki.trace]
     assert strict.count("body") == 1 and loose.count("body") == 2
+
+
+def test_the_thing_a_plain_title_is_for_is_looked_up_too(tmp_path: Path):
+    items = [
+        ("Chemical symbol", "A chemical symbol is a short code for a chemical element. " * 5),
+        ("Salt", "Salt is a mineral made mostly of sodium chloride (NaCl). " * 5),
+        ("Symbol", "A symbol is a mark or sign that stands for an idea. " * 5),
+        ("List of copper salts", "Copper salts are compounds of copper. " * 5),
+    ]
+    path = tmp_path / "w.sqlite"
+    build_index(iter(items), path)
+    with WikiIndex(path) as wiki:
+        found = wiki.search("What is the chemical symbol for salt?", limit=8)
+    titles = [p.title for p in found if p.match == "title"]
+    assert titles[0] == "Chemical symbol" and "Salt" in titles
+    assert "Symbol" not in titles
