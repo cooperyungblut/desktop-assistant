@@ -149,16 +149,27 @@ def _take_turns(first: list[Passage], second: list[Passage], limit: int) -> list
     return found
 
 
-def _phrase(question: str, terms: list[str]) -> re.Pattern[str] | None:
-    """The question's run of words from its first key word to its last, as a
-    pattern ("longest river in africa"), or None if that run is under two key
-    words or too long to expect word for word."""
+def _phrases(question: str, terms: list[str]) -> list[re.Pattern[str]]:
+    """Patterns for the question's run of words from its first key word to its
+    last, strictest first: with the word before it when that's "the" or "a"
+    ("the longest river in africa", which "the fourth-longest river in Africa"
+    misses), then the bare run ("longest river in africa"). Empty if the run is
+    under two key words or too long to expect word for word."""
     words = _WORD.findall(question.lower().replace("'s", ""))
     places = [i for i, w in enumerate(words) if w in terms]
     if len(places) < 2 or places[-1] - places[0] >= PHRASE_WORDS:
-        return None
-    run = words[places[0] : places[-1] + 1]
-    return re.compile(r"\b" + r"\W+".join(map(re.escape, run)) + r"\b")
+        return []
+    start, end = places[0], places[-1] + 1
+    runs = [words[start:end]]
+    if start > 0 and words[start - 1] in ("the", "a", "an"):
+        runs.insert(0, words[start - 1 : end])
+    return [re.compile(r"\b" + r"\W+".join(map(re.escape, run)) + r"\b") for run in runs]
+
+
+def _phrase_rank(text: str, phrases: list[re.Pattern[str]]) -> int:
+    """0 for the strictest phrase found in `text`, 1 for the next, ...; len if none."""
+    lowered = text.lower()
+    return next((k for k, phrase in enumerate(phrases) if phrase.search(lowered)), len(phrases))
 
 
 def query_terms(question: str) -> list[str]:
@@ -192,7 +203,9 @@ FACTS_PREFIX = "Facts: "
 ARTICLE_PASSAGES = 40
 # Openings fetched for the all-key-words stage; those that hold the question's
 # words in the question's order go first. Longest run of words tried as a phrase.
-OPENING_POOL = 100
+OPENING_POOL = 300
+# Wikipedia pages that aren't articles ("Portal:Malawi/Featured article/3").
+_NOT_ARTICLES = ("Portal:", "Wikipedia:", "Template:", "Category:", "Help:", "File:", "Draft:")
 PHRASE_WORDS = 8
 # Words in a question that point at one of several same-named articles.
 _FILM = ("film series", "film", "franchise")
@@ -437,9 +450,9 @@ class WikiIndex:
                 )
                 if p.title not in named
             ]
-            phrase = _phrase(question, opening_terms)
-            if phrase:
-                openings.sort(key=lambda p: not phrase.search(p.text.lower()))
+            phrases = _phrases(question, opening_terms)
+            if phrases:
+                openings.sort(key=lambda p: _phrase_rank(p.text, phrases))
             by_text = openings[:limit]
             mark("openings")
             for require_all in (True, False):
@@ -620,7 +633,11 @@ class WikiIndex:
             (query, limit),
         ).fetchall()
         match = "all" if require_all else "any"
-        return [Passage(title, body, score=-rank, match=match) for title, body, rank in rows]
+        return [
+            Passage(title, body, score=-rank, match=match)
+            for title, body, rank in rows
+            if not title.startswith(_NOT_ARTICLES)
+        ]
 
     def warm_up(self) -> float:
         """Run a few typical searches so the first real question isn't slow.
