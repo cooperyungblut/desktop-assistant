@@ -101,9 +101,10 @@ class WikiConfig(BaseModel):
     # search's passages by how well they answer the question. Needs the rerank
     # extra; leave unset for keyword ranking only (docs/wikipedia.md).
     rerank_model: Path | None = None
-    # How its scores are used: "fuse" (blend with the keyword order), "rerank"
-    # (its scores alone) or "keep" (the keyword search's top two, then its order).
-    rerank_mode: Literal["fuse", "rerank", "keep"] = "fuse"
+    # How its scores are used: "keep" (the keyword search's top two, then its
+    # order; best in the eval), "fuse" (blend with the keyword order) or "rerank"
+    # (its scores alone).
+    rerank_mode: Literal["fuse", "rerank", "keep"] = "keep"
     # Read the index into the OS cache at startup (in the background) so the first
     # question isn't slow.
     warm_up: bool = True
