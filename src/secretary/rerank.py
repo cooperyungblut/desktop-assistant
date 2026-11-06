@@ -54,6 +54,24 @@ class Scorer(Protocol):
     def score(self, question: str, texts: Sequence[str]) -> list[float]: ...
 
 
+def find_model(path: Path) -> tuple[Path, Path]:
+    """(model.onnx, tokenizer.json) for a model folder, or for one .onnx file
+    (a quantized "onnx/model_quantized.onnx" picked on purpose). In a folder the
+    full model wins over a quantized one; tokenizer.json sits in the folder."""
+    if path.suffix == ".onnx":
+        candidates = [path]
+        folder = path.parent.parent if path.parent.name == "onnx" else path.parent
+    else:
+        names = ("model.onnx", "model_quantized.onnx")
+        candidates = [path / n for n in names] + [path / "onnx" / n for n in names]
+        folder = path
+    model = next((p for p in candidates if p.exists()), None)
+    tokenizer = folder / "tokenizer.json"
+    if model is None or not tokenizer.exists():
+        raise FileNotFoundError(f"{path} needs an .onnx model and tokenizer.json")
+    return model, tokenizer
+
+
 class CrossEncoder:
     """An ONNX cross-encoder: higher score = better answer to the question."""
 
@@ -61,20 +79,7 @@ class CrossEncoder:
         import onnxruntime
         from tokenizers import Tokenizer
 
-        model_dir = Path(model_dir)
-        model = next(
-            (
-                p
-                for p in (model_dir / "model.onnx", model_dir / "onnx" / "model.onnx")
-                if p.exists()
-            ),
-            None,
-        )
-        tokenizer = model_dir / "tokenizer.json"
-        if model is None or not tokenizer.exists():
-            raise FileNotFoundError(
-                f"{model_dir} needs model.onnx (or onnx/model.onnx) and tokenizer.json"
-            )
+        model, tokenizer = find_model(Path(model_dir))
         self._tokenizer = Tokenizer.from_file(str(tokenizer))
         self._tokenizer.enable_truncation(max_length=max_tokens)
         self._tokenizer.enable_padding()

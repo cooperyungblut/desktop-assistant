@@ -156,28 +156,36 @@ that pool. It runs on the CPU, so it costs no VRAM.
 
 ```powershell
 uv sync --extra tts --extra stt --extra stt-gpu --extra wiki --extra rerank
-uvx --from huggingface_hub hf download cross-encoder/ms-marco-MiniLM-L6-v2 onnx/model.onnx tokenizer.json --local-dir C:/data/wikipedia/reranker
+uvx --from huggingface_hub hf download BAAI/bge-reranker-base onnx/model.onnx tokenizer.json --local-dir C:/data/wikipedia/bge-reranker
 ```
-
-If that download can't find `onnx/model.onnx`, the same model is also at
-`Xenova/ms-marco-MiniLM-L-6-v2` (same command, same two files).
 
 Then add this under `wiki:` in `config.yaml`:
 
 ```yaml
-  rerank_model: C:/data/wikipedia/reranker
+  rerank_model: C:/data/wikipedia/bge-reranker
 ```
+
+Models tried on `evals/wiki_questions.yaml` (32 questions, `keep` mode, 12k index):
+
+| model | size | answer in her text | search time (median) |
+|---|---|---|---|
+| none (keywords only) | | 25 | ~0.15-0.4 s |
+| `cross-encoder/ms-marco-MiniLM-L6-v2` | 90 MB | 28 of 31 | ~0.6 s |
+| `BAAI/bge-reranker-base` | 1.1 GB | 30 of 32 | ~3 s |
+
+`rerank_model` can also point at a single `.onnx` file, such as a quantized
+`onnx/model_quantized.onnx`, which is smaller and faster but usually a little
+less accurate. Try it with `scripts/eval_wiki.py --compare --model <file>`.
 
 `rerank_mode` sets how its scores are used:
 
 - `keep` (the default) takes the keyword search's top two passages, usually
   the named article's opening and its best match, then fills the rest in the
-  model's order. It scored best in testing: 28 of 31 answers, against 25 for
-  keywords alone.
+  model's order. It scored best in testing, with both models.
 - `fuse` blends the keyword order with the model's order (reciprocal rank
-  fusion). It scored 26 of 31.
-- `rerank` uses the model's order alone. It scored 27 of 31, but it dropped
-  clear keyword hits such as "the mount of Ganesha".
+  fusion). It tied `keep` with bge and trailed it with MiniLM.
+- `rerank` uses the model's order alone. It dropped clear keyword hits such as
+  "the mount of Ganesha".
 
 `uv run python scripts/eval_wiki.py` uses the configured mode, and `--no-rerank`
 runs the same questions without the reranker. `--compare` runs every question
@@ -187,5 +195,4 @@ soon as it's set. The startup log says "Wikipedia reranker ready". If the model
 or the extra is missing, she carries on with keyword ranking and logs why.
 
 Any cross-encoder exported to ONNX works the same way (one score per question
-and passage pair). A bigger one, such as `BAAI/bge-reranker-base`, is usually
-more accurate but several times slower.
+and passage pair).
