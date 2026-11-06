@@ -51,6 +51,10 @@
 - question: Who was the first woman to win a Nobel Prize in Literature?
   article: [Selma Lagerlöf, Nobel Prize in Literature]
   answer: Lagerl
+- question: Who was the first woman to receive a Nobel Prize in Literature?
+  article: [Selma Lagerlöf, Selma Lagerlöf Prize, Grazia Deledda]
+  answer: Lagerl
+  note: same as above, worded "receive"; the 1938 (Pearl Buck) page competes
 - question: What is the mount, or vahana, of the Hindu god Ganesha?
   article: Ganesha
   answer: (mouse|rat|Mushika|Mūṣaka)
