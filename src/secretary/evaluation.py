@@ -18,7 +18,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -49,16 +49,25 @@ DONT_KNOW = (
     "not listed",
     "not mentioned",
     "no details",
-    "/claude",
-    "check with claude",
-    "ask claude",
 )
+
+# She should never send Cooper off to Claude on her own: /claude is a command he
+# types when he wants it, not her way out of a question. Always forbidden.
+SUGGESTS_CLAUDE = ("/claude", "check with claude", "ask claude")
+
+
+class HistoryTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
 
 
 class Case(BaseModel):
     id: str
     brief: str
     question: str
+    # Turns after the brief readout and before the question, e.g. a hedged
+    # answer for an "are you sure?" follow-up.
+    history: list[HistoryTurn] = []
     must: list[list[str]] = []
     must_not: list[str] = []
     unknown: bool = False
@@ -125,7 +134,7 @@ class Result:
 def score(case: Case, answer: str, mood: str | None) -> dict[str, Any]:
     text = normalize(answer)
     missing = [g for g in case.must if not any(_contains(text, alt) for alt in g)]
-    forbidden = [p for p in case.must_not if _contains(text, p)]
+    forbidden = [p for p in (*case.must_not, *SUGGESTS_CLAUDE) if _contains(text, p)]
     said_unknown = any(_contains(text, p) for p in DONT_KNOW) if case.unknown else None
     mood_ok = mood is not None and (not case.moods or mood in case.moods)
     return {
@@ -137,14 +146,19 @@ def score(case: Case, answer: str, mood: str | None) -> dict[str, Any]:
 
 
 async def ask(
-    model: ChatModel, persona: Persona, brief: Brief, question: str
+    model: ChatModel,
+    persona: Persona,
+    brief: Brief,
+    question: str,
+    earlier: Sequence[HistoryTurn] = (),
 ) -> tuple[str, str | None, float, float]:
-    """One question, built exactly like a first follow-up in the app.
+    """One question, built exactly like a follow-up in the app.
 
     Returns (visible answer, mood tag or None, seconds to first visible text,
     seconds in total).
     """
     history = [Turn("assistant", brief.spoken)]  # she just read the brief aloud
+    history += [Turn(t.role, t.content) for t in earlier]
     messages = build_messages(persona, brief, history, question)
     tags = TagFilter()
     parts: list[str] = []
@@ -162,7 +176,7 @@ async def ask(
 
 async def run_case(model: ChatModel, persona: Persona, brief: Brief, case: Case) -> Result:
     try:
-        answer, mood, first, total = await ask(model, persona, brief, case.question)
+        answer, mood, first, total = await ask(model, persona, brief, case.question, case.history)
     except Exception as exc:  # report it in the table, keep going
         return Result(case.id, "", None, 0.0, 0.0, error=str(exc), mood_ok=False)
     return Result(case.id, answer, mood, first, total, **score(case, answer, mood))

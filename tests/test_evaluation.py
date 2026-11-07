@@ -30,7 +30,7 @@ def test_forbidden_and_unknown():
     case = Case(id="x", brief="b", question="q", must_not=["$", "dollars"], unknown=True)
     guess = score(case, "It pays $90,000 a year.", "happy")
     assert guess["forbidden"] == ["$"] and guess["said_unknown"] is False
-    honest = score(case, "I don't see pay in the brief. Try /claude.", "neutral")
+    honest = score(case, "I don't see pay in the brief.", "neutral")
     assert honest["forbidden"] == [] and honest["said_unknown"] is True
 
 
@@ -72,3 +72,33 @@ async def test_model_errors_are_reported_not_raised(persona):
     brief = load_brief(SAMPLES / "2026-11-02_morning.md")
     r = await run_case(Broken(), persona, brief, Case(id="x", brief=brief.id, question="q"))
     assert r.error == "boom" and not r.facts_ok
+
+
+def test_suggesting_claude_always_fails():
+    case = Case(id="x", brief="b", question="q", unknown=True)
+    result = score(case, "I don't see that. Want me to check with Claude?", "neutral")
+    assert result["said_unknown"] is True and result["forbidden"] == ["check with claude"]
+
+
+async def test_history_turns_come_before_the_question(persona):
+    brief = load_brief(SAMPLES / "2026-11-02_morning.md")
+    case = Case.model_validate(
+        {
+            "id": "sure",
+            "brief": "b",
+            "question": "Are you sure?",
+            "history": [
+                {"role": "user", "content": "Is Keanu Reeves married?"},
+                {"role": "assistant", "content": "[relaxed] I don't think so."},
+            ],
+            "must": [["best guess"]],
+        }
+    )
+    model = FakeModel("[neutral] Not 100%, but it's my best guess.")
+    result = await run_case(model, persona, brief, case)
+    sent = model.requests[-1]
+    assert [m["content"] for m in sent[-4:-2]] == [
+        "Is Keanu Reeves married?",
+        "[relaxed] I don't think so.",
+    ]
+    assert sent[-1]["content"] == "Are you sure?" and result.facts_ok
