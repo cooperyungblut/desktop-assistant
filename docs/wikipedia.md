@@ -165,13 +165,16 @@ Then add this under `wiki:` in `config.yaml`:
   rerank_model: C:/data/wikipedia/bge-reranker
 ```
 
-Models tried on `evals/wiki_questions.yaml` (32 questions, `keep` mode, 12k index):
+Models tried on `evals/wiki_questions.yaml` (32 questions, `keep` mode, 12k index
+unless noted):
 
 | model | size | answer in her text | search time (median) |
 |---|---|---|---|
 | none (keywords only) | | 25 | ~0.15-0.4 s |
 | `cross-encoder/ms-marco-MiniLM-L6-v2` | 90 MB | 28 of 31 | ~0.6 s |
 | `BAAI/bge-reranker-base` | 1.1 GB | 30 of 32 | ~3 s |
+| none, 24k index | | 26 of 32 | ~0.25 s |
+| `BAAI/bge-reranker-base`, 24k index | 1.1 GB | 31 of 32 | ~3-5 s |
 
 `rerank_model` can also point at a single `.onnx` file, such as a quantized
 `onnx/model_quantized.onnx`, which is smaller and faster but usually a little

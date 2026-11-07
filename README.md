@@ -77,8 +77,8 @@ Measured on my PC (RTX 4070 Ti Super, 16 GB), with `gemma4:12b` in Ollama:
 | First word of a reply | about 0.4 s (was 7–35 s until hidden "thinking" was turned off) |
 | Speech to text | 0.3–0.6 s per question (Whisper `small.en` on the GPU) |
 | Model eval | 100% on facts kept, "I don't know" and mood tags (15 cases × 3 runs) |
-| Wikipedia retrieval eval | answer in what she reads: 25/32 with keyword search alone, 30/32 with the bge reranker (`scripts/eval_wiki.py`) |
-| Wikipedia lookup | about 3 s with the reranker on CPU (keyword search alone is well under 1 s) |
+| Wikipedia retrieval eval | answer in what she reads: 26/32 (81%) with keyword search alone, 31/32 (97%) with the bge reranker (`scripts/eval_wiki.py`) |
+| Wikipedia lookup | about 3–5 s with the reranker on CPU (keyword search alone is about 0.25 s) |
 | Desktop window, idle | about 1.4% CPU, WebGL on the GPU, 30 fps cap |
 | Tests | 467 Python (pytest) + desktop shell helpers (node), on Windows and Linux CI |
 
