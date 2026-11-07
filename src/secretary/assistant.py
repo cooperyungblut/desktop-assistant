@@ -358,9 +358,9 @@ class Assistant:
 
     async def _wikipedia_for(self, text: str) -> str | None:
         """Passages for a general-knowledge question; "" when it was looked up but
-        nothing usable came back (timeout, failure, no match), so she says she's
-        not sure instead of guessing or suggesting /claude; None when the
-        question isn't one to look up."""
+        nothing usable came back (timeout, failure, no match), so she answers
+        from what she knows as a hedged best guess; None when the question
+        isn't one to look up."""
         if self._wiki is None or (request := lookup_request(text)) is None:
             return None
         started = time.perf_counter()

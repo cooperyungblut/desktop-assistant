@@ -566,7 +566,7 @@ async def test_nothing_usable_means_no_wikipedia_block(env, fake_model):
     a.ask("Who is Nicolas Cage?")
     await finish(a)
     assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
-    # ...but she is told it was looked up and nothing was found: no guessing, no /claude.
+    # ...but she is told it was looked up and nothing was found, so she hedges.
     assert any("nothing about it was found" in m["content"] for m in fake_model.requests[-1])
 
 

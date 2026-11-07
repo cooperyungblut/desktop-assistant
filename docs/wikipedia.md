@@ -57,8 +57,9 @@ picks from at random, never the same one twice in a row). One that runs past
 
 With `mention_source: true` she says "Wikipedia says..." once with a looked-up
 fact, which helps when checking what the lookup found. Set it to `false` and she
-says the fact as if she knew it. Either way she doesn't suggest `/claude` for
-general-knowledge questions; that's for things about your day and the brief.
+says the fact as if she knew it. When the lookup finds nothing, she answers from
+what the model knows as a best guess and says how sure she is; ask "are you
+sure?" and she tells you honestly.
 
 ## 3. Build the index
 

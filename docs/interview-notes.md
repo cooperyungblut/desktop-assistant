@@ -246,3 +246,27 @@ drives her face.
   3 s from the start; when the model is cold (it unloads after 30 minutes
   idle) she just reads the brief instead of making Cooper wait 20 s.
 
+
+## Letting her talk like a person
+
+**The problem.** She kept ending conversations with "I don't know" or "want me
+to check with Claude?", even about things any language model knows. It felt
+like a decade-old chatbot, not an assistant.
+
+**The cause was the prompt, not the model.** The accuracy rule said facts come
+*only* from the brief and Wikipedia, so everything else was off limits. The one
+persona example of not knowing something ended in "check with Claude", and
+small models copy examples nearly word for word. The eval even counted
+"/claude" as an honest answer, so nothing pushed back.
+
+**What changed.**
+- *Two kinds of facts.* Cooper's own data (brief, email, calendar) stays
+  strict: if it isn't there, she says so and never guesses. For everything
+  else she uses what she knows, gives a best guess when unsure, and says how
+  sure she is.
+- *Honest under "are you sure?".* A guess stays a guess ("Not 100%, but it's
+  my best guess"); a fact from the brief she can confirm. She shouldn't invent
+  certainty or drop a good answer just because she was asked.
+- *Never suggest /claude.* It's a command Cooper types when he wants it. The
+  eval now fails any reply that suggests it, and multi-turn cases check the
+  "are you sure?" follow-up.
