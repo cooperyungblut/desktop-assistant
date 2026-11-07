@@ -41,7 +41,8 @@ export class PushToTalk {
       // Ask for the mic once and keep it open, so later presses start instantly.
       // 127.0.0.1 counts as a secure origin, so the browser allows this.
       this.stream ??= await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+        // autoGainControl off: Chromium's AGC can move the Windows mic volume slider.
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
       });
     } catch (err) {
       this.holding = false;
