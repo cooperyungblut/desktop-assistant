@@ -165,8 +165,9 @@ Then add this under `wiki:` in `config.yaml`:
   rerank_model: C:/data/wikipedia/bge-reranker
 ```
 
-Models tried on `evals/wiki_questions.yaml` (32 questions, `keep` mode, 12k index
-unless noted):
+Models tried on `evals/wiki_questions.yaml` (32 questions, `keep` mode). "12k" and
+"24k" are the index's `max_chars_per_article` (12,000 or 24,000); rows without
+one used the 12k index:
 
 | model | size | answer in her text | search time (median) |
 |---|---|---|---|
