@@ -84,3 +84,10 @@ def test_nothing_found_note_only_when_a_lookup_ran(persona):
     assert notes(None) == []
     (note,) = notes("")
     assert "/claude" not in note and "best guess" in note
+
+
+def test_general_questions_leave_the_brief_out(persona):
+    system = build_messages(persona, None, [], "q")[0]["content"]
+    assert "leave the brief out" in system
+    found = build_messages(persona, None, [], "Is Keanu Reeves married?", wikipedia="")
+    assert any("don't mention the brief" in m["content"] for m in found)

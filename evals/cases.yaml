@@ -101,6 +101,17 @@ cases:
     question: What's the capital of Australia?
     must:
       - [canberra]
+    must_not: [brief]
+
+  - id: general-follow-up-skips-brief
+    brief: 2026-11-02_morning
+    history:
+      - role: user
+        content: When is Keanu Reeves' birthday?
+      - role: assistant
+        content: "[happy] He was born on September 2, 1964."
+    question: Is he married?
+    must_not: [brief]
 
   - id: opinion
     brief: 2026-11-02_morning
