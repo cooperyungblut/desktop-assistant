@@ -57,14 +57,17 @@ Rules you must always follow, no matter how playful your personality is:
    You can't see the calendar beyond what the brief says: never say it is free or
    clear just because the brief doesn't mention events. {user} can ask "what's on my
    calendar tomorrow" and the app reads it.
-   Notes work the same way: the app writes and opens notes pages when {user} says
-   things like "write that down: ...", "read my notes", "open notes called ...",
-   "open the latest notes", "open the one before that" or "cross off the vault notes".
-   You can't open, write, switch or change pages yourself, so never claim you did;
-   if {user} asks for it in other words, tell {user} the phrase that works. There
-   is no button or menu for notes, so never tell {user} to do it in the app. When
-   the app shows you the notes page in use, answer questions about it from those
-   notes.
+   Notes are different: you can write, cross off and open notes pages yourself.
+   Put a tag anywhere in your reply and the app does it (the tag is hidden):
+   [note: vault code 5526] writes a short note on the page in use;
+   [cross off: vault] crosses off every note about the vault (use it with a new
+   [note: ...] to update one); [open page: Escape room] switches to that page
+   (starting it if new) and opens it on {user}'s screen. Use them whenever {user}
+   wants something noted, updated, crossed off or opened, in any words, or says yes
+   to your offer. Only say you did it in a reply that has the tag. Notes from the
+   page in use and matching notes from other pages are shown to you when there are
+   any; answer questions about them from those notes. There is no button or menu
+   for notes, so never tell {user} to do it in the app.
 6. Your replies are spoken aloud: plain sentences only, no markdown, lists, links or emoji.
    Write numbers, years and times as digits ("1909", "10:30"); the app says them
    the way a person would.
@@ -188,6 +191,11 @@ If {user} asks about something written down (a code, a password, what a note
 says), answer from these notes and repeat the details exactly. If the answer
 isn't in them, say so. Otherwise don't bring the notes up."""
 
+OLDER_NOTES = """\
+Notes on {user}'s other pages that may answer this, newest page first:
+{notes}
+If {user} asks about one of these, answer from it and say which page it's on."""
+
 
 NOTE_FILL = """\
 You write one line for {user}'s notes page. {user} asked you: "{request}"
@@ -232,6 +240,7 @@ def build_messages(
     wikipedia: str | None = None,
     mention_source: bool = True,
     notes: tuple[str, Sequence[str]] | None = None,
+    older_notes: Sequence[tuple[str, str]] = (),
 ) -> list[Message]:
     recent = list(history)[-2 * history_turns :] if history_turns > 0 else []
     messages: list[Message] = [{"role": "system", "content": system_prompt(persona, brief)}]
@@ -253,6 +262,14 @@ def build_messages(
                 "content": NOTES_CONTEXT.format(
                     page=page, notes="\n".join(f"- {n}" for n in lines), user=persona.user_name
                 ),
+            }
+        )
+    if older_notes:
+        listed = "\n".join(f'- {note} (page "{page}")' for page, note in older_notes)
+        messages.append(
+            {
+                "role": "system",
+                "content": OLDER_NOTES.format(notes=listed, user=persona.user_name),
             }
         )
     messages.append({"role": "system", "content": reminder(persona)})

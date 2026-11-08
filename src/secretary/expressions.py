@@ -98,5 +98,7 @@ class TagFilter:
 
 
 def strip_tags(text: str) -> str:
-    """Remove mood tags from a finished reply (e.g. history sent to Claude)."""
-    return _ANY_TAG.sub("", text).strip()
+    """Remove mood and action tags from a finished reply (e.g. history sent to Claude)."""
+    from .actions import strip_actions
+
+    return strip_actions(_ANY_TAG.sub("", text))
