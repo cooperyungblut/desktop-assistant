@@ -41,6 +41,15 @@ def test_write_requests(text, note):
         ("Create a notes file named Lighthouse", NoteRequest("new_page", "Lighthouse")),
         ("Switch to the page called Escape room", NoteRequest("new_page", "Escape room")),
         ("go back to page Test2", NoteRequest("new_page", "Test2")),
+        ("Open notes called Escape room.", NoteRequest("new_page", "Escape room")),
+        ("open my notes called Test2", NoteRequest("new_page", "Test2")),
+        (
+            "Open the notes for the lighthouse puzzle",
+            NoteRequest("new_page", "the lighthouse puzzle"),
+        ),
+        ("Open the latest notes.", NoteRequest("latest")),
+        ("pull up my last page", NoteRequest("latest")),
+        ("Juniper, show me the most recent notes", NoteRequest("latest")),
         ("Read me my notes.", NoteRequest("read")),
         ("What did I write down?", NoteRequest("read")),
         ("what's in my notes", NoteRequest("read")),
@@ -157,3 +166,16 @@ def test_open_starts_the_viewer(monkeypatch, tmp_path):
     page = nb.new_page("Test")
     assert nb.open(page) is True
     assert started and str(page) in str(started[0])
+
+
+def test_latest_page_is_the_newest_file(tmp_path):
+    import os
+
+    nb = notebook(tmp_path)
+    old = nb.new_page("Old")
+    nb.write("x")
+    new = nb.new_page("New")
+    nb.write("y")
+    os.utime(old, (1, 1))
+    nb.new_page("Old")  # current is Old, but New was written last
+    assert nb.latest_page() == new

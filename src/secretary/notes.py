@@ -69,13 +69,22 @@ _NEW_PAGE = re.compile(
 _NAMED_PAGE = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
     r"(?:"
-    r"(?:start|make|create|open|begin)\s+(?:a\s+|the\s+)?(?:notes?\s+)?(?:page|file|notepad)"
-    r"\s+(?:called|named|titled)"
+    r"(?:start|make|create|open|begin|show\s+me)\s+(?:a\s+|the\s+|my\s+)?"
+    r"(?:(?:notes?\s+)?(?:page|file|notepad)|notes?)"
+    r"\s+(?:called|named|titled|for)"
     r"|(?:switch|go\s+back|go|change)\s+to\s+(?:the\s+)?(?:notes?\s+)?page"
     r"(?:\s+(?:called|named|titled))?"
     r")"
     rf"{_END}{_PUNCT}(?P<name>.+)$",
     re.IGNORECASE | re.DOTALL,
+)
+# "open the latest notes", "pull up my last page"
+_LATEST = re.compile(
+    rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:open|show|pull\s+up|bring\s+up|go\s+to|switch\s+to|go\s+back\s+to)\s+(?:me\s+)?"
+    r"(?:my\s+|the\s+)?(?:latest|last|newest|most\s+recent|recent)\s+"
+    r"(?:notes?(?:\s+(?:page|file))?|page|file|notepad)\b[\s.!?]*$",
+    re.IGNORECASE,
 )
 _READ = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
@@ -107,7 +116,7 @@ _BAD_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 @dataclass(frozen=True)
 class NoteRequest:
-    kind: Literal["write", "new_page", "read", "open", "where"]
+    kind: Literal["write", "new_page", "read", "open", "latest", "where"]
     text: str = ""  # the note, or the new page's name ("" = ask / use a dated name)
 
 
@@ -127,6 +136,8 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
         text = re.sub(rf"^\s*(?:hey\s+)?{re.escape(name)}\b[\s,.!:]*", "", text, flags=re.I)
     if _OPEN.match(text):
         return NoteRequest("open")
+    if _LATEST.match(text):
+        return NoteRequest("latest")
     if _READ.match(text):
         return NoteRequest("read")
     if m := _NEW_PAGE.match(text) or _NAMED_PAGE.match(text):
@@ -212,6 +223,13 @@ class Notebook:
             else:
                 self._current = self.dir / page_file_name(self._config.default_page)
         return self._current
+
+    def latest_page(self) -> Path:
+        """Switch to the page written most recently (the current one if none exist)."""
+        pages = list(self.dir.glob("*.md")) if self.dir.is_dir() else []
+        if pages:
+            self._current = max(pages, key=lambda p: p.stat().st_mtime)
+        return self.current_page()
 
     def page_exists(self, name: str) -> bool:
         return bool(name) and (self.dir / page_file_name(name)).is_file()

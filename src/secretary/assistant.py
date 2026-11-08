@@ -504,6 +504,14 @@ class Assistant:
                     if notes
                     else lines.note_read_empty.format(page=page)
                 )
+            elif request.kind == "latest":
+                page = await asyncio.to_thread(notebook.latest_page)
+                if await asyncio.to_thread(notebook.open, page):
+                    line = lines.note_latest_opened.format(page=page.stem)
+                elif notebook.viewer:
+                    line = lines.note_open_failed.format(viewer=notebook.viewer)
+                else:
+                    line = lines.note_no_viewer.format(folder=notebook.dir)
             elif await asyncio.to_thread(notebook.open):
                 line = lines.note_opened
             elif notebook.viewer:

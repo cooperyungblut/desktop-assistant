@@ -12,7 +12,8 @@ keep open on another monitor.
 | "Take a note, lever three then lever one" / "Make a note that ..." / "Note: ..." | Same thing |
 | "Write that down" (nothing after it) | Asks what to write; your next message is the note ("never mind" cancels) |
 | "Start a new page called Escape room" | Creates `Escape room.md` and writes there from now on |
-| "Open a page called Test" / "Switch to the page called Escape room" | Same, or goes back to that page if it exists |
+| "Open a page called Test" / "Open notes called Escape room" / "Switch to the page called ..." | Same, or goes back to that page (and opens it) if it exists |
+| "Open the latest notes" / "Pull up my last page" | Opens the page written most recently |
 | "Start a new page" | Same, named with the date and time |
 | "Read me my notes" / "What did I write down?" | Reads the last five notes on the current page |
 | "Where did you write that down?" | Names the current page and its file |

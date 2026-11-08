@@ -746,3 +746,15 @@ async def test_going_back_to_a_page(env, tmp_path):
     a.ask("switch to the page called Test5")
     await finish(a)
     assert a.history[-1].content == "Back on Test5."
+
+
+async def test_open_the_latest_notes(env, tmp_path):
+    a, _, _ = notes_env(env, tmp_path)
+    a.ask("open a page called Test5")
+    await finish(a)
+    a.ask("write that down: 42")
+    await finish(a)
+    a.ask("open the latest notes")
+    await finish(a)
+    # No viewer set in the test config, so she says where they are instead.
+    assert a.history[-1].content.startswith("Your notes are in")
