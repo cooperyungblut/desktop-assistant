@@ -844,10 +844,10 @@ async def test_crossing_off_notes(env, tmp_path, fake_model):
     await finish(a)
     assert a.history[-1].content == "Crossed off 2 notes about vault."
     assert "- ~~vault digit 1 is 6~~" in page.read_text(encoding="utf-8")
-    a.ask("archive that")
-    await finish(a)
-    assert a.history[-1].content.startswith("Which notes?")
     assert fake_model.requests == []
+    a.ask("archive that")  # she knows what "that" is: the model handles it
+    await finish(a)
+    assert len(fake_model.requests) == 1
 
 
 async def test_a_code_question_answers_from_notes_without_a_lookup(env, tmp_path, fake_model):
@@ -965,3 +965,46 @@ async def test_she_owns_up_when_notes_are_off(env, fake_model):
     await finish(a)
     assert a.history[-1].content == "Note taking is turned off in my settings."
     assert [t.content for t in a.history[-3:-1]] == ["keep that in mind", "Noted. [note: x]"]
+
+
+async def test_renaming_the_page(env, tmp_path, fake_model):
+    a, _, page = notes_env(env, tmp_path)
+    a.ask("write down vault code 1234")
+    await finish(a)
+    a.ask("Rename these notes, Haunted House.")
+    await finish(a)
+    assert a.history[-1].content == "Renamed it to Haunted House."
+    assert not page.exists() and (tmp_path / "notes" / "Haunted House.md").is_file()
+    fake_model.reply = "Sure, it's now Lighthouse. [rename page: Lighthouse]"
+    a.ask("actually make that one Lighthouse")
+    await finish(a)
+    assert (tmp_path / "notes" / "Lighthouse.md").is_file()
+    a.ask("start a new page called Other")
+    await finish(a)
+    a.ask("call this page Lighthouse")
+    await finish(a)
+    assert a.history[-1].content.startswith("There's already a page called Lighthouse")
+
+
+async def test_crossing_off_a_note_on_another_page(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    a.ask("open a page called Test4")
+    await finish(a)
+    a.ask("write down gate code 3258")
+    await finish(a)
+    a.ask("start a new page called Today")
+    await finish(a)
+    a.ask("write down gate code 2438")
+    await finish(a)
+    fake_model.reply = "Done. [cross off: gate 3258]"
+    a.ask("could you mark it out?")
+    await finish(a)
+    test4 = (tmp_path / "notes" / "Test4.md").read_text(encoding="utf-8")
+    today = (tmp_path / "notes" / "Today.md").read_text(encoding="utf-8")
+    assert "~~gate code 3258~~" in test4 and "~~" not in today
+    fake_model.reply = "Done. [cross off: gate 9999]"
+    a.ask("and the other one")
+    await finish(a)
+    assert a.history[-1].content == (
+        "Actually, I couldn't find a note about gate 9999 to cross off."
+    )
