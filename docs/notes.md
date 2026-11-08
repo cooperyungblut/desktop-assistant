@@ -14,12 +14,15 @@ keep open on another monitor.
 | "Start a new page called Escape room" | Creates `Escape room.md` and writes there from now on |
 | "Open a page called Test" / "Open notes called Escape room" / "Open the notes page Test" / "Switch to the page called ..." | Same, or goes back to that page (and opens it) if it exists. Names match loosely, so "test monitor on" finds `testMonitorOn` |
 | "Open Test2" / "Switch to Escape room" | Goes to that page, only if a page by that name already exists |
+| "Open Test 4 and write down jelly beans" | Goes to that page, then writes the note there |
 | "Open the latest notes" / "Pull up my last page" | Opens the page written most recently |
 | "Open the one before that" / "Go back to the previous page" | Steps back one page at a time, by when each was last written |
 | "Start a new page" | Same, named with the date and time |
 | "Read me my notes" / "What did I write down?" | Reads the last five notes on the current page |
 | "Where did you write that down?" | Names the current page and its file |
 | "Open my notes" | Opens the current page in your viewer (see below) |
+| "What was the gate code?" / "Check the notes for the gate code" | Answers from the page in use (its last 30 notes), if one was used this session or written in the last 12 hours. A question asking for a code, password, PIN, combination or number that matches a note skips the Wikipedia lookup |
+| "Cross off the vault notes" / "Mark the vault code as used" / "Archive the gate code" | Strikes through (`~~...~~`) every note on the current page that mentions the vault. Nothing is deleted; crossed-off notes are left out when she reads or answers from notes |
 
 The note is written exactly as it was heard, in code: the chat model never
 sees or rewrites it. She reads it back ("Got it, I wrote down: ..."), so you
