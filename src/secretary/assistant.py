@@ -491,6 +491,9 @@ class Assistant:
                 line = lines.note_page_started.format(page=page.stem)
                 if notebook.viewer and not await asyncio.to_thread(notebook.open, page):
                     line += " " + lines.note_open_failed.format(viewer=notebook.viewer)
+            elif request.kind == "where":
+                page = notebook.current_page()
+                line = lines.note_where.format(page=page.stem, path=page)
             elif request.kind == "read":
                 notes = await asyncio.to_thread(notebook.last_notes)
                 page = notebook.current_page().stem

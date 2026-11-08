@@ -18,6 +18,7 @@ from secretary.notes import Notebook, NoteRequest, is_cancel, note_request, page
         ("new note: lever left", "lever left"),
         ("Add that to my notes: lever three", "lever three"),
         ("hey, jot that down, 7 2 9", "7 2 9"),
+        ("Write down where I put the key: under the mat", "where I put the key: under the mat"),
         ("The password is 4471, write that down.", "The password is 4471"),
         ("The password is 4471. Can you write that down for me?", "The password is 4471"),
         ("Can you write that down?", ""),
@@ -39,6 +40,12 @@ def test_write_requests(text, note):
         ("What did I write down?", NoteRequest("read")),
         ("what's in my notes", NoteRequest("read")),
         ("Juniper, open my notes", NoteRequest("open")),
+        ("Where did you write that down?", NoteRequest("where")),
+        (
+            "I'm asking this part for Claude, but where did you write that down for me?",
+            NoteRequest("where"),
+        ),
+        ("Which page are my notes on?", NoteRequest("where")),
     ],
 )
 def test_page_read_and_open_requests(text, expected):
@@ -54,6 +61,8 @@ def test_page_read_and_open_requests(text, expected):
         "read me the brief",
         "add lunch with Sam to my calendar tomorrow at noon",
         "what's the downside of that?",
+        "Did you write that down?",
+        "Why didn't you write that down",
     ],
 )
 def test_other_messages_are_not_notes(text):
