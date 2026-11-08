@@ -189,6 +189,39 @@ says), answer from these notes and repeat the details exactly. If the answer
 isn't in them, say so. Otherwise don't bring the notes up."""
 
 
+NOTE_FILL = """\
+You write one line for {user}'s notes page. {user} asked you: "{request}"
+That points at something instead of saying it. Work out what it means from your
+last messages and the notes below, then write the note: short, the way a person
+jots it down, like "vault code 6762". Keep every number, code and name exactly.
+Write only the note: no quotes, no "Note:", no explanation. If you can't tell
+what to write, write only UNKNOWN.
+
+{user}'s message before that: {said}
+Your answer to it: {answer}
+Notes on "{page}", oldest first:
+{notes}"""
+
+
+def build_note_messages(
+    persona: Persona,
+    request: str,
+    answer: str | None,
+    notes: tuple[str, Sequence[str]] | None,
+    said: str | None = None,
+) -> list[Message]:
+    page, lines = notes or ("", [])
+    content = NOTE_FILL.format(
+        user=persona.user_name,
+        request=request,
+        answer=answer or "(none)",
+        said=said or "(none)",
+        page=page or "none",
+        notes="\n".join(f"- {n}" for n in lines) or "(none)",
+    )
+    return [{"role": "system", "content": content}, {"role": "user", "content": request}]
+
+
 def build_messages(
     persona: Persona,
     brief: Brief | None,

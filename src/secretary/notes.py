@@ -240,6 +240,32 @@ def asks_for_a_code(question: str, notes: Sequence[str]) -> bool:
     return bool(topic) and any(topic & set(_words(n)) for n in notes)
 
 
+# "write down that vault code", "write down the code from the notes": the note
+# points at something instead of saying it. Notes with digits are dictated.
+_REFERS = re.compile(
+    r"\b(?:write|jot)\s+(?:it\s+)?down\s+(?:that|this|those|the)(?:\s+[\w'’]+){1,3}[\s.!?]*$"
+    r"|\b(?:from|in|on|using|based\s+on)\s+(?:the|my|your)\s+notes\b"
+    r"|\busing\s+the\b"
+    r"|\byou\s+(?:just\s+)?(?:said|found|told|worked\s+out|figured\s+out)\b"
+    r"|\b(?:your|that|the)\s+answer\b",
+    re.IGNORECASE,
+)
+
+
+def refers_to_something(text: str) -> bool:
+    return not re.search(r"\d", text) and bool(_REFERS.search(text))
+
+
+def filled_note(text: str) -> str:
+    """The model's note, tidied: one line, no quotes or "Note:" label; "" if
+    it couldn't tell what to write."""
+    line = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+    line = re.sub(r"^(?:note\s*:\s*)", "", line, flags=re.IGNORECASE).strip(" \"'“”‘’*")
+    if not line or "UNKNOWN" in line.upper():
+        return ""
+    return clean_note(line)[:200]
+
+
 def split_then_write(text: str) -> tuple[str, str] | None:
     """("open Test 4", "write down jelly beans") for a two-step request, else None.
     The caller checks that the first part is a page command."""

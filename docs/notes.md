@@ -10,7 +10,8 @@ keep open on another monitor.
 | "Write that down: the safe code is 4471" | Appends `- [17:21] the safe code is 4471` to the current page |
 | "The safe code is 4471, write that down" | Same thing |
 | "Take a note, lever three then lever one" / "Make a note that ..." / "Note: ..." | Same thing |
-| "Write that down" (nothing after it) | Asks what to write; your next message is the note ("never mind" cancels) |
+| "Write that down" (nothing after it) | Right after she answers something, saves her answer in a few words ("vault code 6762"). Otherwise asks what to write; your next message is the note ("never mind" cancels) |
+| "Write down that vault code" / "Write down the vault code from the notes" | She works out the note from her last answer and the notes page and reads back what she wrote. Notes you say outright, or anything with a number in it, are written word for word |
 | "Start a new page called Escape room" | Creates `Escape room.md` and writes there from now on |
 | "Open a page called Test" / "Open notes called Escape room" / "Open the notes page Test" / "Switch to the page called ..." | Same, or goes back to that page (and opens it) if it exists. Names match loosely, so "test monitor on" finds `testMonitorOn` |
 | "Open Test2" / "Switch to Escape room" | Goes to that page, only if a page by that name already exists |

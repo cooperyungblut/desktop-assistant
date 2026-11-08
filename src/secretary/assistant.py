@@ -59,13 +59,15 @@ from .notes import (
     NoteRequest,
     asks_for_a_code,
     clean_note,
+    filled_note,
     is_cancel,
     note_request,
     open_page_name,
+    refers_to_something,
     split_then_write,
 )
 from .persona import Persona
-from .prompt import Turn, build_messages
+from .prompt import Turn, build_messages, build_note_messages
 from .state import StateStore
 from .stt import NoTranscriber, SttUnavailable, Transcriber
 from .tts import Speaker
@@ -118,6 +120,8 @@ class Assistant:
         self._wiki_mention_source = wiki_mention_source
         self._last_looking_up: str | None = None
         self._wiki_topic: str | None = None  # the article the last lookup named
+        # Her last answer from the model and when, so "write that down" can save it.
+        self._last_answer: tuple[str, float] | None = None
         self._now = now
         # When she asked "what should I write down?" (the next message is the note).
         self._note_asked: float | None = None
@@ -374,6 +378,7 @@ class Assistant:
             # small model keep using the format.
             full = f"[{tags.mood}] {full}"
         self.history += [Turn("user", text), Turn("assistant", full)]
+        self._last_answer = (strip_tags(full), time.monotonic()) if full else None
         await speaking
         await self._emit({"type": "speech_done"})
 
@@ -496,6 +501,31 @@ class Assistant:
         await self._note_action(notebook, request, text)
         return True
 
+    ANSWER_FRESH_SECONDS = 180.0
+
+    def _recent_answer(self) -> str | None:
+        if self._last_answer is None:
+            return None
+        answer, at = self._last_answer
+        return answer if time.monotonic() - at <= self.ANSWER_FRESH_SECONDS else None
+
+    async def _fill_note(self, request: str, answer: str | None) -> str:
+        """The note for a request that points at something instead of saying it,
+        written by the model from her last answer and the notes page. "" if she
+        can't tell what it means."""
+        notes = await self._notes_for_prompt()
+        said = next((t.content for t in reversed(self.history) if t.role == "user"), None)
+        messages = build_note_messages(
+            self.persona, request, answer, notes, said if answer else None
+        )
+        options = {**self.persona.sampling.as_options(), "temperature": 0.2}
+        try:
+            out = "".join([t async for t in self._model.stream_chat(messages, options)])
+        except LlmUnavailable as exc:
+            log.warning("model unavailable for a note: %s", exc)
+            return ""
+        return filled_note(strip_tags(out))
+
     async def _note_request(self, text: str) -> NoteRequest | None:
         request = note_request(text, self.persona.name)
         notebook = self._notebook
@@ -525,8 +555,14 @@ class Assistant:
     async def _note_action(self, notebook: Notebook, request: NoteRequest, text: str) -> None:
         lines = self.persona.lines
         if request.kind == "write":
-            if request.text:
-                await self._write_note(request.text, text)
+            note = request.text
+            answer = self._recent_answer()
+            if refers_to_something(text) or (not note and answer):
+                # "Write that down" after an answer, "write down the vault code
+                # from the notes": she works out the note herself.
+                note = await self._fill_note(text, answer)
+            if note:
+                await self._write_note(note, text)
             else:
                 self._note_asked = time.monotonic()
                 await self._reply_line(lines.note_ask, text)
@@ -737,6 +773,7 @@ class Assistant:
 
     async def _reply_line(self, line: str, user_text: str) -> None:
         """A fixed reply (not from the model): show it, say it, keep it in history."""
+        self._last_answer = None
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
         await self._emit({"type": "reply_end", "id": rid, "text": line})

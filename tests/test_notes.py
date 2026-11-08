@@ -348,3 +348,30 @@ def test_code_questions_skip_the_lookup():
     assert asks_for_a_code("what's the padlock combination", notes)
     assert not asks_for_a_code("What is a padlock?", notes)
     assert not asks_for_a_code("what's the gate code", notes)
+
+
+@pytest.mark.parametrize(
+    ("text", "refers"),
+    [
+        ("Write down that vault code.", True),
+        ("Write down the vault code from the notes.", True),
+        ("Write down the vault code using the vault digits.", True),
+        ("write down what you just said", True),
+        ("write that down", False),
+        ("write down the blue key is in the attic", False),
+        ("write down that the vault code is 6762", False),
+        ("write down gate code 2438", False),
+    ],
+)
+def test_notes_that_point_at_something(text, refers):
+    from secretary.notes import refers_to_something
+
+    assert refers_to_something(text) is refers
+
+
+def test_filled_note_is_tidied():
+    from secretary.notes import filled_note
+
+    assert filled_note('"Vault code 6762."\nThat is from your notes.') == "Vault code 6762"
+    assert filled_note("Note: gate 3258") == "gate 3258"
+    assert filled_note("UNKNOWN") == ""

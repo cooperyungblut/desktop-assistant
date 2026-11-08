@@ -861,3 +861,49 @@ async def test_a_code_question_answers_from_notes_without_a_lookup(env, tmp_path
     await finish(a)
     assert wiki.questions == []
     assert "gate code 3258" in str(fake_model.requests[-1])
+
+
+async def test_write_that_down_after_an_answer_saves_her_answer(env, tmp_path, fake_model):
+    a, _, page = notes_env(env, tmp_path)
+    a.ask("write down vault digit 1 is 6")
+    await finish(a)
+    fake_model.reply = "The vault code is 6762."
+    a.ask("What's the vault code?")
+    await finish(a)
+    fake_model.reply = "vault code 6762"
+    a.ask("Write that down.")
+    await finish(a)
+    assert page.read_text(encoding="utf-8").endswith("- vault code 6762\n")
+    assert a.history[-1].content == "Got it, I wrote down: vault code 6762."
+    prompt = str(fake_model.requests[-1])
+    assert "The vault code is 6762." in prompt and "vault digit 1 is 6" in prompt
+
+
+async def test_a_note_that_points_at_the_notes_is_filled_in(env, tmp_path, fake_model):
+    a, _, page = notes_env(env, tmp_path)
+    for note in ("vault digit 1 is 6", "vault digit 2 is 7"):
+        a.ask(f"write down {note}")
+        await finish(a)
+    fake_model.reply = '"vault code 67"'
+    a.ask("Write down the vault code from the notes.")
+    await finish(a)
+    assert page.read_text(encoding="utf-8").endswith("- vault code 67\n")
+
+
+async def test_she_asks_when_she_cant_tell_what_to_write(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    fake_model.reply = "UNKNOWN"
+    a.ask("Write down that thing")
+    await finish(a)
+    assert a.history[-1].content == "Sure, what should I write down?"
+
+
+async def test_dictated_notes_never_go_through_the_model(env, tmp_path, fake_model):
+    a, _, page = notes_env(env, tmp_path)
+    fake_model.reply = "Sure."
+    a.ask("what's up?")
+    await finish(a)
+    a.ask("write down the password is 4471")
+    await finish(a)
+    assert page.read_text(encoding="utf-8").endswith("- the password is 4471\n")
+    assert len(fake_model.requests) == 1
