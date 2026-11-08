@@ -61,7 +61,7 @@ _NEW_PAGE = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
     r"(?:(?:start|make|create|open|begin)\s+)?(?:a\s+)?new\s+"
     r"(?:notes?\s+(?:page|file)|page\s+of\s+notes|notes|page|notepad)"
-    r"(?:\s+(?:called|named|titled|for|about))?"
+    r"(?:[\s,]+(?:called|call|named|titled|for|about))?"
     rf"{_END}{_PUNCT}(?P<name>.*)$",
     re.IGNORECASE | re.DOTALL,
 )
@@ -71,9 +71,9 @@ _NAMED_PAGE = re.compile(
     r"(?:"
     r"(?:start|make|create|open|begin|show\s+me)\s+(?:a\s+|the\s+|my\s+)?"
     r"(?:(?:notes?\s+)?(?:page|file|notepad)|notes?)"
-    r"\s+(?:called|named|titled|for)"
+    r"[\s,]+(?:called|call|named|titled|for)"
     r"|(?:switch|go\s+back|go|change)\s+to\s+(?:the\s+)?(?:notes?\s+)?page"
-    r"(?:\s+(?:called|named|titled))?"
+    r"(?:[\s,]+(?:called|call|named|titled))?"
     r"|(?:open|show\s+me|pull\s+up|bring\s+up)\s+(?:the\s+|my\s+)?"
     r"(?:notes?\s+(?:page|file)|page|notes)"
     r")"
@@ -231,8 +231,26 @@ def _launch_options() -> dict:
     return {"start_new_session": True}
 
 
+# Speech says "test test 2" for a page named "Test Test II", so numbers match
+# whether written as digits, words or Roman numerals.
+_NUMBER_WORDS = {
+    **{
+        w: str(i)
+        for i, w in enumerate(
+            ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+        )
+    },
+    **{
+        r: str(i)
+        for i, r in enumerate(["_", "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"])
+        if i
+    },
+}
+
+
 def _page_key(name: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", name.lower())
+    words = re.findall(r"[a-z0-9]+", name.lower())
+    return "".join(_NUMBER_WORDS.get(w, w) for w in words)
 
 
 def page_file_name(name: str) -> str:

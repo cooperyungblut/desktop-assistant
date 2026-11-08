@@ -48,6 +48,8 @@ def test_write_requests(text, note):
             NoteRequest("new_page", "the lighthouse puzzle"),
         ),
         ("Open the latest notes.", NoteRequest("latest")),
+        ("Open notes, call test test 2.", NoteRequest("new_page", "test test 2")),
+        ("Start a new page call Escape room", NoteRequest("new_page", "Escape room")),
         ("Open the last notes page", NoteRequest("latest")),
         ("Can you open the one before that?", NoteRequest("previous")),
         ("the one before that", NoteRequest("previous")),
@@ -233,3 +235,11 @@ def test_bare_open_names_a_page():
 
 def test_please_stays_in_a_note():
     assert note_request("write down: ask her please") == NoteRequest("write", "ask her please")
+
+
+def test_numbers_match_as_digits_words_or_roman_numerals(tmp_path):
+    nb = notebook(tmp_path)
+    page = nb.new_page("Test Test II")
+    assert nb.find_page("test test 2") == page
+    assert nb.find_page("Test test two") == page
+    assert nb.find_page("test test 3") is None
