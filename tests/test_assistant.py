@@ -719,3 +719,18 @@ async def test_notes_off_without_a_notebook(env):
     a.ask("write that down: 4471")
     await finish(a)
     assert a.history[-1].content == "Note taking is turned off in my settings."
+
+
+async def test_new_page_tells_you_when_the_viewer_wont_open(env, tmp_path):
+    from secretary.config import NotesConfig
+    from secretary.notes import Notebook
+
+    a, _, _, _ = env
+    missing = str(tmp_path / "nope.exe")
+    a._notebook = Notebook(NotesConfig(dir=tmp_path / "notes", open_with=missing))
+    a.ask("start a new page called Test")
+    await finish(a)
+    assert (tmp_path / "notes" / "Test.md").is_file()
+    assert a.history[-1].content == (
+        f"New page started: Test. I couldn't open it with {missing}. Check notes open_with."
+    )

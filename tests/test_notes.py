@@ -103,3 +103,31 @@ def test_unnamed_page_gets_a_dated_name(tmp_path):
 
 def test_open_without_a_viewer_does_nothing(tmp_path):
     assert notebook(tmp_path).open() is False
+
+
+def test_windows_launch_goes_through_start(monkeypatch, tmp_path):
+    from secretary import notes
+
+    monkeypatch.setattr(notes.sys, "platform", "win32")
+    page = tmp_path / "Test.md"
+    exe = "C:/Program Files/Notepad++/notepad++.exe"
+    assert notes._launch_command(exe, page) == f'cmd /c start "" "{exe}" "{page}"'
+    assert notes._launch_command("default", page) == f'cmd /c start "" "{page}"'
+
+
+def test_open_with_a_missing_program_says_so(tmp_path):
+    nb = notebook(tmp_path, open_with=str(tmp_path / "nope" / "notepad++.exe"))
+    assert nb.open() is False
+
+
+def test_open_starts_the_viewer(monkeypatch, tmp_path):
+    from secretary import notes
+
+    started = []
+    monkeypatch.setattr(notes.subprocess, "Popen", lambda cmd, **kw: started.append(cmd))
+    exe = tmp_path / "viewer.exe"
+    exe.write_text("")
+    nb = notebook(tmp_path, open_with=str(exe))
+    page = nb.new_page("Test")
+    assert nb.open(page) is True
+    assert started and str(page) in str(started[0])

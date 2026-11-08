@@ -120,6 +120,30 @@ def is_cancel(text: str) -> bool:
     return bool(_CANCEL.match(text))
 
 
+def _launch_command(viewer: str, path: Path) -> str | list[str]:
+    """How to start the viewer so it shows up and outlives the app.
+
+    On Windows this goes through `cmd /c start`: the desktop shell starts the
+    app with its window hidden, and a direct child could inherit that, and
+    quitting the app ends its whole process tree, which would close the editor
+    too. `start` opens the window normally and leaves it on its own.
+    """
+    if sys.platform == "win32":
+        # A string, not a list: list2cmdline would escape start's "" title.
+        # Windows paths can't contain quotes, so plain quoting is safe.
+        target = f'"{path}"' if viewer.lower() == "default" else f'"{viewer}" "{path}"'
+        return f'cmd /c start "" {target}'
+    if viewer.lower() == "default":
+        return ["open" if sys.platform == "darwin" else "xdg-open", str(path)]
+    return [viewer, str(path)]
+
+
+def _launch_options() -> dict:
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}  # no flash of a console
+    return {"start_new_session": True}
+
+
 def page_file_name(name: str) -> str:
     """A safe Windows file name for a page: "Escape room" -> "Escape room.md"."""
     name = _BAD_NAME_CHARS.sub(" ", name)
@@ -161,7 +185,6 @@ class Notebook:
         if not path.exists():
             self._create(path)
         self._current = path
-        self.open(path)
         return path
 
     def write(self, note: str) -> Path:
@@ -192,26 +215,29 @@ class Notebook:
         ]
         return notes[-count:]
 
+    @property
+    def viewer(self) -> str:
+        return self._config.open_with.strip()
+
     def open(self, path: Path | None = None) -> bool:
-        """Show a page in the viewer from `notes.open_with`. False if none is set."""
+        """Show a page in the viewer from `notes.open_with`. False if none is set
+        or it couldn't be started."""
         path = path or self.current_page()
-        viewer = self._config.open_with.strip()
+        viewer = self.viewer
         if not viewer:
             return False
         if not path.exists():
             self._create(path)
+        is_path = "/" in viewer or "\\" in viewer
+        if is_path and not Path(viewer).is_file():
+            log.error("notes.open_with %s doesn't exist", viewer)
+            return False
         try:
-            if viewer.lower() == "default":
-                if sys.platform == "win32":
-                    os.startfile(path)  # type: ignore[attr-defined]
-                else:
-                    opener = "open" if sys.platform == "darwin" else "xdg-open"
-                    subprocess.Popen([opener, str(path)])
-            else:
-                subprocess.Popen([viewer, str(path)])
+            subprocess.Popen(_launch_command(viewer, path), **_launch_options())
         except OSError:
             log.exception("Couldn't open %s with %s", path, viewer)
             return False
+        log.info("Opened %s with %s", path.name, viewer)
         return True
 
     def _create(self, path: Path) -> None:

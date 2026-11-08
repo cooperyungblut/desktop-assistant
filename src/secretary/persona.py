@@ -66,6 +66,7 @@ class Lines(BaseModel):
     note_read_empty: str = "There's nothing on {page} yet."
     note_opened: str = "Your notes are open."
     note_no_viewer: str = "Your notes are in {folder}. Set notes open_with to have me open them."
+    note_open_failed: str = "I couldn't open it with {viewer}. Check notes open_with."
     note_failed: str = "I couldn't write that down: {reason}."
     notes_off: str = "Note taking is turned off in my settings."
 
