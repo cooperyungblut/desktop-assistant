@@ -61,6 +61,7 @@ from .notes import (
     is_cancel,
     note_request,
     open_page_name,
+    split_then_write,
 )
 from .persona import Persona
 from .prompt import Turn, build_messages
@@ -307,6 +308,7 @@ class Assistant:
             history_turns=self._history_turns,
             wikipedia=await self._wikipedia_for(text),
             mention_source=self._wiki_mention_source,
+            notes=await self._notes_for_prompt(),
         )
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
@@ -473,13 +475,15 @@ class Assistant:
                 return True
         if escalations.wants_escalation(text):
             return False
-        request = note_request(text, self.persona.name)
+        if (parts := split_then_write(text)) is not None:
+            first = await self._note_request(parts[0])
+            if first is not None and first.kind in ("new_page", "latest", "previous", "open"):
+                # "Open Test 4 and write down jelly beans": switch, then write.
+                await self._notes_turn(parts[0])
+                await self._notes_turn(parts[1])
+                return True
+        request = await self._note_request(text)
         notebook = self._notebook
-        if request is None and notebook is not None and notebook.enabled:
-            # "Open Test Monitor on": a page name with no "notes" or "page" in it.
-            page = open_page_name(text, self.persona.name)
-            if page and await asyncio.to_thread(notebook.find_page, page):
-                request = NoteRequest("new_page", page)
         if request is None:
             return False
         if notebook is None or not notebook.enabled:
@@ -487,6 +491,32 @@ class Assistant:
             return True
         await self._note_action(notebook, request, text)
         return True
+
+    async def _note_request(self, text: str) -> NoteRequest | None:
+        request = note_request(text, self.persona.name)
+        notebook = self._notebook
+        if request is None and notebook is not None and notebook.enabled:
+            # "Open Test Monitor on": a page name with no "notes" or "page" in it.
+            page = open_page_name(text, self.persona.name)
+            if page and await asyncio.to_thread(notebook.find_page, page):
+                request = NoteRequest("new_page", page)
+        return request
+
+    NOTES_IN_PROMPT = 30
+
+    async def _notes_for_prompt(self) -> tuple[str, list[str]] | None:
+        """The notes page in use, so "what was the gate code?" can be answered."""
+        notebook = self._notebook
+        if notebook is None or not notebook.enabled:
+            return None
+        try:
+            page = await asyncio.to_thread(notebook.recent_page)
+            if page is None:
+                return None
+            notes = await asyncio.to_thread(notebook.last_notes, self.NOTES_IN_PROMPT, page)
+        except OSError:
+            return None
+        return page.stem, notes
 
     async def _note_action(self, notebook: Notebook, request: NoteRequest, text: str) -> None:
         lines = self.persona.lines
