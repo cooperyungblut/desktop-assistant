@@ -489,6 +489,8 @@ class Assistant:
             if request.kind == "new_page":
                 page = await asyncio.to_thread(notebook.new_page, request.text)
                 line = lines.note_page_started.format(page=page.stem)
+                if notebook.viewer and not await asyncio.to_thread(notebook.open, page):
+                    line += " " + lines.note_open_failed.format(viewer=notebook.viewer)
             elif request.kind == "read":
                 notes = await asyncio.to_thread(notebook.last_notes)
                 page = notebook.current_page().stem
@@ -499,6 +501,8 @@ class Assistant:
                 )
             elif await asyncio.to_thread(notebook.open):
                 line = lines.note_opened
+            elif notebook.viewer:
+                line = lines.note_open_failed.format(viewer=notebook.viewer)
             else:
                 line = lines.note_no_viewer.format(folder=notebook.dir)
         except OSError as exc:
