@@ -118,7 +118,9 @@ class NotesConfig(BaseModel):
     # a synced folder works too if you want the notes on your phone.
     dir: Path = Path("data/notes")
     # The page used until you start another one.
-    default_page: str = "Notes"
+    # Her own page when you take a note without opening one first. {date} is
+    # today, {index} counts up for each new session that day.
+    default_page: str = "JuniperNotes_{date}_{index}"
     timestamps: bool = True  # "- [17:21] the safe code is 4471"
     # What shows a page when she starts one, or when you say "open my notes":
     # an editor's path (Notepad++ reloads changed files live), "default" for the

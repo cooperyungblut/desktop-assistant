@@ -261,13 +261,14 @@ def page_file_name(name: str) -> str:
 
 
 class Notebook:
-    """The notes folder. The current page is the most recently written one, so
-    it survives restarts without any extra state."""
+    """The notes folder. A page you open or start is used for the rest of the
+    session; if you take a note without choosing one, she starts her own page,
+    named from `notes.default_page` (by default JuniperNotes_<date>_<n>)."""
 
     def __init__(self, config: NotesConfig, now=dt.datetime.now):
         self._config = config
         self._now = now
-        self._current: Path | None = None
+        self._current: Path | None = None  # the page chosen or started this session
 
     @property
     def enabled(self) -> bool:
@@ -278,13 +279,25 @@ class Notebook:
         return self._config.dir
 
     def current_page(self) -> Path:
-        if self._current is None:
-            pages = list(self.dir.glob("*.md")) if self.dir.is_dir() else []
-            if pages:
-                self._current = max(pages, key=lambda p: p.stat().st_mtime)
-            else:
-                self._current = self.dir / page_file_name(self._config.default_page)
-        return self._current
+        """The page in use: the one chosen this session, else the newest page
+        (for reading or opening), else the page she would start."""
+        if self._current is not None:
+            return self._current
+        pages = list(self.dir.glob("*.md")) if self.dir.is_dir() else []
+        if pages:
+            return max(pages, key=lambda p: p.stat().st_mtime)
+        return self._session_page()
+
+    def _session_page(self) -> Path:
+        """Her own page for this session: the first unused index for today."""
+        template = self._config.default_page
+        today = f"{self._now():%Y-%m-%d}"
+        for index in range(1, 1000):
+            name = template.replace("{date}", today).replace("{index}", str(index))
+            path = self.dir / page_file_name(name)
+            if not path.exists() or "{index}" not in template:
+                return path
+        return path
 
     def latest_page(self) -> Path:
         """Switch to the page written most recently (the current one if none exist)."""
@@ -334,7 +347,9 @@ class Notebook:
 
     def write(self, note: str) -> Path:
         """Append one note to the current page and flush it to disk."""
-        path = self.current_page()
+        if self._current is None:  # nothing opened this session: start her own page
+            self._current = self._session_page()
+        path = self._current
         fresh = not path.exists()
         if fresh:
             self._create(path)
@@ -367,7 +382,8 @@ class Notebook:
     def open(self, path: Path | None = None) -> bool:
         """Show a page in the viewer from `notes.open_with`. False if none is set
         or it couldn't be started."""
-        path = path or self.current_page()
+        if path is None:  # "open my notes": that page is now the one in use
+            path = self._current = self.current_page()
         viewer = self.viewer
         if not viewer:
             return False

@@ -108,16 +108,17 @@ def test_page_names_are_safe_on_windows():
 
 def notebook(tmp_path, **kw):
     clock = iter(dt.datetime(2026, 11, 5, 17, m) for m in range(60))
+    kw.setdefault("default_page", "Notes")
     return Notebook(NotesConfig(dir=tmp_path / "notes", **kw), now=lambda: next(clock))
 
 
 def test_notes_append_to_the_current_page(tmp_path):
-    nb = notebook(tmp_path)
+    nb = notebook(tmp_path)  # the clock ticks a minute per read; naming the page takes one
     nb.write("the code is 4471")
     nb.write("blue key in the attic")
     page = tmp_path / "notes" / "Notes.md"
     assert page.read_text(encoding="utf-8") == (
-        "# Notes\n\n- [17:00] the code is 4471\n- [17:01] blue key in the attic\n"
+        "# Notes\n\n- [17:01] the code is 4471\n- [17:02] blue key in the attic\n"
     )
     assert nb.last_notes() == ["the code is 4471", "blue key in the attic"]
 
@@ -243,3 +244,25 @@ def test_numbers_match_as_digits_words_or_roman_numerals(tmp_path):
     assert nb.find_page("test test 2") == page
     assert nb.find_page("Test test two") == page
     assert nb.find_page("test test 3") is None
+
+
+def test_she_starts_her_own_page_each_session(tmp_path):
+    def session():
+        return Notebook(
+            NotesConfig(dir=tmp_path / "notes"), now=lambda: dt.datetime(2026, 11, 8, 15, 0)
+        )
+
+    first = session()
+    assert first.write("a").name == "JuniperNotes_2026-11-08_1.md"
+    assert first.write("b").name == "JuniperNotes_2026-11-08_1.md"
+    second = session()  # closed and reopened
+    assert second.write("c").name == "JuniperNotes_2026-11-08_2.md"
+
+
+def test_a_page_opened_this_session_is_used(tmp_path):
+    nb = notebook(tmp_path, default_page="JuniperNotes_{date}_{index}")
+    nb.new_page("Escape room")
+    assert nb.write("x").name == "Escape room.md"
+    later = notebook(tmp_path, default_page="JuniperNotes_{date}_{index}")
+    assert later.current_page().name == "Escape room.md"  # reading/opening: newest page
+    assert later.write("y").name.startswith("JuniperNotes_")  # writing: her own page

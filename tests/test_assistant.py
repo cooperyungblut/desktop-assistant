@@ -673,7 +673,8 @@ def notes_env(env, tmp_path):
     from secretary.notes import Notebook
 
     a, _, _, events = env
-    a._notebook = Notebook(NotesConfig(dir=tmp_path / "notes", timestamps=False))
+    config = NotesConfig(dir=tmp_path / "notes", timestamps=False, default_page="Notes")
+    a._notebook = Notebook(config)
     return a, events, tmp_path / "notes" / "Notes.md"
 
 
