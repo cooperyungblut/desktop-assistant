@@ -487,8 +487,10 @@ class Assistant:
             return
         try:
             if request.kind == "new_page":
+                existed = notebook.page_exists(request.text)
                 page = await asyncio.to_thread(notebook.new_page, request.text)
-                line = lines.note_page_started.format(page=page.stem)
+                started = lines.note_page_switched if existed else lines.note_page_started
+                line = started.format(page=page.stem)
                 if notebook.viewer and not await asyncio.to_thread(notebook.open, page):
                     line += " " + lines.note_open_failed.format(viewer=notebook.viewer)
             elif request.kind == "where":

@@ -734,3 +734,15 @@ async def test_new_page_tells_you_when_the_viewer_wont_open(env, tmp_path):
     assert a.history[-1].content == (
         f"New page started: Test. I couldn't open it with {missing}. Check notes open_with."
     )
+
+
+async def test_going_back_to_a_page(env, tmp_path):
+    a, _, _ = notes_env(env, tmp_path)
+    a.ask("open a page called Test5")
+    await finish(a)
+    assert a.history[-1].content == "New page started: Test5."
+    a.ask("start a new page called Other")
+    await finish(a)
+    a.ask("switch to the page called Test5")
+    await finish(a)
+    assert a.history[-1].content == "Back on Test5."

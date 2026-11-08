@@ -124,6 +124,9 @@ class NotesConfig(BaseModel):
     # an editor's path (Notepad++ reloads changed files live), "default" for the
     # system's app for .md files, or "" to never open anything.
     open_with: str = ""
+    # Extra arguments for that program, before the file. Unset: Notepad++ gets
+    # ["-monitor"] (Monitoring on, so the page updates live), others get none.
+    open_args: list[str] | None = None
 
 
 class AppConfig(BaseModel):

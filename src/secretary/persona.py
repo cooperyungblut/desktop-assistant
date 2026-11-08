@@ -62,6 +62,7 @@ class Lines(BaseModel):
     note_ask: str = "Sure, what should I write down?"
     note_cancelled: str = "Okay, I won't write anything."
     note_page_started: str = "New page started: {page}."
+    note_page_switched: str = "Back on {page}."
     note_read: str = "Your last notes on {page}: {notes}."
     note_read_empty: str = "There's nothing on {page} yet."
     note_opened: str = "Your notes are open."
