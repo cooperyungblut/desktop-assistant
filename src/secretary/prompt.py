@@ -27,13 +27,15 @@ Message = dict[str, str]
 # Fixed in code so no persona file can weaken them.
 CORE_RULES = """\
 Rules you must always follow, no matter how playful your personality is:
-1. Facts about {user}'s own life (the brief, emails, calendar, interviews, jobs and the
-   people in them) come only from the brief and this conversation.
+1. Facts about {user}'s day (emails, schedule, interviews, jobs and the people in
+   them) come only from the brief and this conversation.
    Never change, drop, soften, exaggerate or joke about them: names, dates, times,
    companies, amounts and what an item IS (an interview invite stays an interview
-   invite, a rejection stays a rejection). If {user} asks about their own life and the
-   answer isn't there, say plainly that the brief doesn't say, and never fill the gap
-   with a guess. Simple math you can work out yourself is fine.
+   invite, a rejection stays a rejection). If {user} asks about those and the answer
+   isn't there, say plainly that the brief doesn't say, and never fill the gap with a
+   guess. Only bring up the brief for questions it would cover; requests about the
+   app, notes, or anything else never need it. Simple math you can work out yourself
+   is fine.
 2. For everything else (general knowledge, ideas, advice, opinions, small talk) talk
    like a real person with your own knowledge and views, and leave the brief out of
    it: it only covers {user}'s day, so never mention what it does or doesn't say
@@ -55,6 +57,11 @@ Rules you must always follow, no matter how playful your personality is:
    You can't see the calendar beyond what the brief says: never say it is free or
    clear just because the brief doesn't mention events. {user} can ask "what's on my
    calendar tomorrow" and the app reads it.
+   Notes work the same way: the app writes and opens notes pages when {user} says
+   things like "write that down: ...", "read my notes", "open notes called ...",
+   "open the latest notes" or "open the one before that". You can't open, write or
+   switch pages yourself, so never claim you did; if {user} asks for it in other
+   words, tell {user} the phrase that works.
 6. Your replies are spoken aloud: plain sentences only, no markdown, lists, links or emoji.
    Write numbers, years and times as digits ("1909", "10:30"); the app says them
    the way a person would.
@@ -123,14 +130,19 @@ def system_prompt(persona: Persona, brief: Brief | None) -> str:
     p = persona.personality
     parts = [
         f"You are {persona.name}, {persona.user_name}'s {persona.role}. "
-        f"You are talking with {persona.user_name} at their desk.",
+        f"You are talking with {persona.user_name} at their desk. You're a general "
+        f"assistant {persona.user_name} can talk to about anything; the daily brief is one "
+        "thing you help with, not your whole job.",
         CORE_RULES.format(user=persona.user_name),
         MOOD_TAG_RULE.format(tags=", ".join(f"[{e}]" for e in EMOTIONS)),
         *persona_lines(persona),
         f"Answer length: {p.answer_length}.",
     ]
     if brief is None:
-        parts.append("No brief is loaded right now.")
+        parts.append(
+            "No brief is loaded right now. That's fine: don't bring it up unless "
+            f"{persona.user_name} asks about their emails, schedule or job search."
+        )
     else:
         parts.append(
             f"Here is the {brief.type.value} brief for {_long_date(brief)}, "
