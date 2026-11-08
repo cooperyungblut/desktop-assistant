@@ -113,6 +113,13 @@ cases:
     question: Is he married?
     must_not: [brief]
 
+  - id: changes-over-time
+    brief: 2026-11-02_morning
+    question: Who is the UK Prime Minister?
+    must:
+      - [starmer, sunak, johnson, truss]
+    must_not: [brief]
+
   - id: opinion
     brief: 2026-11-02_morning
     question: Which Contoso slot would you pick?

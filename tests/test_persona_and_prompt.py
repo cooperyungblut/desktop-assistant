@@ -91,3 +91,8 @@ def test_general_questions_leave_the_brief_out(persona):
     assert "leave the brief out" in system
     found = build_messages(persona, None, [], "Is Keanu Reeves married?", wikipedia="")
     assert any("don't mention the brief" in m["content"] for m in found)
+
+
+def test_changing_facts_get_the_latest_answer_not_a_dodge(persona):
+    system = build_messages(persona, None, [], "q")[0]["content"]
+    assert "may have changed since" in system
