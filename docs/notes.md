@@ -40,7 +40,8 @@ up on your phone too.
 
 1. Install [Notepad++](https://notepad-plus-plus.org/) and set
    `open_with: "C:/Program Files/Notepad++/notepad++.exe"` under `notes:` in
-   `config.yaml`. She then opens each new page in Notepad++ when she starts it,
+   `config.yaml` (the 32-bit version installs to
+   `C:/Program Files (x86)/Notepad++/notepad++.exe` instead). She then opens each new page in Notepad++ when she starts it,
    and "open my notes" opens the current one.
 2. In Notepad++, Settings > Preferences > MISC. > File Status Auto-detection:
    pick "Enable for all opened files" and tick "Update silently" and "Scroll
