@@ -758,3 +758,17 @@ async def test_open_the_latest_notes(env, tmp_path):
     await finish(a)
     # No viewer set in the test config, so she says where they are instead.
     assert a.history[-1].content.startswith("Your notes are in")
+
+
+async def test_reopening_a_page_by_its_spoken_name(env, tmp_path):
+    a, _, _ = notes_env(env, tmp_path)
+    for text in ("open a page called testMonitorOn", "start a new page called Test Test II"):
+        a.ask(text)
+        await finish(a)
+    a.ask("Open the notes page test monitor on")
+    await finish(a)
+    assert a.history[-1].content == "Back on testMonitorOn."
+    a.ask("Write this down, 42,313.")
+    await finish(a)
+    page = tmp_path / "notes" / "testMonitorOn.md"
+    assert page.read_text(encoding="utf-8").endswith("- 42,313\n")

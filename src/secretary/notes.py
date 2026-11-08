@@ -74,6 +74,8 @@ _NAMED_PAGE = re.compile(
     r"\s+(?:called|named|titled|for)"
     r"|(?:switch|go\s+back|go|change)\s+to\s+(?:the\s+)?(?:notes?\s+)?page"
     r"(?:\s+(?:called|named|titled))?"
+    r"|(?:open|show\s+me|pull\s+up|bring\s+up)\s+(?:the\s+|my\s+)?"
+    r"(?:notes?\s+(?:page|file)|page|notes)"
     r")"
     rf"{_END}{_PUNCT}(?P<name>.+)$",
     re.IGNORECASE | re.DOTALL,
@@ -103,13 +105,14 @@ _WHERE = re.compile(
     re.IGNORECASE,
 )
 _OPEN = re.compile(
-    rf"^\s*{_FILLER}{_POLITE}(?:open|show)\s+(?:me\s+)?(?:my|the)\s+notes?\b[\s.!?]*$",
+    rf"^\s*{_FILLER}{_POLITE}(?:open|show)\s+(?:me\s+)?(?:(?:my|the)\s+)?notes?\b[\s.!?]*$",
     re.IGNORECASE,
 )
 _CANCEL = re.compile(
     r"^\s*(?:never\s*mind|nevermind|cancel|forget\s+it|nothing|no)\b[\s.!?,]*\w*[\s.!?]*$",
     re.IGNORECASE,
 )
+_NOT_A_NAME = {"please", "now", "again", "up", "for me", "back up"}
 _LEADING_THAT = re.compile(r"^(?:that|this)\s+(?=\S)", re.IGNORECASE)
 _BAD_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -141,7 +144,10 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
     if _READ.match(text):
         return NoteRequest("read")
     if m := _NEW_PAGE.match(text) or _NAMED_PAGE.match(text):
-        return NoteRequest("new_page", clean_note(m["name"]).rstrip("?!"))
+        name = clean_note(m["name"]).rstrip("?!")
+        if name.lower().strip(" .,!") in _NOT_A_NAME:  # "open my notes please"
+            return NoteRequest("open")
+        return NoteRequest("new_page", name)
     if m := _LEADING.match(text):
         return NoteRequest("write", clean_note(m["rest"]))
     if _WHERE.search(text):
@@ -191,6 +197,10 @@ def _launch_options() -> dict:
     return {"start_new_session": True}
 
 
+def _page_key(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
 def page_file_name(name: str) -> str:
     """A safe Windows file name for a page: "Escape room" -> "Escape room.md"."""
     name = _BAD_NAME_CHARS.sub(" ", name)
@@ -231,14 +241,25 @@ class Notebook:
             self._current = max(pages, key=lambda p: p.stat().st_mtime)
         return self.current_page()
 
+    def find_page(self, name: str) -> Path | None:
+        """An existing page whose name matches, ignoring case, spaces and
+        punctuation, since speech gives "test monitor on" for testMonitorOn."""
+        key = _page_key(name)
+        if not key or not self.dir.is_dir():
+            return None
+        exact = self.dir / page_file_name(name)
+        if exact.is_file():
+            return exact
+        return next((p for p in sorted(self.dir.glob("*.md")) if _page_key(p.stem) == key), None)
+
     def page_exists(self, name: str) -> bool:
-        return bool(name) and (self.dir / page_file_name(name)).is_file()
+        return self.find_page(name) is not None
 
     def new_page(self, name: str) -> Path:
         """Start a page (or switch back to one that already exists) and make it current."""
         if not name:
             name = f"Notes {self._now():%Y-%m-%d %H%M}"
-        path = self.dir / page_file_name(name)
+        path = self.find_page(name) or self.dir / page_file_name(name)
         if not path.exists():
             self._create(path)
         self._current = path
