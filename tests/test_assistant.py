@@ -833,3 +833,31 @@ async def test_she_sees_the_page_in_use_when_answering(env, tmp_path, fake_model
     await finish(a)
     sent = str(fake_model.requests[-1])
     assert "gate code 2438" in sent and '"Notes"' in sent
+
+
+async def test_crossing_off_notes(env, tmp_path, fake_model):
+    a, _, page = notes_env(env, tmp_path)
+    for note in ("vault digit 1 is 6", "vault digit 2 is 7", "gate code 3258"):
+        a.ask(f"write down {note}")
+        await finish(a)
+    a.ask("Mark all of the vault code notes as used.")
+    await finish(a)
+    assert a.history[-1].content == "Crossed off 2 notes about vault."
+    assert "- ~~vault digit 1 is 6~~" in page.read_text(encoding="utf-8")
+    a.ask("archive that")
+    await finish(a)
+    assert a.history[-1].content.startswith("Which notes?")
+    assert fake_model.requests == []
+
+
+async def test_a_code_question_answers_from_notes_without_a_lookup(env, tmp_path, fake_model):
+    wiki = FakeWiki()
+    a = _with_wiki(env, wiki)
+    a2, _, _ = notes_env(env, tmp_path)
+    assert a2 is a
+    a.ask("write down gate code 3258")
+    await finish(a)
+    a.ask("What was the gate code?")
+    await finish(a)
+    assert wiki.questions == []
+    assert "gate code 3258" in str(fake_model.requests[-1])

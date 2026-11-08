@@ -72,6 +72,10 @@ class Lines(BaseModel):
     note_no_viewer: str = "Your notes are in {folder}. Set notes open_with to have me open them."
     note_where: str = "On the {page} page. The file is {path}."
     note_open_failed: str = "I couldn't open it with {viewer}. Check notes open_with."
+    # {count} is "3 notes"; {what} what you asked to cross off.
+    note_marked_used: str = "Crossed off {count} about {what}."
+    note_marked_none: str = "I don't see any notes about {what} on {page}."
+    note_mark_which: str = "Which notes? Say something like: cross off the vault notes."
     note_failed: str = "I couldn't write that down: {reason}."
     notes_off: str = "Note taking is turned off in my settings."
 

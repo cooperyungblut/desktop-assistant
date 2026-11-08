@@ -115,6 +115,17 @@ _WHERE = re.compile(
     r"(?:write|wrote|written|put|save|saved|jot|jotted|note|noted|notes)\b",
     re.IGNORECASE,
 )
+# "cross off the vault notes", "mark the vault code as used", "archive the gate code"
+_USED = re.compile(
+    rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:"
+    r"(?:mark|set)\s+(?P<a>.+?)\s+(?:as\s+)?(?:used|done|finished|completed?)"
+    r"|(?:cross|strike|scratch)\s+(?:off|out|through)\s+(?P<b>.+?)"
+    r"|(?:cross|strike|scratch)\s+(?P<c>.+?)\s+(?:off|out|through)"
+    r"|archive\s+(?P<d>.+?)"
+    r")[\s.!?]*$",
+    re.IGNORECASE | re.DOTALL,
+)
 _OPEN = re.compile(
     rf"^\s*{_FILLER}{_POLITE}(?:open|show)\s+(?:me\s+)?(?:(?:my|the)\s+)?notes?\b[\s.!?]*$",
     re.IGNORECASE,
@@ -140,7 +151,7 @@ _BAD_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 @dataclass(frozen=True)
 class NoteRequest:
-    kind: Literal["write", "new_page", "read", "open", "latest", "previous", "where"]
+    kind: Literal["write", "new_page", "read", "open", "latest", "previous", "where", "used"]
     text: str = ""  # the note, or the new page's name ("" = ask / use a dated name)
 
 
@@ -168,6 +179,12 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
         return NoteRequest("previous")
     if _READ.match(command):
         return NoteRequest("read")
+    if m := _USED.match(command):
+        what = m["a"] or m["b"] or m["c"] or m["d"]
+        if _THAT.match(what):
+            return NoteRequest("used")
+        topic = topic_words(what)
+        return NoteRequest("used", " ".join(w for w in _words(what) if w in topic))
     if m := _NEW_PAGE.match(command) or _NAMED_PAGE.match(command):
         name = clean_note(m["name"]).rstrip("?!")
         if name.lower().strip(" .,!") in _NOT_A_NAME:  # "open my notes please"
@@ -188,6 +205,39 @@ _THEN_WRITE = re.compile(
     r"(?P<second>(?:write|jot|note|take\s+a\s+note|make\s+a\s+note|add)\b.*)$",
     re.IGNORECASE | re.DOTALL,
 )
+
+
+_THAT = re.compile(r"^\s*(?:that|this|it|them|those)\s*$", re.IGNORECASE)
+_STOP_WORDS = {
+    "the", "a", "an", "my", "our", "all", "of", "for", "to", "in", "on", "and",
+    "that", "this", "these", "those", "it", "note", "notes", "page", "line", "lines",
+    "is", "was", "what", "whats", "s", "me", "tell", "i", "you",
+}  # fmt: skip
+# Words that say what kind of thing it is, not which one: "vault code" is about the vault.
+_KIND_WORDS = {"code", "codes", "password", "passwords", "pin", "combination", "number",
+               "numbers", "digit", "digits", "combo"}  # fmt: skip
+
+
+def _words(text: str) -> list[str]:
+    """Lowercase words, splitting VaultDigit2 into vault, digit, 2."""
+    text = re.sub(r"(?<=[a-z])(?=[A-Z0-9])|(?<=[0-9])(?=[A-Za-z])", " ", text)
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def topic_words(text: str) -> set[str]:
+    """The words that pick out which notes: "the vault code" -> {"vault"}."""
+    words = {w for w in _words(text) if w not in _STOP_WORDS}
+    return (words - _KIND_WORDS) or words
+
+
+def asks_for_a_code(question: str, notes: Sequence[str]) -> bool:
+    """True for "what's the gate code?" when a note mentions the gate, so the
+    answer comes from the notes without a Wikipedia lookup first."""
+    words = set(_words(question))
+    if not words & _KIND_WORDS:
+        return False
+    topic = topic_words(question) - _KIND_WORDS
+    return bool(topic) and any(topic & set(_words(n)) for n in notes)
 
 
 def split_then_write(text: str) -> tuple[str, str] | None:
@@ -282,6 +332,9 @@ def page_file_name(name: str) -> str:
     name = _BAD_NAME_CHARS.sub(" ", name)
     name = " ".join(name.split()).strip(" .")[:80].rstrip(" .")
     return f"{name or 'Notes'}.md"
+
+
+_NOTE_LINE = re.compile(r"^(?P<head>-\s+(?:\[\d{1,2}:\d{2}\]\s+)?)(?P<note>.*?)\s*$")
 
 
 class Notebook:
@@ -409,11 +462,33 @@ class Notebook:
         if not path.is_file():
             return []
         notes = [
-            re.sub(r"^-\s+(?:\[\d{1,2}:\d{2}\]\s+)?", "", line).strip()
+            _NOTE_LINE.match(line)["note"]
             for line in path.read_text(encoding="utf-8").splitlines()
-            if line.startswith("- ")
+            if _NOTE_LINE.match(line) and not _NOTE_LINE.match(line)["note"].startswith("~~")
         ]
         return notes[-count:]
+
+    def mark_used(self, what: str) -> int:
+        """Strike through the current page's notes about `what` ("the vault
+        code" strikes every note mentioning the vault). Nothing is deleted.
+        Returns how many notes were struck."""
+        path = self.current_page()
+        topic = topic_words(what)
+        if not topic or not path.is_file():
+            return 0
+        lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+        struck = 0
+        for i, line in enumerate(lines):
+            m = _NOTE_LINE.match(line.rstrip("\n"))
+            if m and not m["note"].startswith("~~") and topic & set(_words(m["note"])):
+                lines[i] = f"{m['head']}~~{m['note']}~~\n"
+                struck += 1
+        if struck:
+            with path.open("w", encoding="utf-8") as f:
+                f.write("".join(lines))
+                f.flush()
+                os.fsync(f.fileno())
+        return struck
 
     @property
     def viewer(self) -> str:

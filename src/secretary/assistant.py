@@ -57,6 +57,7 @@ from .lookup import Lookup, follow_up, lookup_request, render, usable
 from .notes import (
     Notebook,
     NoteRequest,
+    asks_for_a_code,
     clean_note,
     is_cancel,
     note_request,
@@ -300,15 +301,18 @@ class Assistant:
             await self._read_requested(req)
             return
 
+        notes = await self._notes_for_prompt()
+        # "What's the gate code?" with the gate in the notes: answer from them now.
+        from_notes = notes is not None and asks_for_a_code(text, notes[1])
         messages = build_messages(
             self.persona,
             self.context_brief(),
             self.history,
             text,
             history_turns=self._history_turns,
-            wikipedia=await self._wikipedia_for(text),
+            wikipedia=None if from_notes else await self._wikipedia_for(text),
             mention_source=self._wiki_mention_source,
-            notes=await self._notes_for_prompt(),
+            notes=notes,
         )
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
@@ -535,6 +539,21 @@ class Assistant:
                 line = started.format(page=page.stem)
                 if notebook.viewer and not await asyncio.to_thread(notebook.open, page):
                     line += " " + lines.note_open_failed.format(viewer=notebook.viewer)
+            elif request.kind == "used":
+                if not request.text:
+                    line = lines.note_mark_which
+                else:
+                    count = await asyncio.to_thread(notebook.mark_used, request.text)
+                    what = request.text
+                    line = (
+                        lines.note_marked_used.format(
+                            count=f"{count} note" + ("s" if count != 1 else ""), what=what
+                        )
+                        if count
+                        else lines.note_marked_none.format(
+                            what=what, page=notebook.current_page().stem
+                        )
+                    )
             elif request.kind == "where":
                 page = notebook.current_page()
                 line = lines.note_where.format(page=page.stem, path=page)

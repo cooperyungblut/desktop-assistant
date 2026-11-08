@@ -306,3 +306,45 @@ def test_recent_page_skips_old_pages(tmp_path):
     assert nb.recent_page() == page
     os.utime(page, (1, 1))
     assert notebook(tmp_path).recent_page() is None  # days old, new session
+
+
+@pytest.mark.parametrize(
+    ("text", "what"),
+    [
+        ("Mark all of the vault code notes as used.", "vault"),
+        ("cross off the vault code", "vault"),
+        ("archive the gate code", "gate"),
+        ("cross the gate off", "gate"),
+        ("Archive that.", ""),
+        ("mark the password as done", "password"),
+    ],
+)
+def test_marking_notes_used(text, what):
+    assert note_request(text, "Juniper") == NoteRequest("used", what)
+
+
+@pytest.mark.parametrize("text", ["mark my calendar", "check out this video"])
+def test_not_marking_notes(text):
+    assert note_request(text, "Juniper") is None
+
+
+def test_mark_used_strikes_matching_notes(tmp_path):
+    nb = notebook(tmp_path, timestamps=False)
+    for note in ("VaultDigit2 is 7", "vault digit 4 is 2", "gate code 3258"):
+        page = nb.write(note)
+    assert nb.mark_used("vault") == 2
+    assert page.read_text(encoding="utf-8") == (
+        "# Notes\n\n- ~~VaultDigit2 is 7~~\n- ~~vault digit 4 is 2~~\n- gate code 3258\n"
+    )
+    assert nb.last_notes() == ["gate code 3258"]
+    assert nb.mark_used("vault") == 0
+
+
+def test_code_questions_skip_the_lookup():
+    from secretary.notes import asks_for_a_code
+
+    notes = ["VaultDigit2 is 7", "padlock 5 5 5 6"]
+    assert asks_for_a_code("What is the vault code?", notes)
+    assert asks_for_a_code("what's the padlock combination", notes)
+    assert not asks_for_a_code("What is a padlock?", notes)
+    assert not asks_for_a_code("what's the gate code", notes)
