@@ -110,6 +110,22 @@ class WikiConfig(BaseModel):
     warm_up: bool = True
 
 
+class NotesConfig(BaseModel):
+    """Notes she writes down for you (see secretary/notes.py and docs/notes.md)."""
+
+    enabled: bool = True
+    # One Markdown file per page. Keep it out of the repo (data/ is git-ignored);
+    # a synced folder works too if you want the notes on your phone.
+    dir: Path = Path("data/notes")
+    # The page used until you start another one.
+    default_page: str = "Notes"
+    timestamps: bool = True  # "- [17:21] the safe code is 4471"
+    # What shows a page when she starts one, or when you say "open my notes":
+    # an editor's path (Notepad++ reloads changed files live), "default" for the
+    # system's app for .md files, or "" to never open anything.
+    open_with: str = ""
+
+
 class AppConfig(BaseModel):
     secretary_dir: Path = Field(description="Synced folder holding briefs/ and escalations/")
     state_file: Path = Path("data/state.json")
@@ -124,6 +140,7 @@ class AppConfig(BaseModel):
     brief_framing: FramingConfig = FramingConfig()
     calendar: CalendarConfig = CalendarConfig()
     wiki: WikiConfig = WikiConfig()
+    notes: NotesConfig = NotesConfig()
 
     @property
     def briefs_dir(self) -> Path:
@@ -153,4 +170,5 @@ def load_config(path: Path) -> AppConfig:
     config.calendar.token_file = resolve(config.calendar.token_file)
     config.wiki.source = resolve(config.wiki.source)
     config.wiki.index_file = resolve(config.wiki.index_file)
+    config.notes.dir = resolve(config.notes.dir)
     return config

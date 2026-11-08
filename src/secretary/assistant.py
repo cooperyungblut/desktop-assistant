@@ -19,6 +19,7 @@ Event types sent to the UI:
     escalated    {id, question}
     calendar_added {title, link}  an event she added after a yes
     calendar_removed {title}      an event she removed after a yes
+    note_added   {page, text}     a note she wrote down
     error        {message}
 """
 
@@ -53,6 +54,7 @@ from .framing import BriefFramer, FrameLine, paragraphs, split_greeting, split_s
 from .google_calendar import Calendar, CalendarError, FoundEvent, NoCalendar
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .lookup import Lookup, follow_up, lookup_request, render, usable
+from .notes import Notebook, NoteRequest, clean_note, is_cancel, note_request
 from .persona import Persona
 from .prompt import Turn, build_messages
 from .state import StateStore
@@ -82,6 +84,7 @@ class Assistant:
         calendar: Calendar | None = None,
         calendar_config: CalendarConfig | None = None,
         wiki: Lookup | None = None,
+        notebook: Notebook | None = None,
         wiki_timeout: float = 15.0,
         wiki_notice_after: float = 1.5,
         wiki_mention_source: bool = True,
@@ -100,12 +103,15 @@ class Assistant:
         self._calendar = calendar or NoCalendar()
         self._calendar_config = calendar_config or CalendarConfig()
         self._wiki = wiki
+        self._notebook = notebook
         self._wiki_timeout = wiki_timeout
         self._wiki_notice_after = wiki_notice_after
         self._wiki_mention_source = wiki_mention_source
         self._last_looking_up: str | None = None
         self._wiki_topic: str | None = None  # the article the last lookup named
         self._now = now
+        # When she asked "what should I write down?" (the next message is the note).
+        self._note_asked: float | None = None
         # The event she just read back (to add, or to remove), waiting for a yes,
         # and when she asked.
         self._pending: tuple[EventDraft | FoundEvent, float] | None = None
@@ -275,6 +281,8 @@ class Assistant:
         text = text.strip()
         if not text:
             return
+        if await self._notes_turn(text):
+            return
         if await self._calendar_turn(text):
             return
         if escalations.wants_escalation(text):
@@ -439,6 +447,77 @@ class Assistant:
         await self._express("neutral")
         await self._say(line)
         await self._emit({"type": "speech_done"})
+
+    # ---- notes ----------------------------------------------------------------
+
+    NOTE_ANSWER_SECONDS = 120.0
+
+    async def _notes_turn(self, text: str) -> bool:
+        """ "Write that down: ..." and friends. True if handled. The note is written
+        exactly as heard; the model never sees or rewrites it."""
+        lines = self.persona.lines
+        asked, self._note_asked = self._note_asked, None
+        if asked is not None and time.monotonic() - asked <= self.NOTE_ANSWER_SECONDS:
+            if is_cancel(text):
+                await self._reply_line(lines.note_cancelled, text)
+                return True
+            if note_request(text, self.persona.name) is None:
+                await self._write_note(clean_note(text), text)
+                return True
+        if escalations.wants_escalation(text):
+            return False
+        request = note_request(text, self.persona.name)
+        if request is None:
+            return False
+        notebook = self._notebook
+        if notebook is None or not notebook.enabled:
+            await self._reply_line(lines.notes_off, text)
+            return True
+        await self._note_action(notebook, request, text)
+        return True
+
+    async def _note_action(self, notebook: Notebook, request: NoteRequest, text: str) -> None:
+        lines = self.persona.lines
+        if request.kind == "write":
+            if request.text:
+                await self._write_note(request.text, text)
+            else:
+                self._note_asked = time.monotonic()
+                await self._reply_line(lines.note_ask, text)
+            return
+        try:
+            if request.kind == "new_page":
+                page = await asyncio.to_thread(notebook.new_page, request.text)
+                line = lines.note_page_started.format(page=page.stem)
+            elif request.kind == "read":
+                notes = await asyncio.to_thread(notebook.last_notes)
+                page = notebook.current_page().stem
+                line = (
+                    lines.note_read.format(page=page, notes="; ".join(notes))
+                    if notes
+                    else lines.note_read_empty.format(page=page)
+                )
+            elif await asyncio.to_thread(notebook.open):
+                line = lines.note_opened
+            else:
+                line = lines.note_no_viewer.format(folder=notebook.dir)
+        except OSError as exc:
+            line = lines.note_failed.format(reason=exc.strerror or exc)
+        await self._reply_line(line, text)
+
+    async def _write_note(self, note: str, text: str) -> None:
+        notebook = self._notebook
+        if notebook is None or not notebook.enabled:
+            await self._reply_line(self.persona.lines.notes_off, text)
+            return
+        try:
+            page = await asyncio.to_thread(notebook.write, note)
+        except OSError as exc:
+            reason = exc.strerror or str(exc)
+            await self._reply_line(self.persona.lines.note_failed.format(reason=reason), text)
+            return
+        await self._emit({"type": "note_added", "page": page.stem, "text": note})
+        await self._reply_line(self.persona.lines.note_written.format(note=note), text)
 
     # ---- calendar -------------------------------------------------------------
 

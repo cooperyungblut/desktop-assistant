@@ -65,6 +65,10 @@ https://github.com/user-attachments/assets/f6dc1b93-f154-4ee3-8c28-ec2f78aa97e9
   live news are never looked up. Setup in [`docs/wikipedia.md`](docs/wikipedia.md).
 - **Natural numbers in speech**: the chat shows "1909" and "10:30", and she
   says "nineteen oh nine" and "ten thirty".
+- **Notes**: "write that down: the safe code is 4471" appends the line,
+  exactly as heard, to a Markdown page in a local folder. Notepad++ on a side
+  monitor shows it live. "Start a new page called ..." and "read me my notes"
+  work too. Setup in [`docs/notes.md`](docs/notes.md).
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
 

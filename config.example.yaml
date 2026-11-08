@@ -64,6 +64,16 @@ wiki:
   # rerank_mode: keep   # keep | fuse | rerank (scripts/eval_wiki.py --compare)
   warm_up: true        # read the index into the disk cache at startup (background)
 
+# Notes she writes down: "write that down: the safe code is 4471". One Markdown
+# file per page, a line per note, flushed right away so an editor that reloads
+# changed files shows it live. See docs/notes.md
+notes:
+  enabled: true
+  dir: data/notes      # git-ignored; any folder works, e.g. C:/Users/you/Documents/Notes
+  default_page: Notes  # used until you say "start a new page called ..."
+  timestamps: true     # "- [17:21] the safe code is 4471"
+  open_with: ""        # e.g. "C:/Program Files/Notepad++/notepad++.exe", or "default"
+
 # Push-to-talk speech input (Milestone 2). Needs: uv sync --extra tts --extra stt
 stt:
   engine: whisper      # "none" disables the mic button
