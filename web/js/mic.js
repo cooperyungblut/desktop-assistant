@@ -7,7 +7,7 @@ const MIN_MS = 300;      // shorter than this is an accidental tap
 const TAIL_MS = 200;     // keep recording briefly after release so the last word isn't clipped
 
 // Toggle mode's silence detection.
-export const SILENCE_MS = 3000;   // this long without speech after you've spoken ends the clip
+export const SILENCE_MS = 2000;   // this long without speech after you've spoken ends the clip
 const NO_SPEECH_MS = 8000;        // never spoke at all: give up and send nothing
 const MAX_MS = 60000;             // hard cap on one clip
 const SPEECH_RMS = 0.02;          // loudness that counts as talking (noise suppression is on)

@@ -38,7 +38,7 @@ https://github.com/user-attachments/assets/f6dc1b93-f154-4ee3-8c28-ec2f78aa97e9
   eased VRM facial expression. The moods are fixed in code; how each one looks
   is set per persona.
 - **Voice input**: hold V to ask out loud, or click the mic button, talk, and
-  pause (it sends after 3 s of silence). faster-whisper transcribes on the
+  pause (it sends after 2 s of silence). faster-whisper transcribes on the
   GPU (CPU works too), with names from the current brief as hints, and
   talking over the avatar interrupts her.
 - **Model eval**: `scripts/eval_models.py` scores local models on keeping the

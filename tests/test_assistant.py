@@ -798,3 +798,13 @@ async def test_bare_open_switches_only_to_existing_pages(env, tmp_path, fake_mod
     a.ask("open the door")  # not a page: goes to the model
     await finish(a)
     assert fake_model.requests
+
+
+async def test_switch_to_a_page_said_with_digits(env, tmp_path):
+    a, _, _ = notes_env(env, tmp_path)
+    for text in ("open a page called Test Test II", "start a new page called Other"):
+        a.ask(text)
+        await finish(a)
+    a.ask("Switch to test test 2.")
+    await finish(a)
+    assert a.history[-1].content == "Back on Test Test II."
