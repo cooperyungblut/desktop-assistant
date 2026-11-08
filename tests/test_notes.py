@@ -266,3 +266,17 @@ def test_a_page_opened_this_session_is_used(tmp_path):
     later = notebook(tmp_path, default_page="JuniperNotes_{date}_{index}")
     assert later.current_page().name == "Escape room.md"  # reading/opening: newest page
     assert later.write("y").name.startswith("JuniperNotes_")  # writing: her own page
+
+
+def test_a_period_before_call_still_names_the_page():
+    assert note_request("Open Notes. Call TestTest2.") == NoteRequest("new_page", "TestTest2")
+    assert note_request("Open notes page, call, test for.") == NoteRequest("new_page", "test for")
+
+
+def test_sound_alike_numbers_find_a_page(tmp_path):
+    nb = notebook(tmp_path)
+    four = nb.new_page("Test4")
+    assert nb.find_page("Test For") == four
+    assert nb.find_page("test to") is None
+    sam = nb.new_page("Notes for Sam")
+    assert nb.find_page("notes for sam") == sam

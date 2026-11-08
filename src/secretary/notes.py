@@ -61,7 +61,7 @@ _NEW_PAGE = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
     r"(?:(?:start|make|create|open|begin)\s+)?(?:a\s+)?new\s+"
     r"(?:notes?\s+(?:page|file)|page\s+of\s+notes|notes|page|notepad)"
-    r"(?:[\s,]+(?:called|call|named|titled|for|about))?"
+    r"(?:[\s,.:;]+(?:called|call|named|titled|for|about))?"
     rf"{_END}{_PUNCT}(?P<name>.*)$",
     re.IGNORECASE | re.DOTALL,
 )
@@ -71,7 +71,7 @@ _NAMED_PAGE = re.compile(
     r"(?:"
     r"(?:start|make|create|open|begin|show\s+me)\s+(?:a\s+|the\s+|my\s+)?"
     r"(?:(?:notes?\s+)?(?:page|file|notepad)|notes?)"
-    r"[\s,]+(?:called|call|named|titled|for)"
+    r"[\s,.:;]+(?:called|call|named|titled|for)"
     r"|(?:switch|go\s+back|go|change)\s+to\s+(?:the\s+)?(?:notes?\s+)?page"
     r"(?:[\s,]+(?:called|call|named|titled))?"
     r"|(?:open|show\s+me|pull\s+up|bring\s+up)\s+(?:the\s+|my\s+)?"
@@ -248,8 +248,15 @@ _NUMBER_WORDS = {
 }
 
 
-def _page_key(name: str) -> str:
+# Words speech-to-text writes for a spoken number: "Test For" for Test4.
+# Only a fallback, so a real page "Notes for Sam" still matches as said.
+_SOUND_ALIKES = {"for": "4", "fore": "4", "to": "2", "too": "2", "won": "1", "ate": "8"}
+
+
+def _page_key(name: str, sound_alike: bool = False) -> str:
     words = re.findall(r"[a-z0-9]+", name.lower())
+    if sound_alike:
+        words = [_SOUND_ALIKES.get(w, w) for w in words]
     return "".join(_NUMBER_WORDS.get(w, w) for w in words)
 
 
@@ -315,7 +322,11 @@ class Notebook:
         exact = self.dir / page_file_name(name)
         if exact.is_file():
             return exact
-        return next((p for p in sorted(self.dir.glob("*.md")) if _page_key(p.stem) == key), None)
+        pages = sorted(self.dir.glob("*.md"))
+        if match := next((p for p in pages if _page_key(p.stem) == key), None):
+            return match
+        key = _page_key(name, sound_alike=True)
+        return next((p for p in pages if _page_key(p.stem, sound_alike=True) == key), None)
 
     def previous_page(self) -> Path | None:
         """Step back one page, by when each was last written, from the current
