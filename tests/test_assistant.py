@@ -785,3 +785,16 @@ async def test_the_page_before_that(env, tmp_path):
     a.ask("Can you open the one before that?")
     await finish(a)
     assert a.history[-1].content == "That's the oldest page I have."
+
+
+async def test_bare_open_switches_only_to_existing_pages(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    for text in ("open a page called testMonitorOn", "start a new page called Other"):
+        a.ask(text)
+        await finish(a)
+    a.ask("Open Test Monitor on.")
+    await finish(a)
+    assert a.history[-1].content == "Back on testMonitorOn."
+    a.ask("open the door")  # not a page: goes to the model
+    await finish(a)
+    assert fake_model.requests

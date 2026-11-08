@@ -51,6 +51,9 @@ def test_write_requests(text, note):
         ("Open the last notes page", NoteRequest("latest")),
         ("Can you open the one before that?", NoteRequest("previous")),
         ("the one before that", NoteRequest("previous")),
+        ("Open the one before that, please.", NoteRequest("previous")),
+        ("Open my last notes page, please", NoteRequest("latest")),
+        ("Read my notes please.", NoteRequest("read")),
         ("go back to the previous page", NoteRequest("previous")),
         ("Open the notes page test monitor on", NoteRequest("new_page", "test monitor on")),
         ("open the page Test2", NoteRequest("new_page", "Test2")),
@@ -212,3 +215,16 @@ def test_previous_steps_back_through_pages(tmp_path):
     assert nb.previous_page().stem == "A"
     assert nb.previous_page() is None
     assert nb.current_page().stem == "A"
+
+
+def test_bare_open_names_a_page():
+    from secretary.notes import open_page_name
+
+    assert open_page_name("Open Test Monitor on.") == "Test Monitor on"
+    assert open_page_name("Juniper, switch to Test2 please", "Juniper") == "Test2"
+    assert open_page_name("open the Escape room page") == "Escape room"
+    assert open_page_name("what time is it") is None
+
+
+def test_please_stays_in_a_note():
+    assert note_request("write down: ask her please") == NoteRequest("write", "ask her please")

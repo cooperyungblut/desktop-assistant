@@ -123,6 +123,16 @@ _CANCEL = re.compile(
     r"^\s*(?:never\s*mind|nevermind|cancel|forget\s+it|nothing|no)\b[\s.!?,]*\w*[\s.!?]*$",
     re.IGNORECASE,
 )
+_TRAILING_POLITE = re.compile(
+    r"[\s,]+(?:please|thanks|thank\s+you|for\s+me)[\s.!?]*$", re.IGNORECASE
+)
+# "open Test Monitor on": only used when it names a page that already exists.
+_OPEN_ANY = re.compile(
+    rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:open|show\s+me|pull\s+up|bring\s+up|switch\s+to|go\s+(?:back\s+)?to)\s+"
+    r"(?:up\s+)?(?:the\s+|my\s+)?(?P<name>.+?)(?:\s+(?:page|notes?))?[\s.!?]*$",
+    re.IGNORECASE | re.DOTALL,
+)
 _NOT_A_NAME = {"please", "now", "again", "up", "for me", "back up"}
 _LEADING_THAT = re.compile(r"^(?:that|this)\s+(?=\S)", re.IGNORECASE)
 _BAD_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -148,15 +158,17 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
     `name` is hers, so "Juniper, write that down: ..." works too."""
     if name:
         text = re.sub(rf"^\s*(?:hey\s+)?{re.escape(name)}\b[\s,.!:]*", "", text, flags=re.I)
-    if _OPEN.match(text):
+    # Commands may end in "please"; notes keep every word, so write uses `text`.
+    command = _TRAILING_POLITE.sub("", text)
+    if _OPEN.match(command):
         return NoteRequest("open")
-    if _LATEST.match(text):
+    if _LATEST.match(command):
         return NoteRequest("latest")
-    if _PREVIOUS.match(text):
+    if _PREVIOUS.match(command):
         return NoteRequest("previous")
-    if _READ.match(text):
+    if _READ.match(command):
         return NoteRequest("read")
-    if m := _NEW_PAGE.match(text) or _NAMED_PAGE.match(text):
+    if m := _NEW_PAGE.match(command) or _NAMED_PAGE.match(command):
         name = clean_note(m["name"]).rstrip("?!")
         if name.lower().strip(" .,!") in _NOT_A_NAME:  # "open my notes please"
             return NoteRequest("open")
@@ -168,6 +180,15 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
     if m := _TRAILING.match(text):
         return NoteRequest("write", clean_note(m["rest"]))
     return None
+
+
+def open_page_name(text: str, name: str | None = None) -> str | None:
+    """The page name in a bare "open X" / "switch to X". The caller checks that
+    such a page exists, so "open the door" never becomes a page."""
+    if name:
+        text = re.sub(rf"^\s*(?:hey\s+)?{re.escape(name)}\b[\s,.!:]*", "", text, flags=re.I)
+    m = _OPEN_ANY.match(_TRAILING_POLITE.sub("", text))
+    return clean_note(m["name"]).rstrip("?!") if m else None
 
 
 def is_cancel(text: str) -> bool:
