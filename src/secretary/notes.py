@@ -47,8 +47,10 @@ _LEADING = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 # "The code is 4471, write that down."
+# It needs punctuation before the command, or a "can you", so a question like
+# "where did you write that down?" never ends up as a note.
 _TRAILING = re.compile(
-    r"^\s*(?P<rest>.+?)[\s,.;:\-–—]+"
+    r"^\s*(?P<rest>.+?)(?:\s*[,.;:\-–—]\s*|\s+(?=(?:can|could|would|will|please)\b))"
     rf"{_POLITE}(?:write|jot|note)\s+(?:that|this|it)\s+down"
     r"(?:\s+for\s+me)?(?:\s+please)?[\s.!?]*$",
     re.IGNORECASE | re.DOTALL,
@@ -71,6 +73,13 @@ _READ = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+# "Where did you write that down?", "which page are my notes on?"
+_WHERE = re.compile(
+    r"\b(?:where|which\s+(?:page|file)|what\s+(?:page|file))"
+    r"(?:\s+[\w'’]+){0,4}?\s+"
+    r"(?:write|wrote|written|put|save|saved|jot|jotted|note|noted|notes)\b",
+    re.IGNORECASE,
+)
 _OPEN = re.compile(
     rf"^\s*{_FILLER}{_POLITE}(?:open|show)\s+(?:me\s+)?(?:my|the)\s+notes?\b[\s.!?]*$",
     re.IGNORECASE,
@@ -85,7 +94,7 @@ _BAD_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 @dataclass(frozen=True)
 class NoteRequest:
-    kind: Literal["write", "new_page", "read", "open"]
+    kind: Literal["write", "new_page", "read", "open", "where"]
     text: str = ""  # the note, or the new page's name ("" = ask / use a dated name)
 
 
@@ -111,6 +120,8 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
         return NoteRequest("new_page", clean_note(m["name"]).rstrip("?!"))
     if m := _LEADING.match(text):
         return NoteRequest("write", clean_note(m["rest"]))
+    if _WHERE.search(text):
+        return NoteRequest("where")
     if m := _TRAILING.match(text):
         return NoteRequest("write", clean_note(m["rest"]))
     return None

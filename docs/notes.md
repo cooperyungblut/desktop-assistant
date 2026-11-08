@@ -14,6 +14,7 @@ keep open on another monitor.
 | "Start a new page called Escape room" | Creates `Escape room.md` and writes there from now on |
 | "Start a new page" | Same, named with the date and time |
 | "Read me my notes" / "What did I write down?" | Reads the last five notes on the current page |
+| "Where did you write that down?" | Names the current page and its file |
 | "Open my notes" | Opens the current page in your viewer (see below) |
 
 The note is written exactly as it was heard, in code: the chat model never
@@ -43,12 +44,16 @@ up on your phone too.
    `config.yaml` (the 32-bit version installs to
    `C:/Program Files (x86)/Notepad++/notepad++.exe` instead). She then opens each new page in Notepad++ when she starts it,
    and "open my notes" opens the current one.
-2. In Notepad++, Settings > Preferences > MISC. > File Status Auto-detection:
-   pick "Enable for all opened files" and tick "Update silently" and "Scroll
-   to the last line after update".
-3. Drag the Notepad++ window to the side monitor. If the page only refreshes
-   when you click into Notepad++, turn on View > Monitoring (tail -f) (the eye
-   icon) for that tab: it reloads in the background while you stay in the game.
+2. In the Notepad++ tab, turn on View > Monitoring (tail -f) (the eye icon).
+   This is what makes new notes show up while you're in another window. The
+   tab goes read-only, which is fine since she does the writing. Turn it on
+   again for each new page.
+3. Drag the Notepad++ window to the side monitor.
+
+Without Monitoring, Notepad++ only checks the file when you click into it, and
+it asks "This file has been modified by another program. Reload?" unless
+Settings > Preferences > MISC. > File Status Auto-detection has "Update
+silently" ticked.
 
 Opening a page brings Notepad++ to the front, which can pull you out of a
 full-screen game. Start the page before you start playing, or leave
