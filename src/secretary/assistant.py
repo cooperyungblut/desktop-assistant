@@ -504,10 +504,18 @@ class Assistant:
                     if notes
                     else lines.note_read_empty.format(page=page)
                 )
-            elif request.kind == "latest":
-                page = await asyncio.to_thread(notebook.latest_page)
+            elif request.kind == "previous" and (
+                (page := await asyncio.to_thread(notebook.previous_page)) is None
+            ):
+                line = lines.note_no_previous
+            elif request.kind in ("latest", "previous"):
+                if request.kind == "latest":
+                    page = await asyncio.to_thread(notebook.latest_page)
+                    opened = lines.note_latest_opened
+                else:
+                    opened = lines.note_previous_opened
                 if await asyncio.to_thread(notebook.open, page):
-                    line = lines.note_latest_opened.format(page=page.stem)
+                    line = opened.format(page=page.stem)
                 elif notebook.viewer:
                     line = lines.note_open_failed.format(viewer=notebook.viewer)
                 else:

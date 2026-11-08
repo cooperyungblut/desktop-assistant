@@ -96,3 +96,10 @@ def test_general_questions_leave_the_brief_out(persona):
 def test_changing_facts_get_the_latest_answer_not_a_dodge(persona):
     system = build_messages(persona, None, [], "q")[0]["content"]
     assert "may have changed since" in system
+
+
+def test_prompt_knows_notes_are_app_commands_and_she_is_general(persona):
+    system = build_messages(persona, None, [], "hi")[0]["content"]
+    assert "open the one before that" in system and "never claim you did" in system
+    assert "general assistant" in system
+    assert "don't bring it up unless" in system

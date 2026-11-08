@@ -48,6 +48,14 @@ def test_write_requests(text, note):
             NoteRequest("new_page", "the lighthouse puzzle"),
         ),
         ("Open the latest notes.", NoteRequest("latest")),
+        ("Open the last notes page", NoteRequest("latest")),
+        ("Can you open the one before that?", NoteRequest("previous")),
+        ("the one before that", NoteRequest("previous")),
+        ("go back to the previous page", NoteRequest("previous")),
+        ("Open the notes page test monitor on", NoteRequest("new_page", "test monitor on")),
+        ("open the page Test2", NoteRequest("new_page", "Test2")),
+        ("open my notes please", NoteRequest("open")),
+        ("Open notes.", NoteRequest("open")),
         ("pull up my last page", NoteRequest("latest")),
         ("Juniper, show me the most recent notes", NoteRequest("latest")),
         ("Read me my notes.", NoteRequest("read")),
@@ -179,3 +187,28 @@ def test_latest_page_is_the_newest_file(tmp_path):
     os.utime(old, (1, 1))
     nb.new_page("Old")  # current is Old, but New was written last
     assert nb.latest_page() == new
+
+
+def test_spoken_names_find_existing_pages(tmp_path):
+    nb = notebook(tmp_path)
+    page = nb.new_page("testMonitorOn")
+    nb.new_page("Other")
+    assert nb.find_page("test monitor on") == page
+    assert nb.new_page("Test Monitor On.") == page
+    assert nb.current_page() == page
+    assert nb.find_page("nope") is None
+
+
+def test_previous_steps_back_through_pages(tmp_path):
+    import os
+
+    nb = notebook(tmp_path)
+    for i, name in enumerate(("A", "B", "C")):
+        page = nb.new_page(name)
+        nb.write(name)
+        os.utime(page, (i + 1, i + 1))
+    assert nb.latest_page().stem == "C"
+    assert nb.previous_page().stem == "B"
+    assert nb.previous_page().stem == "A"
+    assert nb.previous_page() is None
+    assert nb.current_page().stem == "A"
