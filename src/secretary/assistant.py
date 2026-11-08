@@ -54,7 +54,14 @@ from .framing import BriefFramer, FrameLine, paragraphs, split_greeting, split_s
 from .google_calendar import Calendar, CalendarError, FoundEvent, NoCalendar
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .lookup import Lookup, follow_up, lookup_request, render, usable
-from .notes import Notebook, NoteRequest, clean_note, is_cancel, note_request
+from .notes import (
+    Notebook,
+    NoteRequest,
+    clean_note,
+    is_cancel,
+    note_request,
+    open_page_name,
+)
 from .persona import Persona
 from .prompt import Turn, build_messages
 from .state import StateStore
@@ -467,9 +474,14 @@ class Assistant:
         if escalations.wants_escalation(text):
             return False
         request = note_request(text, self.persona.name)
+        notebook = self._notebook
+        if request is None and notebook is not None and notebook.enabled:
+            # "Open Test Monitor on": a page name with no "notes" or "page" in it.
+            page = open_page_name(text, self.persona.name)
+            if page and await asyncio.to_thread(notebook.find_page, page):
+                request = NoteRequest("new_page", page)
         if request is None:
             return False
-        notebook = self._notebook
         if notebook is None or not notebook.enabled:
             await self._reply_line(lines.notes_off, text)
             return True
