@@ -180,6 +180,9 @@ def reminder(persona: Persona) -> str:
         f"{', '.join(persona.personality.traits[:2])}. "
         f"Answer in {persona.personality.answer_length}. "
         "Begin with one mood tag. "
+        "If you write, cross off, open or rename notes, put its tag in this reply "
+        "([note: ...], [cross off: ...], [open page: ...], [rename page: ...]); "
+        "without the tag nothing happens. "
         "Keep every fact from the brief and any Wikipedia passages exactly right; "
         "for anything else, give your best guess and say how sure you are.)"
     )
@@ -211,6 +214,13 @@ what to write, write only UNKNOWN.
 Your answer to it: {answer}
 Notes on "{page}", oldest first:
 {notes}"""
+
+
+ACTION_REPAIR = """\
+Your last reply said you changed {user}'s notes, but it had no tag, so nothing
+happened. Write only the tags for what you said you did, using the notes and the
+conversation, for example: [cross off: gate 3258] or [note: path is left, right].
+If you didn't mean to change the notes, write only NONE."""
 
 
 def build_note_messages(

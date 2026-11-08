@@ -34,3 +34,13 @@ def test_strip_actions():
 
 def test_rename_tag():
     assert run("Done. [rename page: Haunted House]")[1] == [Action("rename_page", "Haunted House")]
+
+
+def test_claims():
+    from secretary.actions import claims_an_action
+
+    assert claims_an_action("I have crossed off the gate code 3258 for you.")
+    assert claims_an_action("Okay, I've written that down.")
+    assert claims_an_action("Done, crossed it off.")
+    assert not claims_an_action("The gate code is 3258.")
+    assert not claims_an_action("I can do that for you.")

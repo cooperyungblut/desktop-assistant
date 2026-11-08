@@ -174,6 +174,9 @@ def clean_note(text: str) -> str:
     return text
 
 
+_ASKED = re.compile(r"^\s*(?:hey|so|okay|ok)?[\s,]*(?:can|could|would|will)\s+you\b", re.IGNORECASE)
+
+
 def note_request(text: str, name: str | None = None) -> NoteRequest | None:
     """`NoteRequest` if the text asks her to take, start, read or open notes.
     `name` is hers, so "Juniper, write that down: ..." works too."""
@@ -203,7 +206,10 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
             return NoteRequest("open")
         return NoteRequest("new_page", name)
     if m := _LEADING.match(text):
-        return NoteRequest("write", clean_note(m["rest"]))
+        note = clean_note(m["rest"])
+        if _ASKED.match(text):  # "can you write down that ...?": the "?" is the asking
+            note = clean_note(note.rstrip("?").rstrip())
+        return NoteRequest("write", note)
     if _WHERE.search(text):
         return NoteRequest("where")
     if m := _TRAILING.match(text):

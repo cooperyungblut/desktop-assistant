@@ -419,3 +419,10 @@ def test_a_number_picks_one_note(tmp_path):
     assert page.read_text(encoding="utf-8").endswith(
         "- gate code 3258\n- ~~gate code 2438~~\n- ~~padlock 5 5 5 6~~\n"
     )
+
+
+def test_an_asked_write_drops_the_question_mark():
+    assert note_request("Hey, can you write down that the path is left, left?") == NoteRequest(
+        "write", "the path is left, left"
+    )
+    assert note_request("write down: why?") == NoteRequest("write", "why?")

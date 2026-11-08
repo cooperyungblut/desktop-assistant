@@ -1008,3 +1008,45 @@ async def test_crossing_off_a_note_on_another_page(env, tmp_path, fake_model):
     assert a.history[-1].content == (
         "Actually, I couldn't find a note about gate 9999 to cross off."
     )
+
+
+class _Replies:
+    """A model that gives each reply in turn (the last one repeats)."""
+
+    def __init__(self, *replies: str):
+        self.replies = list(replies)
+        self.requests: list = []
+
+    async def stream_chat(self, messages, options):
+        self.requests.append(list(messages))
+        yield self.replies.pop(0) if len(self.replies) > 1 else self.replies[0]
+
+
+async def test_a_claim_without_a_tag_is_followed_through(env, tmp_path):
+    a, _, page = notes_env(env, tmp_path)
+    a.ask("write down gate code 3258")
+    await finish(a)
+    a._model = model = _Replies("I have crossed off the gate code 3258.", "[cross off: gate 3258]")
+    a.ask("we used the gate one, get rid of it")
+    await finish(a)
+    assert "~~gate code 3258~~" in page.read_text(encoding="utf-8")
+    assert len(model.requests) == 2
+    assert "nothing\nhappened" in model.requests[1][-1]["content"]
+    assert a.history[-1].content.endswith("[cross off: gate 3258]")
+
+
+async def test_no_repair_when_she_meant_nothing(env, tmp_path):
+    a, _, _ = notes_env(env, tmp_path)
+    a._model = model = _Replies("I've added a bit of thyme, it's lovely.", "NONE")
+    a.ask("what goes well with lamb?")
+    await finish(a)
+    assert len(model.requests) == 2
+    assert a.history[-1].content == "I've added a bit of thyme, it's lovely."
+
+
+async def test_no_repair_for_ordinary_replies(env, tmp_path):
+    a, _, _ = notes_env(env, tmp_path)
+    a._model = model = _Replies("Lamb goes well with rosemary.")
+    a.ask("what goes well with lamb?")
+    await finish(a)
+    assert len(model.requests) == 1

@@ -89,3 +89,26 @@ def as_tags(actions: list[Action]) -> str:
         "rename_page": "rename page",
     }
     return " ".join(f"[{names[a.kind]}: {a.text}]" for a in actions)
+
+
+# "I've crossed off the gate code", "I wrote that down": a reply that says it
+# changed the notes. Without a tag nothing happened, so the app asks her again.
+_CLAIM = re.compile(
+    r"\bI(?:'ve|’ve|\s+have)?\s+(?:just\s+|now\s+|also\s+|already\s+)?"
+    r"(?:crossed|marked|struck|written|wrote|noted|jotted|renamed|updated|archived|added|"
+    r"switched|opened|changed|saved|put)\b"
+    r"|\b(?:crossed|marked|struck)\s+(?:it|that|them|those)?\s*(?:off|out)\b"
+    r"|\b(?:wrote|written|jotted)\s+(?:it|that|this)\s+down\b",
+    re.IGNORECASE,
+)
+
+
+def claims_an_action(reply: str) -> bool:
+    return bool(_CLAIM.search(reply))
+
+
+def parse_actions(text: str) -> list[Action]:
+    f = ActionFilter()
+    f.feed(text)
+    f.flush()
+    return f.actions
