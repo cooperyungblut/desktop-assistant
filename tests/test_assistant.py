@@ -926,3 +926,42 @@ async def test_a_code_on_an_older_page_is_found(env, tmp_path, fake_model):
     a.ask("What is the vault code?")
     await finish(a)
     assert "Test4" not in str(fake_model.requests[-1][-3:])
+
+
+async def test_she_writes_a_note_herself(env, tmp_path, fake_model):
+    a, events, page = notes_env(env, tmp_path)
+    fake_model.reply = "[happy] Got it, noted. [note: vault code 5526]"
+    a.ask("The vault code is 55 then 26")
+    await finish(a)
+    assert page.read_text(encoding="utf-8").endswith("- vault code 5526\n")
+    assert {"type": "note_added", "page": "Notes", "text": "vault code 5526"} in events
+    assert a.history[-1].content.endswith("[note: vault code 5526]")
+    assert "[note:" not in a.history[-1].content.split("noted.")[0]
+
+
+async def test_she_updates_a_note_by_crossing_off_and_writing(env, tmp_path, fake_model):
+    a, _, page = notes_env(env, tmp_path)
+    a.ask("write down vault code 6762")
+    await finish(a)
+    fake_model.reply = "Updated. [cross off: vault] [note: vault code 5526]"
+    a.ask("yes, update it")
+    await finish(a)
+    assert page.read_text(encoding="utf-8").endswith("- ~~vault code 6762~~\n- vault code 5526\n")
+
+
+async def test_she_opens_a_page_herself(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    fake_model.reply = "Switching over. [open page: Escape room]"
+    a.ask("let's use the escape room notes")
+    await finish(a)
+    assert (tmp_path / "notes" / "Escape room.md").is_file()
+    assert a._notebook.current_page().stem == "Escape room"
+
+
+async def test_she_owns_up_when_notes_are_off(env, fake_model):
+    a, _, _, _ = env
+    fake_model.reply = "Noted. [note: x]"
+    a.ask("keep that in mind")
+    await finish(a)
+    assert a.history[-1].content == "Note taking is turned off in my settings."
+    assert [t.content for t in a.history[-3:-1]] == ["keep that in mind", "Noted. [note: x]"]

@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from . import commands, escalations
+from .actions import Action, ActionFilter, as_tags
 from .briefs import Brief
 from .calendar_requests import (
     EventDraft,
@@ -326,6 +327,7 @@ class Assistant:
         await self._emit({"type": "reply_start", "id": rid})
         splitter = SentenceSplitter()
         tags = TagFilter()  # pulls "[happy]" etc. out before display and speech
+        actions = ActionFilter()  # pulls "[note: ...]" etc. out, done after the reply
         speech: asyncio.Queue[str | None] = asyncio.Queue()
         speaking = asyncio.create_task(self._speak_queue(speech))
         reply: list[str] = []
@@ -355,7 +357,8 @@ class Assistant:
                 if first:
                     log.info("First token after %.1f s", time.perf_counter() - start)
                     first = False
-                await show(*tags.feed(token))
+                await show(*tags.feed(actions.feed(token)))
+            await show(*tags.feed(actions.flush()))
             await show(tags.flush(), [])
         except asyncio.CancelledError:
             speaking.cancel()  # interrupted: stop the speech pipeline too
@@ -369,6 +372,7 @@ class Assistant:
             reply = []
             splitter = SentenceSplitter()  # drop any half-finished sentence
             tags = TagFilter()
+            actions = ActionFilter()
             await show(self.persona.lines.model_unavailable, ["neutral"])
         finally:
             for sentence in splitter.flush():
@@ -381,9 +385,19 @@ class Assistant:
             # Keep the tag in history: seeing it in her earlier replies helps a
             # small model keep using the format.
             full = f"[{tags.mood}] {full}"
+        said = strip_tags(full)
+        if actions.actions:
+            # Keep the tags in history so she sees she can use them.
+            full = f"{full} {as_tags(actions.actions)}"
         self.history += [Turn("user", text), Turn("assistant", full)]
-        self._last_answer = (strip_tags(full), time.monotonic()) if full else None
+        self._last_answer = (said, time.monotonic()) if said else None
+        failed = await self._do_actions(actions.actions)
         await speaking
+        if failed:
+            await self._emit({"type": "speech_done"})
+            await self._reply_line(failed, "")
+            self.history = self.history[:-2] + [self.history[-1]]  # no empty user turn
+            return
         await self._emit({"type": "speech_done"})
 
     async def _wikipedia_for(self, text: str) -> str | None:
@@ -555,6 +569,30 @@ class Assistant:
         except OSError:
             return None
         return page.stem, notes
+
+    async def _do_actions(self, actions: list[Action]) -> str | None:
+        """Carry out the note actions she wrote into her reply. Returns a line to
+        say if one failed, so she never claims something that didn't happen."""
+        notebook = self._notebook
+        if not actions:
+            return None
+        lines = self.persona.lines
+        if notebook is None or not notebook.enabled:
+            return lines.notes_off
+        for action in actions:
+            try:
+                if action.kind == "write":
+                    page = await asyncio.to_thread(notebook.write, action.text)
+                    await self._emit({"type": "note_added", "page": page.stem, "text": action.text})
+                elif action.kind == "cross_off":
+                    await asyncio.to_thread(notebook.mark_used, action.text)
+                else:
+                    page = await asyncio.to_thread(notebook.new_page, action.text)
+                    if notebook.viewer and not await asyncio.to_thread(notebook.open, page):
+                        return lines.note_open_failed.format(viewer=notebook.viewer)
+            except OSError as exc:
+                return lines.note_failed.format(reason=exc.strerror or exc)
+        return None
 
     async def _older_notes_for(
         self, question: str, notes: tuple[str, list[str]] | None

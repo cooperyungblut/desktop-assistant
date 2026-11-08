@@ -29,6 +29,15 @@ The note is written exactly as it was heard, in code: the chat model never
 sees or rewrites it. She reads it back ("Got it, I wrote down: ..."), so you
 hear right away if Whisper misheard a number.
 
+### In your own words
+
+The phrases above are handled by the app directly and fast. Anything else goes to
+her, and she can act on notes herself: "the vault code is 55 then 26", "yes,
+update it", "let's use the escape room notes". She adds a hidden tag to her reply,
+`[note: ...]`, `[cross off: ...]` or `[open page: ...]`, the same way she adds
+mood tags. The app carries it out after she finishes speaking. If it fails
+(notes turned off, a file error), she says so instead.
+
 ## Where notes go
 
 `notes.dir` in `config.yaml` (default `data/notes`, which git ignores). Each
