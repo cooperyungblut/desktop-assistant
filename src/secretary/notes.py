@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -64,6 +65,27 @@ _NEW_PAGE = re.compile(
     rf"{_END}{_PUNCT}(?P<name>.*)$",
     re.IGNORECASE | re.DOTALL,
 )
+# "open a page called Test5", "switch to the page called Escape room"
+_NAMED_PAGE = re.compile(
+    rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:"
+    r"(?:start|make|create|open|begin|show\s+me)\s+(?:a\s+|the\s+|my\s+)?"
+    r"(?:(?:notes?\s+)?(?:page|file|notepad)|notes?)"
+    r"\s+(?:called|named|titled|for)"
+    r"|(?:switch|go\s+back|go|change)\s+to\s+(?:the\s+)?(?:notes?\s+)?page"
+    r"(?:\s+(?:called|named|titled))?"
+    r")"
+    rf"{_END}{_PUNCT}(?P<name>.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+# "open the latest notes", "pull up my last page"
+_LATEST = re.compile(
+    rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:open|show|pull\s+up|bring\s+up|go\s+to|switch\s+to|go\s+back\s+to)\s+(?:me\s+)?"
+    r"(?:my\s+|the\s+)?(?:latest|last|newest|most\s+recent|recent)\s+"
+    r"(?:notes?(?:\s+(?:page|file))?|page|file|notepad)\b[\s.!?]*$",
+    re.IGNORECASE,
+)
 _READ = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
     r"(?:"
@@ -94,7 +116,7 @@ _BAD_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 @dataclass(frozen=True)
 class NoteRequest:
-    kind: Literal["write", "new_page", "read", "open", "where"]
+    kind: Literal["write", "new_page", "read", "open", "latest", "where"]
     text: str = ""  # the note, or the new page's name ("" = ask / use a dated name)
 
 
@@ -114,9 +136,11 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
         text = re.sub(rf"^\s*(?:hey\s+)?{re.escape(name)}\b[\s,.!:]*", "", text, flags=re.I)
     if _OPEN.match(text):
         return NoteRequest("open")
+    if _LATEST.match(text):
+        return NoteRequest("latest")
     if _READ.match(text):
         return NoteRequest("read")
-    if m := _NEW_PAGE.match(text):
+    if m := _NEW_PAGE.match(text) or _NAMED_PAGE.match(text):
         return NoteRequest("new_page", clean_note(m["name"]).rstrip("?!"))
     if m := _LEADING.match(text):
         return NoteRequest("write", clean_note(m["rest"]))
@@ -131,7 +155,7 @@ def is_cancel(text: str) -> bool:
     return bool(_CANCEL.match(text))
 
 
-def _launch_command(viewer: str, path: Path) -> str | list[str]:
+def _launch_command(viewer: str, path: Path, args: Sequence[str] = ()) -> str | list[str]:
     """How to start the viewer so it shows up and outlives the app.
 
     On Windows this goes through `cmd /c start`: the desktop shell starts the
@@ -142,11 +166,23 @@ def _launch_command(viewer: str, path: Path) -> str | list[str]:
     if sys.platform == "win32":
         # A string, not a list: list2cmdline would escape start's "" title.
         # Windows paths can't contain quotes, so plain quoting is safe.
-        target = f'"{path}"' if viewer.lower() == "default" else f'"{viewer}" "{path}"'
-        return f'cmd /c start "" {target}'
+        if viewer.lower() == "default":
+            return f'cmd /c start "" "{path}"'
+        extra = "".join(f'"{a}" ' for a in args)
+        return f'cmd /c start "" "{viewer}" {extra}"{path}"'
     if viewer.lower() == "default":
         return ["open" if sys.platform == "darwin" else "xdg-open", str(path)]
-    return [viewer, str(path)]
+    return [viewer, *args, str(path)]
+
+
+def viewer_args(viewer: str, configured: Sequence[str] | None) -> list[str]:
+    """Extra arguments for the viewer. Unset means: Notepad++ gets -monitor, so
+    each page opens with Monitoring (tail -f) on and updates while you're in
+    another window; anything else gets none."""
+    if configured is not None:
+        return list(configured)
+    name = re.split(r"[\\/]", viewer)[-1].lower()
+    return ["-monitor"] if name == "notepad++.exe" else []
 
 
 def _launch_options() -> dict:
@@ -187,6 +223,16 @@ class Notebook:
             else:
                 self._current = self.dir / page_file_name(self._config.default_page)
         return self._current
+
+    def latest_page(self) -> Path:
+        """Switch to the page written most recently (the current one if none exist)."""
+        pages = list(self.dir.glob("*.md")) if self.dir.is_dir() else []
+        if pages:
+            self._current = max(pages, key=lambda p: p.stat().st_mtime)
+        return self.current_page()
+
+    def page_exists(self, name: str) -> bool:
+        return bool(name) and (self.dir / page_file_name(name)).is_file()
 
     def new_page(self, name: str) -> Path:
         """Start a page (or switch back to one that already exists) and make it current."""
@@ -244,7 +290,8 @@ class Notebook:
             log.error("notes.open_with %s doesn't exist", viewer)
             return False
         try:
-            subprocess.Popen(_launch_command(viewer, path), **_launch_options())
+            args = viewer_args(viewer, self._config.open_args)
+            subprocess.Popen(_launch_command(viewer, path, args), **_launch_options())
         except OSError:
             log.exception("Couldn't open %s with %s", path, viewer)
             return False

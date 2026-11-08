@@ -73,6 +73,7 @@ notes:
   default_page: Notes  # used until you say "start a new page called ..."
   timestamps: true     # "- [17:21] the safe code is 4471"
   open_with: ""        # e.g. "C:/Program Files/Notepad++/notepad++.exe", or "default"
+  # open_args: ["-monitor"]  # extra arguments; Notepad++ gets -monitor automatically
 
 # Push-to-talk speech input (Milestone 2). Needs: uv sync --extra tts --extra stt
 stt:

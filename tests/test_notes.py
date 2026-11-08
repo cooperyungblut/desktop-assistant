@@ -36,6 +36,20 @@ def test_write_requests(text, note):
         ("Start a new page called Escape Room.", NoteRequest("new_page", "Escape Room")),
         ("new notes for the lighthouse puzzle", NoteRequest("new_page", "the lighthouse puzzle")),
         ("Start a new page.", NoteRequest("new_page", "")),
+        ("Open a page called Notes 5.", NoteRequest("new_page", "Notes 5")),
+        ("Open a page called Test5.", NoteRequest("new_page", "Test5")),
+        ("Create a notes file named Lighthouse", NoteRequest("new_page", "Lighthouse")),
+        ("Switch to the page called Escape room", NoteRequest("new_page", "Escape room")),
+        ("go back to page Test2", NoteRequest("new_page", "Test2")),
+        ("Open notes called Escape room.", NoteRequest("new_page", "Escape room")),
+        ("open my notes called Test2", NoteRequest("new_page", "Test2")),
+        (
+            "Open the notes for the lighthouse puzzle",
+            NoteRequest("new_page", "the lighthouse puzzle"),
+        ),
+        ("Open the latest notes.", NoteRequest("latest")),
+        ("pull up my last page", NoteRequest("latest")),
+        ("Juniper, show me the most recent notes", NoteRequest("latest")),
         ("Read me my notes.", NoteRequest("read")),
         ("What did I write down?", NoteRequest("read")),
         ("what's in my notes", NoteRequest("read")),
@@ -122,6 +136,18 @@ def test_windows_launch_goes_through_start(monkeypatch, tmp_path):
     exe = "C:/Program Files/Notepad++/notepad++.exe"
     assert notes._launch_command(exe, page) == f'cmd /c start "" "{exe}" "{page}"'
     assert notes._launch_command("default", page) == f'cmd /c start "" "{page}"'
+    assert (
+        notes._launch_command(exe, page, ["-monitor"])
+        == f'cmd /c start "" "{exe}" "-monitor" "{page}"'
+    )
+
+
+def test_notepad_plus_plus_gets_monitor_by_default():
+    from secretary.notes import viewer_args
+
+    assert viewer_args("C:/Program Files (x86)/Notepad++/notepad++.exe", None) == ["-monitor"]
+    assert viewer_args("C:\\Tools\\code.exe", None) == []
+    assert viewer_args("C:/Notepad++/notepad++.exe", []) == []
 
 
 def test_open_with_a_missing_program_says_so(tmp_path):
@@ -140,3 +166,16 @@ def test_open_starts_the_viewer(monkeypatch, tmp_path):
     page = nb.new_page("Test")
     assert nb.open(page) is True
     assert started and str(page) in str(started[0])
+
+
+def test_latest_page_is_the_newest_file(tmp_path):
+    import os
+
+    nb = notebook(tmp_path)
+    old = nb.new_page("Old")
+    nb.write("x")
+    new = nb.new_page("New")
+    nb.write("y")
+    os.utime(old, (1, 1))
+    nb.new_page("Old")  # current is Old, but New was written last
+    assert nb.latest_page() == new

@@ -12,6 +12,8 @@ keep open on another monitor.
 | "Take a note, lever three then lever one" / "Make a note that ..." / "Note: ..." | Same thing |
 | "Write that down" (nothing after it) | Asks what to write; your next message is the note ("never mind" cancels) |
 | "Start a new page called Escape room" | Creates `Escape room.md` and writes there from now on |
+| "Open a page called Test" / "Open notes called Escape room" / "Switch to the page called ..." | Same, or goes back to that page (and opens it) if it exists |
+| "Open the latest notes" / "Pull up my last page" | Opens the page written most recently |
 | "Start a new page" | Same, named with the date and time |
 | "Read me my notes" / "What did I write down?" | Reads the last five notes on the current page |
 | "Where did you write that down?" | Names the current page and its file |
@@ -44,10 +46,11 @@ up on your phone too.
    `config.yaml` (the 32-bit version installs to
    `C:/Program Files (x86)/Notepad++/notepad++.exe` instead). She then opens each new page in Notepad++ when she starts it,
    and "open my notes" opens the current one.
-2. In the Notepad++ tab, turn on View > Monitoring (tail -f) (the eye icon).
-   This is what makes new notes show up while you're in another window. The
-   tab goes read-only, which is fine since she does the writing. Turn it on
-   again for each new page.
+2. She starts Notepad++ with `-monitor`, which turns on View > Monitoring
+   (tail -f) for the page, so new notes show up while you're in another
+   window. The tab goes read-only, which is fine since she does the writing.
+   If a page opens without it (for example one you opened yourself), click
+   the eye icon. Set `open_args: []` to leave it off.
 3. Drag the Notepad++ window to the side monitor.
 
 Without Monitoring, Notepad++ only checks the file when you click into it, and
