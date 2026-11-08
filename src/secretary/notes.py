@@ -129,7 +129,7 @@ _TRAILING_POLITE = re.compile(
 # "open Test Monitor on": only used when it names a page that already exists.
 _OPEN_ANY = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
-    r"(?:open|show\s+me|pull\s+up|bring\s+up|switch\s+to|go\s+(?:back\s+)?to)\s+"
+    r"(?:open|show\s+me|pull\s+up|bring\s+up|switch\s+to|go\s+(?:back\s+)?to)[\s,:]+"
     r"(?:up\s+)?(?:the\s+|my\s+)?(?P<name>.+?)(?:\s+(?:page|notes?))?[\s.!?]*$",
     re.IGNORECASE | re.DOTALL,
 )

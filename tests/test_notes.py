@@ -223,6 +223,11 @@ def test_bare_open_names_a_page():
     assert open_page_name("Open Test Monitor on.") == "Test Monitor on"
     assert open_page_name("Juniper, switch to Test2 please", "Juniper") == "Test2"
     assert open_page_name("open the Escape room page") == "Escape room"
+    assert open_page_name("Open, test monitor on.") == "test monitor on"
+    assert open_page_name("Open test monitor on, please.") == "test monitor on"
+    assert note_request("Open notes called Test Monitor On, please.") == NoteRequest(
+        "new_page", "Test Monitor On"
+    )
     assert open_page_name("what time is it") is None
 
 
