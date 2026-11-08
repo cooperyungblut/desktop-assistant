@@ -88,6 +88,17 @@ _LATEST = re.compile(
     r"(?:notes?(?:\s+(?:page|file))?|page|file|notepad)\b[\s.!?]*$",
     re.IGNORECASE,
 )
+# "open the one before that", "go back to the previous page"
+_PREVIOUS = re.compile(
+    rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:(?:open|show|pull\s+up|bring\s+up|go\s+to|switch\s+to|go\s+back\s+to|go\s+back)"
+    r"\s+(?:me\s+)?(?:to\s+)?)?"
+    r"(?:the\s+|my\s+)?"
+    r"(?:(?:one|page|notes?(?:\s+page)?)\s+before\s+(?:that|this|it)"
+    r"|previous\s+(?:one|page|notes?(?:\s+(?:page|file))?))"
+    r"\b[\s.!?]*$",
+    re.IGNORECASE,
+)
 _READ = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
     r"(?:"
@@ -119,7 +130,7 @@ _BAD_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 @dataclass(frozen=True)
 class NoteRequest:
-    kind: Literal["write", "new_page", "read", "open", "latest", "where"]
+    kind: Literal["write", "new_page", "read", "open", "latest", "previous", "where"]
     text: str = ""  # the note, or the new page's name ("" = ask / use a dated name)
 
 
@@ -141,6 +152,8 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
         return NoteRequest("open")
     if _LATEST.match(text):
         return NoteRequest("latest")
+    if _PREVIOUS.match(text):
+        return NoteRequest("previous")
     if _READ.match(text):
         return NoteRequest("read")
     if m := _NEW_PAGE.match(text) or _NAMED_PAGE.match(text):
@@ -251,6 +264,21 @@ class Notebook:
         if exact.is_file():
             return exact
         return next((p for p in sorted(self.dir.glob("*.md")) if _page_key(p.stem) == key), None)
+
+    def previous_page(self) -> Path | None:
+        """Step back one page, by when each was last written, from the current
+        one, and make it current. None when there's nothing older."""
+        pages = sorted(
+            self.dir.glob("*.md") if self.dir.is_dir() else [],
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        current = self.current_page()
+        index = pages.index(current) + 1 if current in pages else 0
+        if index >= len(pages) or pages[index] == current:
+            return None
+        self._current = pages[index]
+        return self._current
 
     def page_exists(self, name: str) -> bool:
         return self.find_page(name) is not None

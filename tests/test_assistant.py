@@ -772,3 +772,16 @@ async def test_reopening_a_page_by_its_spoken_name(env, tmp_path):
     await finish(a)
     page = tmp_path / "notes" / "testMonitorOn.md"
     assert page.read_text(encoding="utf-8").endswith("- 42,313\n")
+
+
+async def test_the_page_before_that(env, tmp_path):
+    a, _, _ = notes_env(env, tmp_path)
+    a.ask("open a page called Only")
+    await finish(a)
+    a.ask("write that down: 1")
+    await finish(a)
+    a.ask("open the latest notes")
+    await finish(a)
+    a.ask("Can you open the one before that?")
+    await finish(a)
+    assert a.history[-1].content == "That's the oldest page I have."

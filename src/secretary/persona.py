@@ -66,6 +66,8 @@ class Lines(BaseModel):
     note_read: str = "Your last notes on {page}: {notes}."
     note_read_empty: str = "There's nothing on {page} yet."
     note_latest_opened: str = "Here's your latest page, {page}."
+    note_previous_opened: str = "Here's the page before that, {page}."
+    note_no_previous: str = "That's the oldest page I have."
     note_opened: str = "Your notes are open."
     note_no_viewer: str = "Your notes are in {folder}. Set notes open_with to have me open them."
     note_where: str = "On the {page} page. The file is {path}."
