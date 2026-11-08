@@ -17,17 +17,22 @@ import time
 from pathlib import Path
 
 from secretary.config import load_config
+from secretary.rerank import make_reranked
 from secretary.wiki import BuildStats, WikiIndex, build_index, iter_articles
 
 
-def ask(index_file: Path, question: str) -> None:
-    with WikiIndex(index_file) as index:
+def ask(
+    index_file: Path, question: str, rerank_model: Path | None = None, mode: str = "keep"
+) -> None:
+    with make_reranked(WikiIndex(index_file), rerank_model, mode) as index:
         started = time.perf_counter()
-        passages = index.search(question)
+        # The same search the app runs for a question (not an explicit "look up").
+        passages = index.search(question, 8, loose=False)
         took = time.perf_counter() - started
+        stages = ", ".join(f"{name} {ms:.0f}" for name, ms in index.trace)
     for passage in passages:
-        print(f"\n[{passage.title}] {passage.url}\n{passage.text}")
-    print(f"\n{len(passages)} passages in {took * 1000:.0f} ms")
+        print(f"\n[{passage.title}] ({passage.match}) {passage.url}\n{passage.text}")
+    print(f"\n{len(passages)} passages in {took * 1000:.0f} ms (at ms: {stages})")
 
 
 def main() -> None:
@@ -41,7 +46,7 @@ def main() -> None:
     args = parser.parse_args()
     wiki = load_config(args.config).wiki
     if args.ask:
-        ask(wiki.index_file, args.ask)
+        ask(wiki.index_file, args.ask, wiki.rerank_model, wiki.rerank_mode)
         return
     if not wiki.source.exists():
         sys.exit(f"wiki.source not found: {wiki.source} (see docs/wikipedia.md)")
@@ -63,7 +68,10 @@ def main() -> None:
         progress=progress,
     )
     size_gb = wiki.index_file.stat().st_size / 1e9
-    print(f"Done: {stats.articles:,} articles, {size_gb:.1f} GB at {wiki.index_file}")
+    print(
+        f"Done: {stats.articles:,} articles, {stats.redirects:,} redirects, "
+        f"{size_gb:.1f} GB at {wiki.index_file}"
+    )
 
 
 if __name__ == "__main__":

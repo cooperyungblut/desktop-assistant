@@ -502,9 +502,15 @@ class FakeWiki:
         ]
         self.fail = fail
         self.questions: list[str] = []
+        self.loose: list[bool] = []
+        self.interrupted = False
 
-    def search(self, question, limit=3):
+    def interrupt(self):
+        self.interrupted = True
+
+    def search(self, question, limit=3, *, loose=True):
         self.questions.append(question)
+        self.loose.append(loose)
         if self.fail:
             raise RuntimeError("index broke")
         return self.passages
@@ -560,6 +566,103 @@ async def test_nothing_usable_means_no_wikipedia_block(env, fake_model):
     a.ask("Who is Nicolas Cage?")
     await finish(a)
     assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
+    # ...but she is told it was looked up and nothing was found, so she hedges.
+    assert any("nothing about it was found" in m["content"] for m in fake_model.requests[-1])
+
+
+async def test_a_question_not_looked_up_gets_no_nothing_found_note(env, fake_model):
+    a = _with_wiki(env, FakeWiki())
+    a.ask("How are you today?")
+    await finish(a)
+    assert not any("nothing about it was found" in m["content"] for m in fake_model.requests[-1])
+
+
+async def test_a_slow_lookup_is_skipped_and_she_still_answers(env, fake_model):
+    import time
+
+    class SlowWiki(FakeWiki):
+        def search(self, question, limit=3, *, loose=True):
+            time.sleep(0.4)
+            return super().search(question, limit)
+
+    wiki = SlowWiki()
+    a = _with_wiki(env, wiki)
+    a._wiki_timeout = 0.05
+    a.ask("Who is Nicolas Cage?")
+    await finish(a)
+    assert fake_model.requests
+    assert wiki.interrupted  # the abandoned search is stopped
+    assert not any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
+
+
+class _SlowWiki(FakeWiki):
+    def __init__(self, delay):
+        super().__init__()
+        self.delay = delay
+
+    def search(self, question, limit=3, *, loose=True):
+        import time
+
+        time.sleep(self.delay)
+        return super().search(question, limit)
+
+
+async def test_a_slowish_lookup_says_one_moment_then_answers_from_it(env, fake_model):
+    a = _with_wiki(env, _SlowWiki(0.3))
+    events = env[3]
+    a._wiki_notice_after, a._wiki_timeout = 0.05, 5.0
+    a.ask("Who is Nicolas Cage?")
+    await finish(a)
+    said = [e["text"] for e in events if e["type"] == "say"]
+    assert said[0] in a.persona.lines.looking_up
+    assert any("<wikipedia>" in m["content"] for m in fake_model.requests[-1])
+    assert all(t.content not in a.persona.lines.looking_up for t in a.history)
+
+
+async def test_a_quick_lookup_says_nothing_extra(env, fake_model):
+    a = _with_wiki(env, FakeWiki())
+    events = env[3]
+    a.ask("Who is Nicolas Cage?")
+    await finish(a)
+    assert not any(e.get("text") in a.persona.lines.looking_up for e in events)
+
+
+def test_one_moment_lines_vary_and_never_repeat_back_to_back(env):
+    a, *_ = env
+    picks = [a._looking_up_line() for _ in range(40)]
+    assert all(x != y for x, y in zip(picks, picks[1:], strict=False))
+    assert len(set(picks)) > 2
+
+
+def test_a_single_one_moment_line_still_works(env):
+    a, *_ = env
+    a.persona.lines.looking_up = ["Hold on."]
+    assert [a._looking_up_line() for _ in range(3)] == ["Hold on."] * 3
+
+
+async def test_a_follow_up_question_is_looked_up_with_the_last_topic(env, fake_model):
+    from secretary.wiki import Passage
+
+    wiki = FakeWiki([Passage("StarCraft", "StarCraft is a franchise.", 100, "title")])
+    a = _with_wiki(env, wiki)
+    a.ask("What is StarCraft?")
+    await finish(a)
+    a.ask("What are those four species?")
+    await finish(a)
+    assert wiki.questions == [
+        "What is StarCraft?",
+        "What are those four species? (StarCraft)",
+    ]
+
+
+async def test_any_word_matches_only_for_an_explicit_look_up(env, fake_model):
+    wiki = FakeWiki()
+    a = _with_wiki(env, wiki)
+    a.ask("Who is Nicolas Cage?")
+    await finish(a)
+    a.ask("Look up Nicolas Cage")
+    await finish(a)
+    assert wiki.loose == [False, True]
 
 
 # ---- notes ---------------------------------------------------------------------

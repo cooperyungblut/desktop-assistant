@@ -56,7 +56,13 @@ wiki:
   source: C:/data/wikipedia/wikipedia_en_all_nopic.zim   # Kiwix file (only for building)
   workers: 4           # CPU processes used while building the index
   index_file: C:/data/wikipedia/index.sqlite  # the search index
-  max_chars_per_article: 4000
+  max_chars_per_article: 24000   # longer articles are cut here; bigger index, deeper facts
+  timeout_seconds: 15  # a slower lookup is skipped and she answers without it
+  notice_after_seconds: 1.5   # a slower lookup gets a "one moment" line first
+  mention_source: true # she says "Wikipedia says..."; false: she just says the fact
+  # rerank_model: C:/data/wikipedia/bge-reranker   # optional, CPU; see docs/wikipedia.md
+  # rerank_mode: keep   # keep | fuse | rerank (scripts/eval_wiki.py --compare)
+  warm_up: true        # read the index into the disk cache at startup (background)
 
 # Notes she writes down: "write that down: the safe code is 4471". One Markdown
 # file per page, a line per note, flushed right away so an editor that reloads

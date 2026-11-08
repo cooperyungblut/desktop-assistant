@@ -25,6 +25,22 @@ class Lines(BaseModel):
     escalated: str = "Okay, I've passed that to Claude. The answer will be in your next brief."
     no_brief: str = "I don't have a brief loaded yet."
     model_unavailable: str = "Sorry, the local model isn't responding. Is Ollama running?"
+    # Said when a Wikipedia lookup is taking a few seconds: one is picked at random,
+    # never the same one twice in a row. A single string works too.
+    looking_up: list[str] = [
+        "One moment, I'm looking into it.",
+        "Let me check on that.",
+        "Give me a second to look that up.",
+        "Hang on, I'm checking.",
+        "Just a moment while I find that.",
+        "Let me see what I can find.",
+    ]
+
+    @field_validator("looking_up", mode="before")
+    @classmethod
+    def _one_or_many(cls, value: object) -> object:
+        return [value] if isinstance(value, str) else value
+
     # Calendar lines. {event} is the read-back, e.g.
     # "Dentist, Thursday, November 5, 3 to 4 PM"; {reason} is what went wrong.
     calendar_confirm: str = "{event}. Should I add it to your calendar?"

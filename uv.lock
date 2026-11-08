@@ -162,6 +162,12 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+rerank = [
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "onnxruntime" },
+    { name = "tokenizers" },
+]
 stt = [
     { name = "faster-whisper" },
 ]
@@ -202,15 +208,18 @@ requires-dist = [
     { name = "kokoro-onnx", marker = "extra == 'tts'", specifier = ">=0.4" },
     { name = "libzim", marker = "extra == 'wiki'", specifier = ">=3" },
     { name = "lxml", marker = "extra == 'wiki'", specifier = ">=5" },
+    { name = "numpy", marker = "extra == 'rerank'", specifier = ">=1.26" },
     { name = "numpy", marker = "extra == 'tts'", specifier = ">=1.26" },
     { name = "nvidia-cublas-cu12", marker = "extra == 'stt-gpu'", specifier = ">=12.4,<12.9.3" },
     { name = "nvidia-cudnn-cu12", marker = "extra == 'stt-gpu'", specifier = ">=9,<10" },
+    { name = "onnxruntime", marker = "extra == 'rerank'", specifier = ">=1.17" },
     { name = "pyarrow", marker = "extra == 'wiki'", specifier = ">=15" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "tokenizers", marker = "extra == 'rerank'", specifier = ">=0.15" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
-provides-extras = ["tts", "stt", "wiki", "stt-gpu"]
+provides-extras = ["tts", "stt", "wiki", "rerank", "stt-gpu"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -93,6 +93,9 @@ def create_app(config: AppConfig) -> FastAPI:
         calendar_config=config.calendar,
         wiki=wiki,
         notebook=Notebook(config.notes),
+        wiki_timeout=config.wiki.timeout_seconds,
+        wiki_notice_after=config.wiki.notice_after_seconds,
+        wiki_mention_source=config.wiki.mention_source,
     )
 
     async def poll_forever() -> None:

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from secretary.wiki import WikiIndex, build_index, iter_articles
+from secretary.wiki import Redirect, WikiIndex, build_index, iter_articles
 from secretary.wiki_zim import html_to_text, iter_zim_articles
 
 CAGE_HTML = """<!DOCTYPE html><html><head><title>Nicolas Cage</title>
@@ -15,7 +15,8 @@ CAGE_HTML = """<!DOCTYPE html><html><head><title>Nicolas Cage</title>
 <tr><th colspan="2">Nicolas Cage</th></tr>
 <tr><th scope="row">Born</th><td>Nicolas Kim Coppola<br>January 7, 1964 (age 59)<br>
 Long Beach, California</td></tr>
-<tr><th scope="row">Occupation</th><td>Actor</td></tr>
+<tr><th scope="row">Occupation</th><td><style>.mw-parser-output .x{margin:0}</style>Actor</td></tr>
+<tr><th scope="row">Children</th><td><table><tr><td>3</td></tr></table></td></tr>
 <tr><td colspan="2">No label here</td></tr>
 </tbody></table>
 <p><b>Nicolas Kim Coppola</b> (born January 7, 1964), known professionally as
@@ -36,10 +37,27 @@ def test_html_to_text_orders_lead_facts_then_body():
     text = html_to_text(CAGE_HTML)
     lines = text.split("\n")
     assert lines[0].startswith("Nicolas Kim Coppola (born January 7, 1964), known professionally")
-    assert lines[1] == "He has appeared in dozens of films since the early 1980s."
-    assert lines[2].startswith("Facts: Born: Nicolas Kim Coppola January 7, 1964 (age 59)")
-    assert "Occupation: Actor" in lines[2]
+    # Facts follow the first paragraph so a long opening can't push them out.
+    assert lines[1].startswith("Facts: Born: Nicolas Kim Coppola January 7, 1964 (age 59)")
+    assert "Occupation: Actor;" in lines[1] and "Children: 3" in lines[1]
+    assert "mw-parser-output" not in text
+    assert lines[2] == "He has appeared in dozens of films since the early 1980s."
     assert lines[3].startswith("Cage was born in Long Beach")
+
+
+def test_full_width_infobox_rows_keep_their_own_label():
+    html = (
+        '<html><body><table class="infobox ib-country"><tbody>'
+        "<tr><th colspan=2>Isle of Man</th></tr>"
+        '<tr><td colspan="2"><div>Motto:&nbsp;<i>Quocunque Jeceris Stabit</i>'
+        "<sup>[1]</sup> (Latin)</div></td></tr>"
+        "<tr><td colspan=2>Location of the Isle of Man (green) in Europe</td></tr>"
+        "<tr><th>Capital</th><td>Douglas</td></tr></tbody></table>"
+        "<p>The Isle of Man is a self-governing British Crown Dependency in the Irish Sea.</p>"
+        "</body></html>"
+    )
+    facts = html_to_text(html).split("\n")[1]
+    assert facts == "Facts: Motto: Quocunque Jeceris Stabit (Latin); Capital: Douglas."
 
 
 def test_html_to_text_leaves_out_the_junk():
@@ -120,9 +138,12 @@ def zim_file(tmp_path: Path) -> Path:
     return path
 
 
-def test_zim_articles_skip_redirects_and_non_html(zim_file: Path):
-    titles = sorted(title for title, _ in iter_zim_articles(zim_file))
-    assert titles == ["Nicolas Cage", "Paris"]
+def test_zim_articles_skip_non_html_and_list_redirects(zim_file: Path):
+    items = list(iter_zim_articles(zim_file))
+    articles = sorted(item[0] for item in items if not isinstance(item, Redirect))
+    redirects = [item for item in items if isinstance(item, Redirect)]
+    assert articles == ["Nicolas Cage", "Paris"]
+    assert Redirect("Nicholas Cage", "Nicolas Cage") in redirects
 
 
 def test_zim_with_worker_processes_gives_the_same_articles(zim_file: Path):
@@ -132,7 +153,8 @@ def test_zim_with_worker_processes_gives_the_same_articles(zim_file: Path):
 
 
 def test_iter_articles_picks_the_zim_reader_by_suffix(zim_file: Path):
-    assert {title for title, _ in iter_articles(zim_file)} == {"Nicolas Cage", "Paris"}
+    articles = {i[0] for i in iter_articles(zim_file) if not isinstance(i, Redirect)}
+    assert articles == {"Nicolas Cage", "Paris"}
 
 
 def test_missing_zim_is_an_error(tmp_path: Path):
@@ -145,5 +167,6 @@ def test_birthday_question_end_to_end_from_a_zim(zim_file: Path, tmp_path: Path)
     build_index(iter_articles(zim_file), index_file)
     with WikiIndex(index_file) as index:
         top = index.search("What is Nicholas Cage's birthday?")[0]
-    assert top.title == "Nicolas Cage"
+    # "Nicholas Cage" is a redirect in the ZIM: it leads to the real article.
+    assert top.title == "Nicolas Cage" and top.match == "title"
     assert "January 7, 1964" in top.text

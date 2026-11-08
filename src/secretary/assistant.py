@@ -29,6 +29,7 @@ import asyncio
 import base64
 import datetime as dt
 import logging
+import random
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -52,7 +53,7 @@ from .expressions import TagFilter, strip_tags
 from .framing import BriefFramer, FrameLine, paragraphs, split_greeting, split_signoff
 from .google_calendar import Calendar, CalendarError, FoundEvent, NoCalendar
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
-from .lookup import Lookup, lookup_request, render, usable
+from .lookup import Lookup, follow_up, lookup_request, render, usable
 from .notes import Notebook, NoteRequest, clean_note, is_cancel, note_request
 from .persona import Persona
 from .prompt import Turn, build_messages
@@ -84,6 +85,9 @@ class Assistant:
         calendar_config: CalendarConfig | None = None,
         wiki: Lookup | None = None,
         notebook: Notebook | None = None,
+        wiki_timeout: float = 15.0,
+        wiki_notice_after: float = 1.5,
+        wiki_mention_source: bool = True,
         now: Callable[[], dt.datetime] = dt.datetime.now,
     ):
         self.persona = persona
@@ -100,6 +104,11 @@ class Assistant:
         self._calendar_config = calendar_config or CalendarConfig()
         self._wiki = wiki
         self._notebook = notebook
+        self._wiki_timeout = wiki_timeout
+        self._wiki_notice_after = wiki_notice_after
+        self._wiki_mention_source = wiki_mention_source
+        self._last_looking_up: str | None = None
+        self._wiki_topic: str | None = None  # the article the last lookup named
         self._now = now
         # When she asked "what should I write down?" (the next message is the note).
         self._note_asked: float | None = None
@@ -290,6 +299,7 @@ class Assistant:
             text,
             history_turns=self._history_turns,
             wikipedia=await self._wikipedia_for(text),
+            mention_source=self._wiki_mention_source,
         )
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
@@ -355,25 +365,74 @@ class Assistant:
         await self._emit({"type": "speech_done"})
 
     async def _wikipedia_for(self, text: str) -> str | None:
-        """Passages for a general-knowledge question, or None (not asked, nothing
-        good found, or the index failed: she then answers as usual)."""
+        """Passages for a general-knowledge question; "" when it was looked up but
+        nothing usable came back (timeout, failure, no match), so she answers
+        from what she knows as a hedged best guess; None when the question
+        isn't one to look up."""
         if self._wiki is None or (request := lookup_request(text)) is None:
             return None
         started = time.perf_counter()
+        last_reply = next(
+            (t.content for t in reversed(self.history) if t.role == "assistant"), None
+        )
+        query = follow_up(request.query, self._wiki_topic, last_reply and strip_tags(last_reply))
+        # Loose (any-word) matches are only kept for an explicit "look up", and
+        # finding them is the slow part, so skip them otherwise.
+        search = asyncio.ensure_future(
+            asyncio.to_thread(self._wiki.search, query, 8, loose=request.forced)
+        )
+        notice = min(self._wiki_notice_after, self._wiki_timeout)
         try:
-            found = await asyncio.to_thread(self._wiki.search, request.query, 6)
+            try:
+                found = await asyncio.wait_for(asyncio.shield(search), notice)
+            except TimeoutError:
+                # Still looking: say so, then keep waiting for the rest of the time.
+                await self._interject(self._looking_up_line())
+                left = self._wiki_timeout - (time.perf_counter() - started)
+                found = await asyncio.wait_for(search, max(left, 0.01))
+        except TimeoutError:
+            log.warning(
+                "Wikipedia lookup took over %.0f s; answering without it", self._wiki_timeout
+            )
+            # The search thread is still running: stop it, or the next question
+            # waits behind it.
+            if interrupt := getattr(self._wiki, "interrupt", None):
+                interrupt()
+            # It ends with an "interrupted" error nobody waits for: keep it quiet.
+            search.add_done_callback(lambda f: f.cancelled() or f.exception())
+            return ""
         except Exception:
             log.exception("Wikipedia lookup failed")
-            return None
+            return ""
         passages = usable(found, request)
+        named = next((p.title for p in passages if p.match == "title"), None)
+        if named:
+            self._wiki_topic = named  # for a follow-up like "what about his kids?"
         log.info(
-            "Wikipedia: %d of %d passages kept in %.0f ms (%s)",
+            "Wikipedia: %d of %d passages kept in %.0f ms (%s) for %r",
             len(passages),
             len(found),
             (time.perf_counter() - started) * 1000,
             ", ".join(p.title for p in passages) or "nothing",
+            query,
         )
-        return render(passages) if passages else None
+        return render(passages) if passages else ""
+
+    def _looking_up_line(self) -> str:
+        """A "one moment" line, not the same as last time when there's a choice."""
+        options = self.persona.lines.looking_up or ["One moment."]
+        fresh = [line for line in options if line != self._last_looking_up] or options
+        self._last_looking_up = random.choice(fresh)
+        return self._last_looking_up
+
+    async def _interject(self, line: str) -> None:
+        """A short line before the real answer ("one moment"). Shown and spoken, but
+        not kept in the chat history, so the model never sees it."""
+        rid = self._next_reply_id()
+        await self._emit({"type": "reply_start", "id": rid})
+        await self._emit({"type": "reply_end", "id": rid, "text": line})
+        await self._express("neutral")
+        await self._say(line)
 
     async def _read_requested(self, req: commands.BriefRequest) -> None:
         """ "Read me this morning's brief": read it out verbatim, never via the model."""

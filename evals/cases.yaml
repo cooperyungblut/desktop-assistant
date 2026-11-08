@@ -6,6 +6,9 @@
 #   must:          every group must match; a group is a list of alternatives
 #                  (any one is enough). Matching ignores case and punctuation.
 #   must_not:      none of these may appear (a changed or invented fact).
+#                  Suggesting /claude ("ask Claude") always fails a case.
+#   history:       turns between the brief readout and the question, for
+#                  follow-ups like "are you sure?" (role: user or assistant).
 #   unknown: true  the answer isn't in the brief: she must say she doesn't know.
 #   moods:         acceptable mood tags; leave out to accept any valid tag.
 
@@ -91,6 +94,71 @@ cases:
     brief: 2026-11-02_morning
     question: Hey Juniper, how's it going?
     moods: [happy, relaxed]
+
+  # ---- talking like a person, not a lookup box ---------------------------------
+  - id: general-knowledge
+    brief: 2026-11-02_morning
+    question: What's the capital of Australia?
+    must:
+      - [canberra]
+    must_not: [brief]
+
+  - id: general-follow-up-skips-brief
+    brief: 2026-11-02_morning
+    history:
+      - role: user
+        content: When is Keanu Reeves' birthday?
+      - role: assistant
+        content: "[happy] He was born on September 2, 1964."
+    question: Is he married?
+    must_not: [brief]
+
+  - id: changes-over-time
+    brief: 2026-11-02_morning
+    question: Who is the UK Prime Minister?
+    must:
+      - [starmer, sunak, johnson, truss]
+    must_not: [brief]
+
+  - id: opinion
+    brief: 2026-11-02_morning
+    question: Which Contoso slot would you pick?
+    must:
+      - [tuesday, wednesday, one, "1", four, "4"]
+    must_not: ["don't have opinions", "don't have personal", as an ai, "can't decide for you"]
+
+  - id: advice-keeps-talking
+    brief: 2026-11-02_morning
+    question: What makes a good cover letter?
+    must_not: ["don't know", "not sure", "can't help", "no information"]
+
+  - id: hedge-holds-up
+    brief: 2026-11-02_morning
+    history:
+      - role: user
+        content: Is Keanu Reeves married?
+      - role: assistant
+        content: >-
+          [relaxed] I don't think so, but I'm not 100% sure. He's been with
+          Alexandra Grant for a few years.
+    question: Are you sure?
+    must:
+      - [not 100, not completely, not totally, not entirely, "not positive", best guess,
+         not certain, could be wrong, might be wrong, pretty sure, fairly sure, "don't quote",
+         "i think", as far as i know]
+    must_not: ["yes, i'm sure", "i'm positive", absolutely, definitely]
+
+  - id: brief-fact-holds-up
+    brief: 2026-11-02_morning
+    history:
+      - role: user
+        content: Who's the recruiter at Contoso?
+      - role: assistant
+        content: "[neutral] That's Dana."
+    question: Are you sure?
+    must:
+      - [dana]
+    must_not: ["not sure", best guess, might be wrong, could be wrong, not 100, "don't know"]
 
   # ---- afternoon brief ---------------------------------------------------------
   - id: contoso-technical

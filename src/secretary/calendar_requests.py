@@ -545,11 +545,12 @@ def parse_agenda(
 ) -> AgendaRequest | Problem | None:
     """An `AgendaRequest` for a question about what's on the calendar, a
     `Problem` if the day is unclear, or None if it isn't one. Needs the word
-    "calendar"."""
+    "calendar" right after "my", "the", "our" or "on": "What is the Gregorian calendar?"
+    is a question for Wikipedia, not the user's calendar."""
     text = strip_leading_filler(text.strip(), name)
     if (
         len(text.split()) > 25
-        or not re.search(r"\bcalendar\b", text, re.I)
+        or not re.search(r"\b(?:my|the|our|on)\s+(?:google\s+)?calendar\b", text, re.I)
         or not _LOOK_START.match(text)
         or _NEGATION.search(text)
     ):

@@ -38,20 +38,40 @@ wiki:
   source: C:/data/wikipedia/wikipedia_en_all_nopic_2026-01.zim   # your file's name
   index_file: C:/data/wikipedia/index.sqlite
   workers: 4       # CPU processes used while building
-  max_chars_per_article: 4000
+  max_chars_per_article: 24000
+  timeout_seconds: 15
+  notice_after_seconds: 1.5
+  mention_source: true
 ```
 
 `max_chars_per_article` keeps the opening, the infobox facts and the first
-sections of each article. Smaller means a smaller, faster index.
+sections of each article. 24,000 reaches facts deep in long articles (4,000
+missed many, and 12,000 still cut some). Most articles are shorter than this,
+so the index grows by much less than double. Smaller means a smaller, faster
+index.
+
+A lookup that runs past `notice_after_seconds` gets a short "One moment, I'm
+looking into it." or a similar line first (persona `lines.looking_up`, a list she
+picks from at random, never the same one twice in a row). One that runs past
+`timeout_seconds` is dropped and she answers without it.
+
+With `mention_source: true` she says "Wikipedia says..." once with a looked-up
+fact, which helps when checking what the lookup found. Set it to `false` and she
+says the fact as if she knew it. When the lookup finds nothing, she answers from
+what the model knows as a best guess and says how sure she is; ask "are you
+sure?" and she tells you honestly.
 
 ## 3. Build the index
 
 ```powershell
 cd C:\dev\desktop-assistant
-uv sync --extra wiki
+uv sync --extra tts --extra stt --extra stt-gpu --extra wiki
 uv run python scripts/build_wiki_index.py --limit 20000   # trial run
 uv run python scripts/build_wiki_index.py --ask "What is Nicolas Cage's birthday?"
 ```
+
+`uv sync` uninstalls every extra you don't list, so keep the ones you already use
+(`tts` for her voice, `stt` and `stt-gpu` for Whisper) in the same command.
 
 The trial indexes only the first 20,000 articles, so a question can come back
 empty or about a different page. When it looks right, build the real one. Leave
@@ -102,3 +122,82 @@ one question and are not kept in the chat history. She answers in a sentence or 
 and says it comes from Wikipedia. If the passages don't answer it, she says she
 couldn't find it. Matching is done in code, not by the model, so it's predictable;
 the log line "Wikipedia: 2 of 6 passages kept in 25 ms (...)" shows what she found.
+
+## Checking the search
+
+`evals/wiki_questions.yaml` holds about 30 questions, each with the article(s)
+that answer it and a pattern for the answer. To run them:
+
+```powershell
+uv run python scripts/eval_wiki.py        # one line per question, then totals
+uv run python scripts/eval_wiki.py -v     # also shows what she read on a miss
+```
+
+It runs the same steps as the app (decide whether to look it up, search, keep
+the best passages, clip them) without the chat model, and reports:
+
+- **article:** the right article is among the passages she gets (recall@4).
+- **answer:** the answer itself is in the text she reads.
+- **MRR:** how near the top the right article sits.
+
+A miss here is a search problem. A hit that she still answers wrong is a prompt
+or model problem. Run it before and after a search change to see whether the
+change helped.
+
+## Optional: a reranker
+
+Keyword search finds passages that share the question's words. It can't tell
+that "cease operations" and "was dissolved in 1799" mean the same thing, and a
+common word ("adult" in "bones in the adult human body") can pull in the wrong
+article. A reranker fixes much of that. It's a small model (a cross-encoder)
+that reads the question and each candidate passage together and scores how well
+the passage answers it. The search then gathers a wider pool: 20 passages, plus
+the rest of the articles the question names. The reranker picks the best from
+that pool. It runs on the CPU, so it costs no VRAM.
+
+```powershell
+uv sync --extra tts --extra stt --extra stt-gpu --extra wiki --extra rerank
+uvx --from huggingface_hub hf download BAAI/bge-reranker-base onnx/model.onnx tokenizer.json --local-dir C:/data/wikipedia/bge-reranker
+```
+
+Then add this under `wiki:` in `config.yaml`:
+
+```yaml
+  rerank_model: C:/data/wikipedia/bge-reranker
+```
+
+Models tried on `evals/wiki_questions.yaml` (32 questions, `keep` mode). "12k" and
+"24k" are the index's `max_chars_per_article` (12,000 or 24,000); rows without
+one used the 12k index:
+
+| model | size | answer in her text | search time (median) |
+|---|---|---|---|
+| none (keywords only) | | 25 | ~0.15-0.4 s |
+| `cross-encoder/ms-marco-MiniLM-L6-v2` | 90 MB | 28 of 31 | ~0.6 s |
+| `BAAI/bge-reranker-base` | 1.1 GB | 30 of 32 | ~3 s |
+| none, 24k index | | 26 of 32 | ~0.25 s |
+| `BAAI/bge-reranker-base`, 24k index | 1.1 GB | 31 of 32 | ~3-5 s |
+
+`rerank_model` can also point at a single `.onnx` file, such as a quantized
+`onnx/model_quantized.onnx`, which is smaller and faster but usually a little
+less accurate. Try it with `scripts/eval_wiki.py --compare --model <file>`.
+
+`rerank_mode` sets how its scores are used:
+
+- `keep` (the default) takes the keyword search's top two passages, usually
+  the named article's opening and its best match, then fills the rest in the
+  model's order. It scored best in testing, with both models.
+- `fuse` blends the keyword order with the model's order (reciprocal rank
+  fusion). It tied `keep` with bge and trailed it with MiniLM.
+- `rerank` uses the model's order alone. It dropped clear keyword hits such as
+  "the mount of Ganesha".
+
+`uv run python scripts/eval_wiki.py` uses the configured mode, and `--no-rerank`
+runs the same questions without the reranker. `--compare` runs every question
+with keyword ranking and with each mode side by side, scoring each question
+once. `--ask` and the app use it as
+soon as it's set. The startup log says "Wikipedia reranker ready". If the model
+or the extra is missing, she carries on with keyword ranking and logs why.
+
+Any cross-encoder exported to ONNX works the same way (one score per question
+and passage pair).

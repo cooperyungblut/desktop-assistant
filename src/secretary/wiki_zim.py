@@ -14,13 +14,17 @@ import re
 from collections.abc import Iterator
 from pathlib import Path
 
+from .wiki import FACTS_PREFIX, Redirect
+
 log = logging.getLogger(__name__)
 
 # Only the start of an article matters (we keep a few thousand characters), and
 # the infobox and opening sit at the top, so a huge page is cut before parsing.
-MAX_HTML_CHARS = 150_000
+MAX_HTML_CHARS = 800_000
 INFOBOX_ROWS = 14
 INFOBOX_VALUE_CHARS = 160
+# A full-width infobox row that names itself: one to three capitalised words, a colon.
+_LABELLED = re.compile(r"([A-Z][a-z]+(?: [a-z]+){0,2}) ?: ?(\S.*)")
 CHUNK = 2000  # entries handed to a worker at a time
 
 # Sections after which there is nothing worth reading.
@@ -46,7 +50,8 @@ _JUNK = (
     '|//*[contains(@class,"thumb")]|//*[contains(@class,"metadata")]'
     '|//*[contains(@class,"noprint")]|//*[contains(@class,"mw-editsection")]'
     '|//*[contains(@class,"sidebar")]|//*[contains(@class,"gallery")]'
-    '|//table[not(contains(@class,"infobox"))]'
+    '|//table[not(contains(@class,"infobox"))'
+    ' and not(ancestor::table[contains(@class,"infobox")])]'
 )
 _SPACE = re.compile(r"\s+")
 _CITATION = re.compile(r"\[(?:\d+|[a-z]|citation needed|note \d+)\]")
@@ -72,21 +77,35 @@ def html_to_text(html: str) -> str:
     for element in body.iter("br", "li", "div"):
         element.tail = " " + (element.tail or "")
 
+    # Junk goes first: infoboxes hold <style> blocks and footnote marks too.
+    for element in body.xpath(_JUNK):
+        # The page's own <html>/<body> can carry class names like "...sidebar...".
+        if element.tag in ("html", "body") or element.getparent() is None:
+            continue
+        element.drop_tree()
+
     facts: list[str] = []
     for box in body.xpath('//table[contains(@class,"infobox")]')[:1]:
         for row in box.xpath(".//tr"):
             label = row.xpath("./th")
             value = row.xpath("./td")
-            if len(label) != 1 or len(value) != 1:
+            if len(label) == 1 and len(value) == 1:
+                name, text = _clean(label[0].text_content()), _clean(value[0].text_content())
+            elif not label and len(value) == 1:
+                # Full-width rows carry their own label: "Motto: Quocunque Jeceris
+                # Stabit", "Anthem: ..." in country boxes. Unlabelled ones (a map
+                # caption) are skipped.
+                found = _LABELLED.match(_clean(value[0].text_content()))
+                if not found:
+                    continue
+                name, text = found.group(1), found.group(2)
+            else:
                 continue
-            name, text = _clean(label[0].text_content()), _clean(value[0].text_content())
             if name and text and len(facts) < INFOBOX_ROWS:
                 facts.append(f"{name}: {text[:INFOBOX_VALUE_CHARS]}")
-    for element in body.xpath(_JUNK + '|//table[contains(@class,"infobox")]'):
-        # The page's own <html>/<body> can carry class names like "...sidebar...".
-        if element.tag in ("html", "body") or element.getparent() is None:
-            continue
-        element.drop_tree()
+    for box in body.xpath('//table[contains(@class,"infobox")]'):
+        if box.getparent() is not None:
+            box.drop_tree()
 
     lead: list[str] = []
     rest: list[str] = []
@@ -101,9 +120,11 @@ def html_to_text(html: str) -> str:
         if len(text) > 1:
             (lead if in_lead else rest).append(text)
 
+    # Facts go right after the first paragraph: a long opening would otherwise push
+    # them past max_chars_per_article and out of the index.
     parts = lead
     if facts:
-        parts = [*parts, "Facts: " + "; ".join(facts) + "."]
+        parts = [*lead[:1], FACTS_PREFIX + "; ".join(facts) + ".", *lead[1:]]
     return "\n".join([*parts, *rest])
 
 
@@ -117,14 +138,16 @@ def _open(path: str) -> None:
     _archive = Archive(path)
 
 
-def _read_chunk(bounds: tuple[int, int]) -> list[tuple[str, str]]:
-    """Articles for entry ids in [start, stop). Runs inside a worker."""
+def _read_chunk(bounds: tuple[int, int]) -> list[tuple[str, str] | Redirect]:
+    """Articles and redirects for entry ids in [start, stop). Runs inside a worker."""
     assert _archive is not None
     start, stop = bounds
-    found: list[tuple[str, str]] = []
+    found: list[tuple[str, str] | Redirect] = []
     for index in range(start, min(stop, _archive.all_entry_count)):
         entry = _archive.get_entry_by_id(index)
         if entry.is_redirect:
+            if (target := _redirect_target(entry)) is not None:
+                found.append(Redirect(entry.title, target))
             continue
         item = entry.get_item()
         if not item.mimetype.startswith("text/html"):
@@ -139,8 +162,21 @@ def _read_chunk(bounds: tuple[int, int]) -> list[tuple[str, str]]:
     return found
 
 
-def iter_zim_articles(path: Path, workers: int = 1) -> Iterator[tuple[str, str]]:
-    """Yield (title, text) for every article in a ZIM file, in file order."""
+def _redirect_target(entry) -> str | None:
+    """The title of the article a redirect leads to (following a few hops)."""
+    try:
+        for _ in range(3):
+            entry = entry.get_redirect_entry()
+            if not entry.is_redirect:
+                return entry.title
+    except Exception:  # a broken redirect is not worth stopping for
+        return None
+    return None
+
+
+def iter_zim_articles(path: Path, workers: int = 1) -> Iterator[tuple[str, str] | Redirect]:
+    """Yield (title, text) for every article in a ZIM file, in file order, and a
+    `Redirect` for every other name an article has."""
     from libzim.reader import Archive
 
     if not path.is_file():

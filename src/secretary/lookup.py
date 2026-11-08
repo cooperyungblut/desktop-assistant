@@ -17,8 +17,10 @@ from typing import Protocol
 
 from .wiki import Passage, query_terms
 
-MAX_PASSAGES = 3
-PASSAGE_CHARS = 600  # per passage shown to the model: three of these are ~450 tokens
+MAX_PASSAGES = 4
+# Passages from one article, while other articles have something to offer.
+PER_ARTICLE = 2
+PASSAGE_CHARS = 600  # per passage shown to the model: four of these are ~600 tokens
 
 _EXPLICIT = re.compile(
     r"\b(look\s*up|search\s+(?:for|up|wikipedia)|(?:on|in|from|says?|said)\s+wiki(?:pedia)?"
@@ -27,22 +29,95 @@ _EXPLICIT = re.compile(
 )
 _ASKS = re.compile(
     r"^\s*(?:(?:hey|ok|okay|so|and|um|uh|well|now|then)\b[,\s]*)*"
+    # "In which year...", "On what date...", "By whom...", "Of which country..."
+    r"(?:(?:in|on|at|by|for|from|of|to|with|during|since|after|before)\s+"
+    r"(?=(?:which|what|whom|whose|when|where)\b))?"
     r"(who|whom|whose|what|what's|whats|when|where|why|how|which|"
+    # yes/no questions: "Is Keanu Reeves married?", "Does he have kids?"
+    r"is|are|was|were|does|do|did|has|have|had|"
     r"tell\s+me\s+about|explain|define|describe)\b",
     re.IGNORECASE,
 )
 # Questions about the user's own day or about her, which Wikipedia can't answer.
 _PERSONAL = re.compile(
-    r"\b(my|mine|i|i'm|i've|i'll|me|you|you're|your|yours|we|our|brief|briefing|email|emails|"
-    r"calendar|schedule|agenda|interview|meeting|appointment|application|today|tonight|"
-    r"tomorrow|yesterday|this\s+(?:morning|afternoon|evening|week))\b",
+    r"\b(my|i'm|i've|i'll|me|you|you're|your|yours|we|our|today|tonight|"
+    r"tomorrow|yesterday|this\s+(?:morning|afternoon|evening|week)|"
+    # someone getting back to the user: "Did Dana reply?", "Has the recruiter called?"
+    r"reply|replied|respond|responded|wrote\s+back|texted|messaged|heard\s+back|"
+    r"recruiter)\b",
     re.IGNORECASE,
 )
+# Things in the user's day. They count only when the question names nothing
+# else: "When is the meeting?" is the user's, "What was the Yalta meeting?" and
+# "What is the Gregorian calendar?" are history.
+_ERRANDS = re.compile(
+    r"\b(brief|briefing|emails?|calendar|schedule|agenda|interviews?|meetings?|"
+    r"appointments?|application|recruiter)\b",
+    re.IGNORECASE,
+)
+# Words that are about the user only sometimes: "I" isn't in "World War I" or
+# "Charles I", "mine" isn't in "the Scofield Mine disaster", and "called" isn't
+# in "What is a baby kangaroo called?". See `_personal`.
+_WORD = re.compile(r"[A-Za-z']+")
+_NOT_POSSESSIVE = {
+    "a",
+    "an",
+    "the",
+    "coal",
+    "gold",
+    "silver",
+    "copper",
+    "iron",
+    "salt",
+    "diamond",
+    "tin",
+    "lead",
+    "uranium",
+    "land",
+    "naval",
+    "sea",
+}  # "the mine", "a coal mine"
+_TO_BE = {"is", "are", "was", "were", "be", "being", "been", "what's", "it's"}
+
+
+def _personal(text: str) -> bool:
+    """Whether a question is about the user (their day, their things) or about her."""
+    if _PERSONAL.search(text):
+        return True
+    words = _WORD.findall(text)
+    if _ERRANDS.search(text) and not any(w[:1].isupper() and w != "I" for w in words[1:]):
+        return True
+    for i, word in enumerate(words):
+        low = word.lower()
+        before = words[i - 1] if i else ""
+        # After a capitalized word that isn't the first one, it's part of a name:
+        # "Elizabeth I", "When did World War I end?", "the Scofield Mine disaster".
+        named = (i > 1 and before[:1].isupper()) or before == "War"
+        if low == "i" and not (word == "I" and named):
+            return True
+        if low == "mine" and not named and before.lower() not in _NOT_POSSESSIVE:
+            return True
+        # "Has Dana called?" and "Who called?", but not "What is it called?"
+        if low == "called" and not any(w.lower() in _TO_BE for w in words[:i]):
+            return True
+    return False
+
+
 # Live information she doesn't have: better to say so than quote an article.
 _LIVE = re.compile(
     r"\b(weather|forecast|news|headlines|stocks?|traffic|right\s+now|latest|currently|"
     r"what\s+time\s+is\s+it|what\s+day\s+is\s+it|what(?:'s|s|\s+is)\s+the\s+(?:time|date)|"
     r"scores?\s+of|live)\b",
+    re.IGNORECASE,
+)
+# Math she works out herself: Wikipedia has no sentence that says "8 times 12 is 96".
+# No "-", "/" or "x": "1939-1945", "9/11" and "4x4" are things to look up.
+_MATH = re.compile(
+    r"\d[\s?.,]*(?:[+*×÷^]|times|plus|minus|divided\s+by|multiplied\s+by|"
+    r"to\s+the(?:\s+power\s+of)?)[\s?.,]*\d"
+    r"|\b(?:square|cube)\s+root\s+of\b|\b(?:derivative|integral)\s+of\b|\bfactorial\b"
+    r"|\b\d+\s+(?:squared|cubed)\b|\d\s*(?:%|percent)\s+of\s+\d"
+    r"|\bprimes?(?:\s+numbers?)?\s+(?:greater|less|bigger|smaller|after|before|between|over|under)\b",
     re.IGNORECASE,
 )
 _COMMAND_WORDS = re.compile(
@@ -56,7 +131,63 @@ _COMMAND_WORDS = re.compile(
 class Lookup(Protocol):
     """Anything that can find passages for a question (see secretary.wiki.WikiIndex)."""
 
-    def search(self, question: str, limit: int = 3) -> list[Passage]: ...
+    def search(self, question: str, limit: int = 3, *, loose: bool = True) -> list[Passage]: ...
+
+
+# A follow-up that points back at the last topic ("What are those four species?").
+_BACK_REFERENCE = re.compile(
+    r"\b(those|these|it|its|they|them|their|theirs)\b"
+    # "that" on its own ("What year did that come out?"), not "the film that ..."
+    r"|\bthat\b(?!\s+(?:is|was|are|were|the|a|an|has|had|of)\b)",
+    re.IGNORECASE,
+)
+_PERSON_REFERENCE = re.compile(r"\b(he|him|his|she|her|hers)\b", re.IGNORECASE)
+# Two or more capitalised words in a row: "Keanu Reeves", "Carrie-Anne Moss".
+_NAME = re.compile(r"\b[A-Z][\w'\u2019.-]+(?:\s+[A-Z][\w'\u2019.-]+)+")
+_NOT_A_NAME_START = {"The", "This", "That", "These", "Those", "It", "In", "On", "According"}
+
+
+def first_name(text: str) -> str | None:
+    """The first name of a person or thing in a reply, if any ("Keanu Reeves
+    starred as Neo." -> "Keanu Reeves")."""
+    for match in _NAME.finditer(text):
+        words = match.group().split()
+        if words[0] in _NOT_A_NAME_START:
+            words = words[1:]
+        if len(words) >= 2:
+            return " ".join(words)
+    return None
+
+
+def _person_in(last_reply: str | None, topic: str | None) -> str | None:
+    """Who "he/she" means: the first name in her last answer, unless that answer
+    was already about someone she called "he/she" before naming anyone ("He has
+    been with Alexandra Grant..." is still about Keanu Reeves, the topic)."""
+    if not last_reply:
+        return topic
+    name = _NAME.search(last_reply)
+    pronoun = _PERSON_REFERENCE.search(last_reply)
+    if topic and pronoun and (name is None or pronoun.start() < name.start()):
+        return topic
+    return first_name(last_reply) or topic
+
+
+def follow_up(question: str, topic: str | None, last_reply: str | None = None) -> str:
+    """The question with what it points back at added, so the search can find it.
+
+    "he/his/her" -> the first name in her last answer ("What is his birthday?"
+    after "Keanu Reeves starred as Neo" -> "... (Keanu Reeves)"), falling back to
+    the last article she looked up; "it/that/those/they" -> that article
+    ("What are those four species?" after StarCraft -> "... (StarCraft)").
+    """
+    subject = None
+    if _PERSON_REFERENCE.search(question):
+        subject = _person_in(last_reply, topic)
+    elif _BACK_REFERENCE.search(question):
+        subject = topic
+    if subject and subject.lower() not in question.lower():
+        return f"{question} ({subject})"
+    return question
 
 
 @dataclass(frozen=True)
@@ -73,7 +204,7 @@ def lookup_request(text: str) -> LookupRequest | None:
     if len(text.split()) > 30 or not _ASKS.match(text):
         return None
     rest = re.sub(r"\btell\s+me\s+about\b", " ", text, flags=re.IGNORECASE)
-    if _PERSONAL.search(rest) or _LIVE.search(text):
+    if _personal(rest) or _LIVE.search(text) or _MATH.search(text):
         return None
     return LookupRequest(query=text, forced=False)
 
@@ -94,7 +225,15 @@ def usable(passages: Sequence[Passage], request: LookupRequest) -> list[Passage]
             or request.forced
         ):
             keep.append(passage)
-    return keep[:MAX_PASSAGES]
+    # No article takes more than PER_ARTICLE slots ahead of the others: "the
+    # longest river in Africa" needs the Nile, not three passages of "Africa".
+    first: list[Passage] = []
+    spare: list[Passage] = []
+    taken: dict[str, int] = {}
+    for passage in keep:
+        taken[passage.title] = taken.get(passage.title, 0) + 1
+        (first if taken[passage.title] <= PER_ARTICLE else spare).append(passage)
+    return (first + spare)[:MAX_PASSAGES]
 
 
 def render(passages: Sequence[Passage]) -> str:
