@@ -586,6 +586,13 @@ class Assistant:
                     await self._emit({"type": "note_added", "page": page.stem, "text": action.text})
                 elif action.kind == "cross_off":
                     await asyncio.to_thread(notebook.mark_used, action.text)
+                elif action.kind == "rename_page":
+                    try:
+                        page = await asyncio.to_thread(notebook.rename, action.text)
+                    except FileExistsError:
+                        return lines.note_rename_taken.format(page=action.text)
+                    if notebook.viewer:
+                        await asyncio.to_thread(notebook.open, page)
                 else:
                     page = await asyncio.to_thread(notebook.new_page, action.text)
                     if notebook.viewer and not await asyncio.to_thread(notebook.open, page):
@@ -648,6 +655,14 @@ class Assistant:
                             what=what, page=notebook.current_page().stem
                         )
                     )
+            elif request.kind == "rename":
+                try:
+                    page = await asyncio.to_thread(notebook.rename, request.text)
+                    line = lines.note_renamed.format(page=page.stem)
+                    if notebook.viewer and not await asyncio.to_thread(notebook.open, page):
+                        line += " " + lines.note_open_failed.format(viewer=notebook.viewer)
+                except FileExistsError:
+                    line = lines.note_rename_taken.format(page=request.text)
             elif request.kind == "where":
                 page = notebook.current_page()
                 line = lines.note_where.format(page=page.stem, path=page)

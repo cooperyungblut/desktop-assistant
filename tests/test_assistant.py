@@ -965,3 +965,22 @@ async def test_she_owns_up_when_notes_are_off(env, fake_model):
     await finish(a)
     assert a.history[-1].content == "Note taking is turned off in my settings."
     assert [t.content for t in a.history[-3:-1]] == ["keep that in mind", "Noted. [note: x]"]
+
+
+async def test_renaming_the_page(env, tmp_path, fake_model):
+    a, _, page = notes_env(env, tmp_path)
+    a.ask("write down vault code 1234")
+    await finish(a)
+    a.ask("Rename these notes, Haunted House.")
+    await finish(a)
+    assert a.history[-1].content == "Renamed it to Haunted House."
+    assert not page.exists() and (tmp_path / "notes" / "Haunted House.md").is_file()
+    fake_model.reply = "Sure, it's now Lighthouse. [rename page: Lighthouse]"
+    a.ask("actually make that one Lighthouse")
+    await finish(a)
+    assert (tmp_path / "notes" / "Lighthouse.md").is_file()
+    a.ask("start a new page called Other")
+    await finish(a)
+    a.ask("call this page Lighthouse")
+    await finish(a)
+    assert a.history[-1].content.startswith("There's already a page called Lighthouse")

@@ -30,3 +30,7 @@ def test_other_brackets_are_left_alone():
 
 def test_strip_actions():
     assert strip_actions("Done. [note: a] ok") == "Done. ok"
+
+
+def test_rename_tag():
+    assert run("Done. [rename page: Haunted House]")[1] == [Action("rename_page", "Haunted House")]

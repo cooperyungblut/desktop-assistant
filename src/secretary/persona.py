@@ -76,6 +76,8 @@ class Lines(BaseModel):
     note_marked_used: str = "Crossed off {count} about {what}."
     note_marked_none: str = "I don't see any notes about {what} on {page}."
     note_mark_which: str = "Which notes? Say something like: cross off the vault notes."
+    note_renamed: str = "Renamed it to {page}."
+    note_rename_taken: str = "There's already a page called {page}. Pick another name?"
     note_failed: str = "I couldn't write that down: {reason}."
     notes_off: str = "Note taking is turned off in my settings."
 

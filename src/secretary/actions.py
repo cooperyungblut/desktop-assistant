@@ -1,9 +1,10 @@
 """Note actions the model takes itself, written as tags in its reply.
 
-She can write "[note: vault code 5526]", "[cross off: vault]" or
-"[open page: Escape room]" anywhere in a reply. `ActionFilter` pulls these out
-of the token stream before anything is shown or spoken (like mood tags), and
-the app carries them out once the reply is done. Fixed phrases such as
+She can write "[note: vault code 5526]", "[cross off: vault]",
+"[open page: Escape room]" or "[rename page: Haunted House]" anywhere in a
+reply. `ActionFilter` pulls these out of the token stream before anything is
+shown or spoken (like mood tags), and the app carries them out once the reply
+is done. Fixed phrases such as
 "write that down: ..." still work without the model; these tags are for
 everything said in other words.
 """
@@ -21,18 +22,20 @@ _KINDS = {
     "crossoff": "cross_off",
     "open page": "open_page",
     "page": "open_page",
+    "rename page": "rename_page",
+    "rename": "rename_page",
 }
 _ACTION = re.compile(
-    r"\[\s*(note|write|cross\s*off|open\s*page|page)\s*:\s*([^\]\n]{1,200}?)\s*\]\s*",
+    r"\[\s*(note|write|cross\s*off|open\s*page|page|rename(?:\s*page)?)\s*:\s*([^\]\n]{1,200}?)\s*\]\s*",
     re.IGNORECASE,
 )
-_PREFIX = re.compile(r"\[\s*[a-z ]{0,10}(?::[^\]\n]*)?$", re.IGNORECASE)
+_PREFIX = re.compile(r"\[\s*[a-z ]{0,14}(?::[^\]\n]*)?$", re.IGNORECASE)
 _MAX = 230  # longer than any action tag; past this a "[" is just text
 
 
 @dataclass(frozen=True)
 class Action:
-    kind: Literal["write", "cross_off", "open_page"]
+    kind: Literal["write", "cross_off", "open_page", "rename_page"]
     text: str
 
 
@@ -79,5 +82,10 @@ def strip_actions(text: str) -> str:
 
 def as_tags(actions: list[Action]) -> str:
     """The actions written back as tags, so her history shows she used them."""
-    names = {"write": "note", "cross_off": "cross off", "open_page": "open page"}
+    names = {
+        "write": "note",
+        "cross_off": "cross off",
+        "open_page": "open page",
+        "rename_page": "rename page",
+    }
     return " ".join(f"[{names[a.kind]}: {a.text}]" for a in actions)

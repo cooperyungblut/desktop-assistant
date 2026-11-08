@@ -65,6 +65,14 @@ _NEW_PAGE = re.compile(
     rf"{_END}{_PUNCT}(?P<name>.*)$",
     re.IGNORECASE | re.DOTALL,
 )
+# "rename these notes Haunted House", "call this page Escape room"
+_RENAME = re.compile(
+    rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:rename|retitle|call|name|title)\s+(?:these|this|the|my|our)\s+"
+    r"(?:notes?(?:\s+(?:page|file))?|page|file|notepad)"
+    r"(?:[\s,:]+(?:to|as))?[\s,:]+(?P<name>.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
 # "open a page called Test5", "switch to the page called Escape room"
 _NAMED_PAGE = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
@@ -151,7 +159,9 @@ _BAD_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 @dataclass(frozen=True)
 class NoteRequest:
-    kind: Literal["write", "new_page", "read", "open", "latest", "previous", "where", "used"]
+    kind: Literal[
+        "write", "new_page", "read", "open", "latest", "previous", "where", "used", "rename"
+    ]
     text: str = ""  # the note, or the new page's name ("" = ask / use a dated name)
 
 
@@ -185,6 +195,8 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
             return NoteRequest("used")
         topic = topic_words(what)
         return NoteRequest("used", " ".join(w for w in _words(what) if w in topic))
+    if m := _RENAME.match(command):
+        return NoteRequest("rename", clean_note(m["name"]).rstrip("?!"))
     if m := _NEW_PAGE.match(command) or _NAMED_PAGE.match(command):
         name = clean_note(m["name"]).rstrip("?!")
         if name.lower().strip(" .,!") in _NOT_A_NAME:  # "open my notes please"
@@ -471,6 +483,26 @@ class Notebook:
             self._create(path)
         self._current = path
         return path
+
+    def rename(self, name: str) -> Path:
+        """Rename the current page (file and heading) and keep using it.
+        FileExistsError if another page already has that name."""
+        old = self.current_page()
+        new = self.dir / page_file_name(name)
+        if not old.exists():
+            self._create(new)
+        elif new != old:
+            other = self.find_page(name)
+            if (other and other != old) or (new.exists() and new.name.lower() != old.name.lower()):
+                raise FileExistsError(f"a page called {new.stem} already exists")
+            text = old.read_text(encoding="utf-8")
+            if text.startswith(f"# {old.stem}\n"):
+                text = f"# {new.stem}\n" + text[len(old.stem) + 3 :]
+            old.rename(new)
+            new.write_text(text, encoding="utf-8", newline="\n")
+        self._current = new
+        log.info("Renamed %s to %s", old.name, new.name)
+        return new
 
     def write(self, note: str) -> Path:
         """Append one note to the current page and flush it to disk."""

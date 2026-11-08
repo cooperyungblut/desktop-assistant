@@ -386,3 +386,24 @@ def test_search_finds_notes_on_other_pages(tmp_path):
     nb.write("vault code 5526")
     assert nb.search("What was the gate code?", skip=current) == [("Test4", "gate code 3258")]
     assert nb.search("What was the code?", skip=current) == []
+
+
+def test_rename_requests():
+    assert note_request("Rename these notes, Haunted House.") == NoteRequest(
+        "rename", "Haunted House"
+    )
+    assert note_request("call this page Lighthouse") == NoteRequest("rename", "Lighthouse")
+    assert note_request("rename this page to Escape room") == NoteRequest("rename", "Escape room")
+
+
+def test_rename_moves_the_file_and_heading(tmp_path):
+    nb = notebook(tmp_path, timestamps=False)
+    old = nb.write("vault code 1234")
+    new = nb.rename("Haunted House")
+    assert not old.exists() and new.name == "Haunted House.md"
+    assert new.read_text(encoding="utf-8") == "# Haunted House\n\n- vault code 1234\n"
+    assert nb.write("more").name == "Haunted House.md"
+    nb.new_page("Other")
+    with pytest.raises(FileExistsError):
+        nb.rename("haunted house")
+    assert nb.rename("Other Two").name == "Other Two.md"
