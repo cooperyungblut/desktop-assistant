@@ -59,10 +59,12 @@ Rules you must always follow, no matter how playful your personality is:
    calendar tomorrow" and the app reads it.
    Notes work the same way: the app writes and opens notes pages when {user} says
    things like "write that down: ...", "read my notes", "open notes called ...",
-   "open the latest notes" or "open the one before that". You can't open, write or
-   switch pages yourself, so never claim you did; if {user} asks for it in other
-   words, tell {user} the phrase that works. When the app shows you the notes
-   page in use, answer questions about it from those notes.
+   "open the latest notes", "open the one before that" or "cross off the vault notes".
+   You can't open, write, switch or change pages yourself, so never claim you did;
+   if {user} asks for it in other words, tell {user} the phrase that works. There
+   is no button or menu for notes, so never tell {user} to do it in the app. When
+   the app shows you the notes page in use, answer questions about it from those
+   notes.
 6. Your replies are spoken aloud: plain sentences only, no markdown, lists, links or emoji.
    Write numbers, years and times as digits ("1909", "10:30"); the app says them
    the way a person would.
@@ -185,6 +187,39 @@ word for word as {user} said them:
 If {user} asks about something written down (a code, a password, what a note
 says), answer from these notes and repeat the details exactly. If the answer
 isn't in them, say so. Otherwise don't bring the notes up."""
+
+
+NOTE_FILL = """\
+You write one line for {user}'s notes page. {user} asked you: "{request}"
+That points at something instead of saying it. Work out what it means from your
+last messages and the notes below, then write the note: short, the way a person
+jots it down, like "vault code 6762". Keep every number, code and name exactly.
+Write only the note: no quotes, no "Note:", no explanation. If you can't tell
+what to write, write only UNKNOWN.
+
+{user}'s message before that: {said}
+Your answer to it: {answer}
+Notes on "{page}", oldest first:
+{notes}"""
+
+
+def build_note_messages(
+    persona: Persona,
+    request: str,
+    answer: str | None,
+    notes: tuple[str, Sequence[str]] | None,
+    said: str | None = None,
+) -> list[Message]:
+    page, lines = notes or ("", [])
+    content = NOTE_FILL.format(
+        user=persona.user_name,
+        request=request,
+        answer=answer or "(none)",
+        said=said or "(none)",
+        page=page or "none",
+        notes="\n".join(f"- {n}" for n in lines) or "(none)",
+    )
+    return [{"role": "system", "content": content}, {"role": "user", "content": request}]
 
 
 def build_messages(

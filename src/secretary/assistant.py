@@ -57,14 +57,17 @@ from .lookup import Lookup, follow_up, lookup_request, render, usable
 from .notes import (
     Notebook,
     NoteRequest,
+    asks_for_a_code,
     clean_note,
+    filled_note,
     is_cancel,
     note_request,
     open_page_name,
+    refers_to_something,
     split_then_write,
 )
 from .persona import Persona
-from .prompt import Turn, build_messages
+from .prompt import Turn, build_messages, build_note_messages
 from .state import StateStore
 from .stt import NoTranscriber, SttUnavailable, Transcriber
 from .tts import Speaker
@@ -117,6 +120,8 @@ class Assistant:
         self._wiki_mention_source = wiki_mention_source
         self._last_looking_up: str | None = None
         self._wiki_topic: str | None = None  # the article the last lookup named
+        # Her last answer from the model and when, so "write that down" can save it.
+        self._last_answer: tuple[str, float] | None = None
         self._now = now
         # When she asked "what should I write down?" (the next message is the note).
         self._note_asked: float | None = None
@@ -300,15 +305,18 @@ class Assistant:
             await self._read_requested(req)
             return
 
+        notes = await self._notes_for_prompt()
+        # "What's the gate code?" with the gate in the notes: answer from them now.
+        from_notes = notes is not None and asks_for_a_code(text, notes[1])
         messages = build_messages(
             self.persona,
             self.context_brief(),
             self.history,
             text,
             history_turns=self._history_turns,
-            wikipedia=await self._wikipedia_for(text),
+            wikipedia=None if from_notes else await self._wikipedia_for(text),
             mention_source=self._wiki_mention_source,
-            notes=await self._notes_for_prompt(),
+            notes=notes,
         )
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
@@ -370,6 +378,7 @@ class Assistant:
             # small model keep using the format.
             full = f"[{tags.mood}] {full}"
         self.history += [Turn("user", text), Turn("assistant", full)]
+        self._last_answer = (strip_tags(full), time.monotonic()) if full else None
         await speaking
         await self._emit({"type": "speech_done"})
 
@@ -492,6 +501,31 @@ class Assistant:
         await self._note_action(notebook, request, text)
         return True
 
+    ANSWER_FRESH_SECONDS = 180.0
+
+    def _recent_answer(self) -> str | None:
+        if self._last_answer is None:
+            return None
+        answer, at = self._last_answer
+        return answer if time.monotonic() - at <= self.ANSWER_FRESH_SECONDS else None
+
+    async def _fill_note(self, request: str, answer: str | None) -> str:
+        """The note for a request that points at something instead of saying it,
+        written by the model from her last answer and the notes page. "" if she
+        can't tell what it means."""
+        notes = await self._notes_for_prompt()
+        said = next((t.content for t in reversed(self.history) if t.role == "user"), None)
+        messages = build_note_messages(
+            self.persona, request, answer, notes, said if answer else None
+        )
+        options = {**self.persona.sampling.as_options(), "temperature": 0.2}
+        try:
+            out = "".join([t async for t in self._model.stream_chat(messages, options)])
+        except LlmUnavailable as exc:
+            log.warning("model unavailable for a note: %s", exc)
+            return ""
+        return filled_note(strip_tags(out))
+
     async def _note_request(self, text: str) -> NoteRequest | None:
         request = note_request(text, self.persona.name)
         notebook = self._notebook
@@ -521,8 +555,14 @@ class Assistant:
     async def _note_action(self, notebook: Notebook, request: NoteRequest, text: str) -> None:
         lines = self.persona.lines
         if request.kind == "write":
-            if request.text:
-                await self._write_note(request.text, text)
+            note = request.text
+            answer = self._recent_answer()
+            if refers_to_something(text) or (not note and answer):
+                # "Write that down" after an answer, "write down the vault code
+                # from the notes": she works out the note herself.
+                note = await self._fill_note(text, answer)
+            if note:
+                await self._write_note(note, text)
             else:
                 self._note_asked = time.monotonic()
                 await self._reply_line(lines.note_ask, text)
@@ -535,6 +575,21 @@ class Assistant:
                 line = started.format(page=page.stem)
                 if notebook.viewer and not await asyncio.to_thread(notebook.open, page):
                     line += " " + lines.note_open_failed.format(viewer=notebook.viewer)
+            elif request.kind == "used":
+                if not request.text:
+                    line = lines.note_mark_which
+                else:
+                    count = await asyncio.to_thread(notebook.mark_used, request.text)
+                    what = request.text
+                    line = (
+                        lines.note_marked_used.format(
+                            count=f"{count} note" + ("s" if count != 1 else ""), what=what
+                        )
+                        if count
+                        else lines.note_marked_none.format(
+                            what=what, page=notebook.current_page().stem
+                        )
+                    )
             elif request.kind == "where":
                 page = notebook.current_page()
                 line = lines.note_where.format(page=page.stem, path=page)
@@ -718,6 +773,7 @@ class Assistant:
 
     async def _reply_line(self, line: str, user_text: str) -> None:
         """A fixed reply (not from the model): show it, say it, keep it in history."""
+        self._last_answer = None
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
         await self._emit({"type": "reply_end", "id": rid, "text": line})
