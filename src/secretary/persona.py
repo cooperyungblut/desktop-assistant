@@ -74,8 +74,7 @@ class Lines(BaseModel):
     note_open_failed: str = "I couldn't open it with {viewer}. Check notes open_with."
     # {count} is "3 notes"; {what} what you asked to cross off.
     note_marked_used: str = "Crossed off {count} about {what}."
-    note_marked_none: str = "I don't see any notes about {what} on {page}."
-    note_mark_which: str = "Which notes? Say something like: cross off the vault notes."
+    note_cross_off_missing: str = "Actually, I couldn't find a note about {what} to cross off."
     note_renamed: str = "Renamed it to {page}."
     note_rename_taken: str = "There's already a page called {page}. Pick another name?"
     note_failed: str = "I couldn't write that down: {reason}."

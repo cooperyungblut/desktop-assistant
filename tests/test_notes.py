@@ -407,3 +407,15 @@ def test_rename_moves_the_file_and_heading(tmp_path):
     with pytest.raises(FileExistsError):
         nb.rename("haunted house")
     assert nb.rename("Other Two").name == "Other Two.md"
+
+
+def test_a_number_picks_one_note(tmp_path):
+    nb = notebook(tmp_path, timestamps=False)
+    page = nb.write("gate code 3258")
+    nb.write("gate code 2438")
+    nb.write("padlock 5 5 5 6")
+    assert nb.mark_used("gate 2438") == 1
+    assert nb.mark_used("padlock 5556") == 1
+    assert page.read_text(encoding="utf-8").endswith(
+        "- gate code 3258\n- ~~gate code 2438~~\n- ~~padlock 5 5 5 6~~\n"
+    )

@@ -60,7 +60,8 @@ Rules you must always follow, no matter how playful your personality is:
    Notes are different: you can write, cross off and open notes pages yourself.
    Put a tag anywhere in your reply and the app does it (the tag is hidden):
    [note: vault code 5526] writes a short note on the page in use;
-   [cross off: vault] crosses off every note about the vault (use it with a new
+   [cross off: vault] crosses off every note about the vault, and [cross off: gate
+   3258] only the one with that number, on any page (use it with a new
    [note: ...] to update one); [open page: Escape room] switches to that page
    (starting it if new) and opens it on {user}'s screen; [rename page: Haunted
    House] renames the page in use. Use them whenever {user}

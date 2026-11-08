@@ -547,20 +547,43 @@ class Notebook:
             found += [(page.stem, n) for n in self.last_notes(1000, page) if topic & set(_words(n))]
         return found
 
-    def mark_used(self, what: str) -> int:
-        """Strike through the current page's notes about `what` ("the vault
-        code" strikes every note mentioning the vault). Nothing is deleted.
-        Returns how many notes were struck."""
-        path = self.current_page()
+    def mark_used(self, what: str, anywhere: bool = False) -> int:
+        """Strike through notes about `what` on the current page ("the vault
+        code" strikes every note mentioning the vault; "gate 3258" only the one
+        with 3258). With `anywhere`, if the current page has none, the 10 newest
+        other pages are tried. Nothing is deleted. Returns how many were struck."""
         topic = topic_words(what)
-        if not topic or not path.is_file():
+        if not topic:
+            return 0
+        digits = "".join(re.findall(r"\d", what))
+        current = self.current_page()
+        pages = [current]
+        if anywhere and self.dir.is_dir():
+            newest = sorted(self.dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+            pages += [p for p in newest if p != current][:10]
+        for path in pages:
+            if struck := self._strike(path, topic - ({w for w in topic if w.isdigit()}), digits):
+                return struck
+        return 0
+
+    @staticmethod
+    def _strike(path: Path, topic: set[str], digits: str) -> int:
+        if not path.is_file():
             return 0
         lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
         struck = 0
         for i, line in enumerate(lines):
             m = _NOTE_LINE.match(line.rstrip("\n"))
-            if m and not m["note"].startswith("~~") and topic & set(_words(m["note"])):
-                lines[i] = f"{m['head']}~~{m['note']}~~\n"
+            if not m or m["note"].startswith("~~"):
+                continue
+            note = m["note"]
+            if digits:  # a number names one note exactly
+                hit = digits in "".join(re.findall(r"\d", note))
+                hit = hit and (not topic or bool(topic & set(_words(note))))
+            else:
+                hit = bool(topic & set(_words(note)))
+            if hit:
+                lines[i] = f"{m['head']}~~{note}~~\n"
                 struck += 1
         if struck:
             with path.open("w", encoding="utf-8") as f:

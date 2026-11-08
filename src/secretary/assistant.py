@@ -516,6 +516,17 @@ class Assistant:
         if notebook is None or not notebook.enabled:
             await self._reply_line(lines.notes_off, text)
             return True
+        if request.kind == "used":
+            # Only a clear match on the page in use is crossed off here; "archive
+            # that" or "the other gate code" goes to her, since she knows which.
+            count = 0
+            if request.text:
+                count = await asyncio.to_thread(notebook.mark_used, request.text)
+            if not count:
+                return False
+            n = f"{count} note" + ("s" if count != 1 else "")
+            await self._reply_line(lines.note_marked_used.format(count=n, what=request.text), text)
+            return True
         await self._note_action(notebook, request, text)
         return True
 
@@ -585,7 +596,8 @@ class Assistant:
                     page = await asyncio.to_thread(notebook.write, action.text)
                     await self._emit({"type": "note_added", "page": page.stem, "text": action.text})
                 elif action.kind == "cross_off":
-                    await asyncio.to_thread(notebook.mark_used, action.text)
+                    if not await asyncio.to_thread(notebook.mark_used, action.text, True):
+                        return lines.note_cross_off_missing.format(what=action.text)
                 elif action.kind == "rename_page":
                     try:
                         page = await asyncio.to_thread(notebook.rename, action.text)
@@ -640,21 +652,6 @@ class Assistant:
                 line = started.format(page=page.stem)
                 if notebook.viewer and not await asyncio.to_thread(notebook.open, page):
                     line += " " + lines.note_open_failed.format(viewer=notebook.viewer)
-            elif request.kind == "used":
-                if not request.text:
-                    line = lines.note_mark_which
-                else:
-                    count = await asyncio.to_thread(notebook.mark_used, request.text)
-                    what = request.text
-                    line = (
-                        lines.note_marked_used.format(
-                            count=f"{count} note" + ("s" if count != 1 else ""), what=what
-                        )
-                        if count
-                        else lines.note_marked_none.format(
-                            what=what, page=notebook.current_page().stem
-                        )
-                    )
             elif request.kind == "rename":
                 try:
                     page = await asyncio.to_thread(notebook.rename, request.text)
