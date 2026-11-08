@@ -102,7 +102,7 @@ error. Run everything in PowerShell from the repo folder.
    the browser asks for microphone access: choose **Allow**.
    **Check:** your words appear as a chat bubble, then she answers out loud.
    The mic button next to the text box is a toggle: click it, talk, then
-   click it again or just pause for 3 seconds and it sends what you said.
+   click it again or just pause for 2 seconds and it sends what you said.
 4. While she's talking, hold V and start a new question.
    **Check:** she stops mid-sentence and answers the new one.
 5. Look for `Transcribed ... in X s` in the terminal.
@@ -245,7 +245,7 @@ browser. The Python app still does all the work; the window just shows her.
    - **Ctrl+Alt+M**: move mode. Drag her anywhere, then click **Done** (or
      press Ctrl+Alt+M again). She opens there next time.
    - **Ctrl+Alt+Space**: talk. Ask "When is my coffee chat?" and pause; it
-     sends after 3 s. The first time, Windows may ask for mic access.
+     sends after 2 s. The first time, Windows may ask for mic access.
    - **Ctrl+Alt+B**: read the new brief (or the latest one again), or stop
      her mid-sentence.
    - **Ctrl+Alt+H**: hide or show her.
