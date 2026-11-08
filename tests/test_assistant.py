@@ -809,3 +809,27 @@ async def test_switch_to_a_page_said_with_digits(env, tmp_path):
     a.ask("Switch to test test 2.")
     await finish(a)
     assert a.history[-1].content == "Back on Test Test II."
+
+
+async def test_open_a_page_and_write_in_one_go(env, tmp_path):
+    a, _, _ = notes_env(env, tmp_path)
+    a.ask("open a page called Test4")
+    await finish(a)
+    a.ask("start a new page called Other")
+    await finish(a)
+    a.ask("Open notes called Test 4 and write down jelly beans")
+    await finish(a)
+    page = tmp_path / "notes" / "Test4.md"
+    assert page.read_text(encoding="utf-8").endswith("- jelly beans\n")
+    assert not list((tmp_path / "notes").glob("*jelly*"))
+    assert a.history[-1].content == "Got it, I wrote down: jelly beans."
+
+
+async def test_she_sees_the_page_in_use_when_answering(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    a.ask("write down gate code 2438")
+    await finish(a)
+    a.ask("Check the notes for the gate code.")
+    await finish(a)
+    sent = str(fake_model.requests[-1])
+    assert "gate code 2438" in sent and '"Notes"' in sent

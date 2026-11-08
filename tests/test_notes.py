@@ -280,3 +280,29 @@ def test_sound_alike_numbers_find_a_page(tmp_path):
     assert nb.find_page("test to") is None
     sam = nb.new_page("Notes for Sam")
     assert nb.find_page("notes for sam") == sam
+
+
+def test_split_then_write():
+    from secretary.notes import split_then_write
+
+    assert split_then_write("Open notes Test 4 and write down Jelly Beans") == (
+        "Open notes Test 4",
+        "write down Jelly Beans",
+    )
+    assert split_then_write("open Escape room, then write that down: 4471") == (
+        "open Escape room",
+        "write that down: 4471",
+    )
+    assert split_then_write("Write down, I need her to be able to read the gate code") is None
+    assert split_then_write("open the door and walk in") is None
+
+
+def test_recent_page_skips_old_pages(tmp_path):
+    import os
+
+    nb = notebook(tmp_path)
+    assert nb.recent_page() is None
+    page = nb.write("x")
+    assert nb.recent_page() == page
+    os.utime(page, (1, 1))
+    assert notebook(tmp_path).recent_page() is None  # days old, new session

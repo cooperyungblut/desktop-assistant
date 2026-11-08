@@ -182,6 +182,23 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
     return None
 
 
+# "open Test 4 and write down jelly beans": a page command, then a note.
+_THEN_WRITE = re.compile(
+    r"^(?P<first>.+?)[\s,]+(?:and\s+then|and|then)[\s,]+"
+    r"(?P<second>(?:write|jot|note|take\s+a\s+note|make\s+a\s+note|add)\b.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def split_then_write(text: str) -> tuple[str, str] | None:
+    """("open Test 4", "write down jelly beans") for a two-step request, else None.
+    The caller checks that the first part is a page command."""
+    m = _THEN_WRITE.match(text)
+    if m is None or not _LEADING.match(m["second"]):
+        return None
+    return m["first"], m["second"]
+
+
 def open_page_name(text: str, name: str | None = None) -> str | None:
     """The page name in a bare "open X" / "switch to X". The caller checks that
     such a page exists, so "open the door" never becomes a page."""
@@ -295,6 +312,17 @@ class Notebook:
             return max(pages, key=lambda p: p.stat().st_mtime)
         return self._session_page()
 
+    def recent_page(self, hours: float = 12) -> Path | None:
+        """The page worth showing her for questions: the one in use this
+        session, or one written in the last `hours`. None if there's neither."""
+        if self._current is not None:
+            return self._current if self._current.is_file() else None
+        page = self.current_page()
+        if not page.is_file():
+            return None
+        age = self._now().timestamp() - page.stat().st_mtime
+        return page if age <= hours * 3600 else None
+
     def _session_page(self) -> Path:
         """Her own page for this session: the first unused index for today."""
         template = self._config.default_page
@@ -374,9 +402,10 @@ class Notebook:
             self.open(path)
         return path
 
-    def last_notes(self, count: int = 5) -> list[str]:
-        """The newest notes on the current page, oldest first, without the "- [12:34] "."""
-        path = self.current_page()
+    def last_notes(self, count: int = 5, page: Path | None = None) -> list[str]:
+        """The newest notes on a page (the current one by default), oldest
+        first, without the "- [12:34] "."""
+        path = page or self.current_page()
         if not path.is_file():
             return []
         notes = [

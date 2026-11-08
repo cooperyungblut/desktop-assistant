@@ -61,7 +61,8 @@ Rules you must always follow, no matter how playful your personality is:
    things like "write that down: ...", "read my notes", "open notes called ...",
    "open the latest notes" or "open the one before that". You can't open, write or
    switch pages yourself, so never claim you did; if {user} asks for it in other
-   words, tell {user} the phrase that works.
+   words, tell {user} the phrase that works. When the app shows you the notes
+   page in use, answer questions about it from those notes.
 6. Your replies are spoken aloud: plain sentences only, no markdown, lists, links or emoji.
    Write numbers, years and times as digits ("1909", "10:30"); the app says them
    the way a person would.
@@ -177,6 +178,15 @@ def reminder(persona: Persona) -> str:
     )
 
 
+NOTES_CONTEXT = """\
+The notes page in use is "{page}". These are its notes, oldest first, written
+word for word as {user} said them:
+{notes}
+If {user} asks about something written down (a code, a password, what a note
+says), answer from these notes and repeat the details exactly. If the answer
+isn't in them, say so. Otherwise don't bring the notes up."""
+
+
 def build_messages(
     persona: Persona,
     brief: Brief | None,
@@ -186,6 +196,7 @@ def build_messages(
     history_turns: int = 12,
     wikipedia: str | None = None,
     mention_source: bool = True,
+    notes: tuple[str, Sequence[str]] | None = None,
 ) -> list[Message]:
     recent = list(history)[-2 * history_turns :] if history_turns > 0 else []
     messages: list[Message] = [{"role": "system", "content": system_prompt(persona, brief)}]
@@ -199,6 +210,16 @@ def build_messages(
         messages.append({"role": "system", "content": rules})
     elif wikipedia == "":
         messages.append({"role": "system", "content": NOTHING_FOUND.format(user=persona.user_name)})
+    if notes and notes[1]:
+        page, lines = notes
+        messages.append(
+            {
+                "role": "system",
+                "content": NOTES_CONTEXT.format(
+                    page=page, notes="\n".join(f"- {n}" for n in lines), user=persona.user_name
+                ),
+            }
+        )
     messages.append({"role": "system", "content": reminder(persona)})
     messages.append({"role": "user", "content": question})
     return messages
