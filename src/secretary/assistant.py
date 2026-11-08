@@ -57,6 +57,7 @@ from .lookup import Lookup, follow_up, lookup_request, render, usable
 from .notes import (
     Notebook,
     NoteRequest,
+    asks_about_notes,
     asks_for_a_code,
     clean_note,
     filled_note,
@@ -307,7 +308,9 @@ class Assistant:
 
         notes = await self._notes_for_prompt()
         # "What's the gate code?" with the gate in the notes: answer from them now.
-        from_notes = notes is not None and asks_for_a_code(text, notes[1])
+        older = await self._older_notes_for(text, notes)
+        found = [n for _, n in older] + (notes[1] if notes else [])
+        from_notes = asks_for_a_code(text, found)
         messages = build_messages(
             self.persona,
             self.context_brief(),
@@ -317,6 +320,7 @@ class Assistant:
             wikipedia=None if from_notes else await self._wikipedia_for(text),
             mention_source=self._wiki_mention_source,
             notes=notes,
+            older_notes=older,
         )
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
@@ -551,6 +555,22 @@ class Assistant:
         except OSError:
             return None
         return page.stem, notes
+
+    async def _older_notes_for(
+        self, question: str, notes: tuple[str, list[str]] | None
+    ) -> list[tuple[str, str]]:
+        """For "what was the gate code?" when the page in use doesn't say:
+        matching notes from the other recent pages."""
+        notebook = self._notebook
+        if notebook is None or not notebook.enabled or not asks_about_notes(question):
+            return []
+        if notes is not None and asks_for_a_code(question, notes[1]):
+            return []  # the page in use already has it
+        skip = notebook.recent_page()
+        try:
+            return (await asyncio.to_thread(notebook.search, question, skip))[:20]
+        except OSError:
+            return []
 
     async def _note_action(self, notebook: Notebook, request: NoteRequest, text: str) -> None:
         lines = self.persona.lines

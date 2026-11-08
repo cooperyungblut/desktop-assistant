@@ -22,7 +22,7 @@ keep open on another monitor.
 | "Read me my notes" / "What did I write down?" | Reads the last five notes on the current page |
 | "Where did you write that down?" | Names the current page and its file |
 | "Open my notes" | Opens the current page in your viewer (see below) |
-| "What was the gate code?" / "Check the notes for the gate code" | Answers from the page in use (its last 30 notes), if one was used this session or written in the last 12 hours. A question asking for a code, password, PIN, combination or number that matches a note skips the Wikipedia lookup |
+| "What was the gate code?" / "Check the notes for the gate code" | Answers from the page in use (its last 30 notes), if one was used this session or written in the last 12 hours. If that page doesn't have it, she checks the 10 newest other pages for notes on the same thing. A question asking for a code, password, PIN, combination or number that matches a note skips the Wikipedia lookup |
 | "Cross off the vault notes" / "Mark the vault code as used" / "Archive the gate code" | Strikes through (`~~...~~`) every note on the current page that mentions the vault. Nothing is deleted; crossed-off notes are left out when she reads or answers from notes |
 
 The note is written exactly as it was heard, in code: the chat model never

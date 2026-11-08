@@ -907,3 +907,22 @@ async def test_dictated_notes_never_go_through_the_model(env, tmp_path, fake_mod
     await finish(a)
     assert page.read_text(encoding="utf-8").endswith("- the password is 4471\n")
     assert len(fake_model.requests) == 1
+
+
+async def test_a_code_on_an_older_page_is_found(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    a.ask("open a page called Test4")
+    await finish(a)
+    a.ask("write down gate code 3258")
+    await finish(a)
+    a.ask("start a new page called Today")
+    await finish(a)
+    a.ask("write down vault code 5526")
+    await finish(a)
+    a.ask("What was the gate code?")
+    await finish(a)
+    sent = str(fake_model.requests[-1])
+    assert 'gate code 3258 (page "Test4")' in sent
+    a.ask("What is the vault code?")
+    await finish(a)
+    assert "Test4" not in str(fake_model.requests[-1][-3:])

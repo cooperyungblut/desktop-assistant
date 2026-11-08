@@ -211,7 +211,11 @@ _THAT = re.compile(r"^\s*(?:that|this|it|them|those)\s*$", re.IGNORECASE)
 _STOP_WORDS = {
     "the", "a", "an", "my", "our", "all", "of", "for", "to", "in", "on", "and",
     "that", "this", "these", "those", "it", "note", "notes", "page", "line", "lines",
-    "is", "was", "what", "whats", "s", "me", "tell", "i", "you",
+    "is", "was", "what", "whats", "s", "me", "tell", "i", "you", "from", "with", "using",
+    "about", "as", "used", "done", "who", "where", "when", "why", "how", "which", "did",
+    "do", "does", "are", "were", "be", "can", "could", "would", "will", "there", "has",
+    "have", "had", "been", "check", "find", "look", "up", "your", "previous", "last", "old",
+    "older", "other", "pages",
 }  # fmt: skip
 # Words that say what kind of thing it is, not which one: "vault code" is about the vault.
 _KIND_WORDS = {"code", "codes", "password", "passwords", "pin", "combination", "number",
@@ -228,6 +232,11 @@ def topic_words(text: str) -> set[str]:
     """The words that pick out which notes: "the vault code" -> {"vault"}."""
     words = {w for w in _words(text) if w not in _STOP_WORDS}
     return (words - _KIND_WORDS) or words
+
+
+def asks_about_notes(question: str) -> bool:
+    """A question for a code, password or the like, or one that mentions notes."""
+    return bool(set(_words(question)) & (_KIND_WORDS | {"note", "notes", "wrote", "written"}))
 
 
 def asks_for_a_code(question: str, notes: Sequence[str]) -> bool:
@@ -493,6 +502,18 @@ class Notebook:
             if _NOTE_LINE.match(line) and not _NOTE_LINE.match(line)["note"].startswith("~~")
         ]
         return notes[-count:]
+
+    def search(self, what: str, skip: Path | None = None, pages: int = 10) -> list[tuple[str, str]]:
+        """Notes about `what` on the newest `pages` pages other than `skip`, as
+        (page, note), newest page first. Crossed-off notes are left out."""
+        topic = topic_words(what) - _KIND_WORDS
+        if not topic or not self.dir.is_dir():
+            return []
+        found = []
+        newest = sorted(self.dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for page in [p for p in newest if p != skip][:pages]:
+            found += [(page.stem, n) for n in self.last_notes(1000, page) if topic & set(_words(n))]
+        return found
 
     def mark_used(self, what: str) -> int:
         """Strike through the current page's notes about `what` ("the vault

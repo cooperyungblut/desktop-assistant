@@ -375,3 +375,14 @@ def test_filled_note_is_tidied():
     assert filled_note('"Vault code 6762."\nThat is from your notes.') == "Vault code 6762"
     assert filled_note("Note: gate 3258") == "gate 3258"
     assert filled_note("UNKNOWN") == ""
+
+
+def test_search_finds_notes_on_other_pages(tmp_path):
+    nb = notebook(tmp_path, timestamps=False)
+    nb.new_page("Test4")
+    nb.write("gate code 3258")
+    nb.write("padlock 5 5 5 6")
+    current = nb.new_page("Today")
+    nb.write("vault code 5526")
+    assert nb.search("What was the gate code?", skip=current) == [("Test4", "gate code 3258")]
+    assert nb.search("What was the code?", skip=current) == []
