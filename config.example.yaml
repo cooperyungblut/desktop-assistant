@@ -70,7 +70,7 @@ wiki:
 notes:
   enabled: true
   dir: data/notes      # git-ignored; any folder works, e.g. C:/Users/you/Documents/Notes
-  default_page: Notes  # used until you say "start a new page called ..."
+  default_page: "JuniperNotes_{date}_{index}"  # her own page when you haven't opened one
   timestamps: true     # "- [17:21] the safe code is 4471"
   open_with: ""        # e.g. "C:/Program Files/Notepad++/notepad++.exe", or "default"
   # open_args: ["-monitor"]  # extra arguments; Notepad++ gets -monitor automatically

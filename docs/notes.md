@@ -37,9 +37,12 @@ page is a Markdown file:
 - [17:24] blue key is in the attic
 ```
 
-The current page is the one written most recently, so it carries over after a
-restart. If you point `dir` at your synced Google Drive folder, the notes show
-up on your phone too.
+A page you open or start is used until she's restarted. If you take a note
+without opening one, she starts her own page, `JuniperNotes_<date>_1.md`, and
+keeps using it that session; the next session that day gets `_2`, and so on
+(`notes.default_page` sets the name). "Read my notes" and "open my notes"
+with no page chosen use the page written most recently. If you point `dir` at
+your synced Google Drive folder, the notes show up on your phone too.
 
 ## Watching notes live in Notepad++
 

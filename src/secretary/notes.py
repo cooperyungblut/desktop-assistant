@@ -61,7 +61,7 @@ _NEW_PAGE = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
     r"(?:(?:start|make|create|open|begin)\s+)?(?:a\s+)?new\s+"
     r"(?:notes?\s+(?:page|file)|page\s+of\s+notes|notes|page|notepad)"
-    r"(?:[\s,]+(?:called|call|named|titled|for|about))?"
+    r"(?:[\s,.:;]+(?:called|call|named|titled|for|about))?"
     rf"{_END}{_PUNCT}(?P<name>.*)$",
     re.IGNORECASE | re.DOTALL,
 )
@@ -71,7 +71,7 @@ _NAMED_PAGE = re.compile(
     r"(?:"
     r"(?:start|make|create|open|begin|show\s+me)\s+(?:a\s+|the\s+|my\s+)?"
     r"(?:(?:notes?\s+)?(?:page|file|notepad)|notes?)"
-    r"[\s,]+(?:called|call|named|titled|for)"
+    r"[\s,.:;]+(?:called|call|named|titled|for)"
     r"|(?:switch|go\s+back|go|change)\s+to\s+(?:the\s+)?(?:notes?\s+)?page"
     r"(?:[\s,]+(?:called|call|named|titled))?"
     r"|(?:open|show\s+me|pull\s+up|bring\s+up)\s+(?:the\s+|my\s+)?"
@@ -248,8 +248,15 @@ _NUMBER_WORDS = {
 }
 
 
-def _page_key(name: str) -> str:
+# Words speech-to-text writes for a spoken number: "Test For" for Test4.
+# Only a fallback, so a real page "Notes for Sam" still matches as said.
+_SOUND_ALIKES = {"for": "4", "fore": "4", "to": "2", "too": "2", "won": "1", "ate": "8"}
+
+
+def _page_key(name: str, sound_alike: bool = False) -> str:
     words = re.findall(r"[a-z0-9]+", name.lower())
+    if sound_alike:
+        words = [_SOUND_ALIKES.get(w, w) for w in words]
     return "".join(_NUMBER_WORDS.get(w, w) for w in words)
 
 
@@ -261,13 +268,14 @@ def page_file_name(name: str) -> str:
 
 
 class Notebook:
-    """The notes folder. The current page is the most recently written one, so
-    it survives restarts without any extra state."""
+    """The notes folder. A page you open or start is used for the rest of the
+    session; if you take a note without choosing one, she starts her own page,
+    named from `notes.default_page` (by default JuniperNotes_<date>_<n>)."""
 
     def __init__(self, config: NotesConfig, now=dt.datetime.now):
         self._config = config
         self._now = now
-        self._current: Path | None = None
+        self._current: Path | None = None  # the page chosen or started this session
 
     @property
     def enabled(self) -> bool:
@@ -278,13 +286,25 @@ class Notebook:
         return self._config.dir
 
     def current_page(self) -> Path:
-        if self._current is None:
-            pages = list(self.dir.glob("*.md")) if self.dir.is_dir() else []
-            if pages:
-                self._current = max(pages, key=lambda p: p.stat().st_mtime)
-            else:
-                self._current = self.dir / page_file_name(self._config.default_page)
-        return self._current
+        """The page in use: the one chosen this session, else the newest page
+        (for reading or opening), else the page she would start."""
+        if self._current is not None:
+            return self._current
+        pages = list(self.dir.glob("*.md")) if self.dir.is_dir() else []
+        if pages:
+            return max(pages, key=lambda p: p.stat().st_mtime)
+        return self._session_page()
+
+    def _session_page(self) -> Path:
+        """Her own page for this session: the first unused index for today."""
+        template = self._config.default_page
+        today = f"{self._now():%Y-%m-%d}"
+        for index in range(1, 1000):
+            name = template.replace("{date}", today).replace("{index}", str(index))
+            path = self.dir / page_file_name(name)
+            if not path.exists() or "{index}" not in template:
+                return path
+        return path
 
     def latest_page(self) -> Path:
         """Switch to the page written most recently (the current one if none exist)."""
@@ -302,7 +322,11 @@ class Notebook:
         exact = self.dir / page_file_name(name)
         if exact.is_file():
             return exact
-        return next((p for p in sorted(self.dir.glob("*.md")) if _page_key(p.stem) == key), None)
+        pages = sorted(self.dir.glob("*.md"))
+        if match := next((p for p in pages if _page_key(p.stem) == key), None):
+            return match
+        key = _page_key(name, sound_alike=True)
+        return next((p for p in pages if _page_key(p.stem, sound_alike=True) == key), None)
 
     def previous_page(self) -> Path | None:
         """Step back one page, by when each was last written, from the current
@@ -334,7 +358,9 @@ class Notebook:
 
     def write(self, note: str) -> Path:
         """Append one note to the current page and flush it to disk."""
-        path = self.current_page()
+        if self._current is None:  # nothing opened this session: start her own page
+            self._current = self._session_page()
+        path = self._current
         fresh = not path.exists()
         if fresh:
             self._create(path)
@@ -367,7 +393,8 @@ class Notebook:
     def open(self, path: Path | None = None) -> bool:
         """Show a page in the viewer from `notes.open_with`. False if none is set
         or it couldn't be started."""
-        path = path or self.current_page()
+        if path is None:  # "open my notes": that page is now the one in use
+            path = self._current = self.current_page()
         viewer = self.viewer
         if not viewer:
             return False
