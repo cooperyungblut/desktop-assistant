@@ -46,11 +46,14 @@ _LEADING = re.compile(
     # comma/colon after "down", so "right down the hall" stays a question.
     r"|right\s+(?:(?:that|this|it)\s+down|down(?=\s*[,:]))"
     r"|(?:take|make|add)\s+(?:a\s+)?(?:new\s+)?note(?:\s+of\s+(?:that|this))?(?:\s+for\s+me)?"
-    r"|add\s+(?:(?:that|this|it)\s+)?to\s+(?:my|the)\s+notes"
+    r"|add\s+(?:(?:that|this|it)\s+)?to\s+(?:my|the|this)\s+(?:notes?\s+)?(?:notes|page)"
     r"|(?:a\s+)?new\s+note\s*:"
     r"|note\s*:"
     r"|note\s+that"
     r")"
+    # "add a note to this page: X" names where, not what
+    r"(?:\s+(?:to|on|in|onto)\s+(?:this|the|my|our)\s+(?:current\s+|open\s+)?"
+    r"(?:notes?\s+)?(?:page|notes|file))?"
     r"(?:\s+please)?"
     rf"{_END}{_PUNCT}(?P<rest>.*)$",
     re.IGNORECASE | re.DOTALL,

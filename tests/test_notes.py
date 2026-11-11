@@ -24,6 +24,9 @@ from secretary.notes import Notebook, NoteRequest, is_cancel, note_request, page
         ("Can you write that down?", ""),
         ("Write this down.", ""),
         ("Okay so write that down", ""),
+        ("Add a note to this page. Dr. Pepper Jelly Beans.", "Dr. Pepper Jelly Beans"),
+        ("Write down on this page: lever 3", "lever 3"),
+        ("Add to this page, blue door", "blue door"),
     ],
 )
 def test_write_requests(text, note):
