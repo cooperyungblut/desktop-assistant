@@ -36,6 +36,11 @@ def test_rename_tag():
     assert run("Done. [rename page: Haunted House]")[1] == [Action("rename_page", "Haunted House")]
 
 
+def test_uncross_tag():
+    _, actions = run("Sure. [uncross: out of jelly] [Unmark: gate]")
+    assert actions == [Action("uncross", "out of jelly"), Action("uncross", "gate")]
+
+
 def test_claims():
     from secretary.actions import claims_an_action
 
@@ -43,5 +48,6 @@ def test_claims():
     assert claims_an_action("Okay, I've written that down.")
     assert claims_an_action("I've got that written down for you!")
     assert claims_an_action("Done, crossed it off.")
+    assert claims_an_action("I have unmarked the note about being out of jelly.")
     assert not claims_an_action("The gate code is 3258.")
     assert not claims_an_action("I can do that for you.")

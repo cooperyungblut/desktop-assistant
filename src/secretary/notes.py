@@ -46,11 +46,14 @@ _LEADING = re.compile(
     # comma/colon after "down", so "right down the hall" stays a question.
     r"|right\s+(?:(?:that|this|it)\s+down|down(?=\s*[,:]))"
     r"|(?:take|make|add)\s+(?:a\s+)?(?:new\s+)?note(?:\s+of\s+(?:that|this))?(?:\s+for\s+me)?"
-    r"|add\s+(?:(?:that|this|it)\s+)?to\s+(?:my|the)\s+notes"
+    r"|add\s+(?:(?:that|this|it)\s+)?to\s+(?:my|the|this)\s+(?:notes?\s+)?(?:notes|page)"
     r"|(?:a\s+)?new\s+note\s*:"
     r"|note\s*:"
     r"|note\s+that"
     r")"
+    # "add a note to this page: X" names where, not what
+    r"(?:\s+(?:to|on|in|onto)\s+(?:this|the|my|our)\s+(?:current\s+|open\s+)?"
+    r"(?:notes?\s+)?(?:page|notes|file))?"
     r"(?:\s+please)?"
     rf"{_END}{_PUNCT}(?P<rest>.*)$",
     re.IGNORECASE | re.DOTALL,
@@ -625,11 +628,13 @@ class Notebook:
             found += [(page.stem, n) for n in self.last_notes(1000, page) if topic & set(_words(n))]
         return found
 
-    def mark_used(self, what: str, anywhere: bool = False) -> int:
-        """Strike through notes about `what` on the current page ("the vault
-        code" strikes every note mentioning the vault; "gate 3258" only the one
+    def mark_used(self, what: str, anywhere: bool = False, undo: bool = False) -> int:
+        """Strike through the notes that best match `what` on the current page
+        ("the vault code" strikes every note about the vault code; "Dr. Pepper
+        jelly beans" only that one, not "out of jelly"; "gate 3258" only the one
         with 3258). With `anywhere`, if the current page has none, the 10 newest
-        other pages are tried. Nothing is deleted. Returns how many were struck."""
+        other pages are tried. `undo` takes the strike off instead. Nothing is
+        deleted. Returns how many were changed."""
         topic = topic_words(what)
         if not topic:
             return 0
@@ -639,36 +644,43 @@ class Notebook:
         if anywhere and self.dir.is_dir():
             newest = sorted(self.dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
             pages += [p for p in newest if p != current][:10]
+        words = topic - {w for w in topic if w.isdigit()}
         for path in pages:
-            if struck := self._strike(path, topic - ({w for w in topic if w.isdigit()}), digits):
-                return struck
+            if changed := self._strike(path, words, digits, undo):
+                return changed
         return 0
 
     @staticmethod
-    def _strike(path: Path, topic: set[str], digits: str) -> int:
+    def _strike(path: Path, topic: set[str], digits: str, undo: bool = False) -> int:
         if not path.is_file():
             return 0
         lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-        struck = 0
+        scores: dict[int, int] = {}
         for i, line in enumerate(lines):
             m = _NOTE_LINE.match(line.rstrip("\n"))
-            if not m or m["note"].startswith("~~"):
+            if not m or m["note"].startswith("~~") != undo:
                 continue
-            note = m["note"]
+            note = m["note"].removeprefix("~~").removesuffix("~~")
+            shared = len(topic & set(_words(note)))
             if digits:  # a number names one note exactly
-                hit = digits in "".join(re.findall(r"\d", note))
-                hit = hit and (not topic or bool(topic & set(_words(note))))
-            else:
-                hit = bool(topic & set(_words(note)))
-            if hit:
-                lines[i] = f"{m['head']}~~{note}~~\n"
-                struck += 1
-        if struck:
-            with path.open("w", encoding="utf-8") as f:
-                f.write("".join(lines))
-                f.flush()
-                os.fsync(f.fileno())
-        return struck
+                if digits in "".join(re.findall(r"\d", note)) and (not topic or shared):
+                    scores[i] = shared + 1
+            elif shared * 2 > len(topic):  # most of the words, so "out of jelly"
+                scores[i] = shared  # never catches "Dr. Pepper Jelly Beans"
+        if not scores:
+            return 0
+        best = max(scores.values())  # the closest match only, not every shared word
+        for i, score in scores.items():
+            if score == best:
+                m = _NOTE_LINE.match(lines[i].rstrip("\n"))
+                note = m["note"]
+                plain = note.removeprefix("~~").removesuffix("~~")
+                lines[i] = f"{m['head']}{plain if undo else f'~~{plain}~~'}\n"
+        with path.open("w", encoding="utf-8") as f:
+            f.write("".join(lines))
+            f.flush()
+            os.fsync(f.fileno())
+        return sum(1 for score in scores.values() if score == best)
 
     @property
     def viewer(self) -> str:

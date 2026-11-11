@@ -25,7 +25,8 @@ keep open on another monitor.
 | "Rename these notes Haunted House" / "Call this page Lighthouse" | Renames the current page (file and heading) and reopens it. On Windows she answers Notepad++'s "keep this file?" prompt for the old tab with No, which closes it |
 | "Open my notes" | Opens the current page in your viewer (see below) |
 | "What was the gate code?" / "Check the notes for the gate code" | Answers from the page in use (its last 30 notes), if one was used this session or written in the last 12 hours. If that page doesn't have it, she checks the 10 newest other pages for notes on the same thing. A question asking for a code, password, PIN, combination or number that matches a note skips the Wikipedia lookup |
-| "Cross off the vault notes" / "Mark the vault code as used" / "Archive the gate code" | Strikes through (`~~...~~`) every note on the current page that mentions the vault. If the current page has none ("the other gate code", "archive that"), she works out which note you mean and can cross it off on any recent page, matched by its number. Nothing is deleted; crossed-off notes are left out when she reads or answers from notes |
+| "Cross off the vault notes" / "Mark the vault code as used" / "Archive the gate code" | Strikes through (`~~...~~`) the notes on the current page that best match (all the vault notes, but "Dr. Pepper jelly beans" leaves "out of jelly" alone). If the current page has none ("the other gate code", "archive that"), she works out which note you mean and can cross it off on any recent page, matched by its number. Nothing is deleted; crossed-off notes are left out when she reads or answers from notes |
+| "Take the cross off the jelly note" | She takes the strike off that note again |
 
 The note is written exactly as it was heard, in code: the chat model never
 sees or rewrites it. She reads it back ("Got it, I wrote down: ..."), so you
@@ -36,7 +37,7 @@ hear right away if Whisper misheard a number.
 The phrases above are handled by the app directly and fast. Anything else goes to
 her, and she can act on notes herself: "the vault code is 55 then 26", "yes,
 update it", "let's use the escape room notes". She adds a hidden tag to her reply,
-`[note: ...]`, `[cross off: ...]`, `[open page: ...]` or `[rename page: ...]`, the same way she adds
+`[note: ...]`, `[cross off: ...]`, `[uncross: ...]`, `[open page: ...]` or `[rename page: ...]`, the same way she adds
 mood tags. The app carries it out after she finishes speaking. If it fails
 (notes turned off, a file error), she says so instead.
 

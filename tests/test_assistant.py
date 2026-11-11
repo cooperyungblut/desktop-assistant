@@ -949,6 +949,23 @@ async def test_she_updates_a_note_by_crossing_off_and_writing(env, tmp_path, fak
     assert page.read_text(encoding="utf-8").endswith("- ~~vault code 6762~~\n- vault code 5526\n")
 
 
+async def test_she_uncrosses_a_note(env, tmp_path, fake_model):
+    a, _, page = notes_env(env, tmp_path)
+    a.ask("write down we're out of jelly")
+    await finish(a)
+    fake_model.reply = "Done. [cross off: jelly]"
+    a.ask("cross that off")
+    await finish(a)
+    fake_model.reply = "Brought it back. [uncross: out of jelly]"
+    a.ask("we are out of jelly though, take the markout off")
+    await finish(a)
+    assert page.read_text(encoding="utf-8").endswith("- we're out of jelly\n")
+    fake_model.reply = "Brought it back. [uncross: gate code]"
+    a.ask("unmark the gate code")
+    await finish(a)
+    assert "couldn't find a crossed-off note about gate code" in a.history[-1].content
+
+
 async def test_she_opens_a_page_herself(env, tmp_path, fake_model):
     a, _, _ = notes_env(env, tmp_path)
     fake_model.reply = "Switching over. [open page: Escape room]"

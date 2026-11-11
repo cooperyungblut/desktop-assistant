@@ -24,6 +24,9 @@ from secretary.notes import Notebook, NoteRequest, is_cancel, note_request, page
         ("Can you write that down?", ""),
         ("Write this down.", ""),
         ("Okay so write that down", ""),
+        ("Add a note to this page. Dr. Pepper Jelly Beans.", "Dr. Pepper Jelly Beans"),
+        ("Write down on this page: lever 3", "lever 3"),
+        ("Add to this page, blue door", "blue door"),
     ],
 )
 def test_write_requests(text, note):
@@ -349,6 +352,28 @@ def test_mark_used_strikes_matching_notes(tmp_path):
     )
     assert nb.last_notes() == ["gate code 3258"]
     assert nb.mark_used("vault") == 0
+
+
+def test_mark_used_strikes_only_the_closest_match(tmp_path):
+    nb = notebook(tmp_path, timestamps=False)
+    for note in ("we're out of jelly", "hot dog washing machine", "Dr. Pepper Jelly Beans"):
+        page = nb.write(note)
+    assert nb.mark_used("Dr. Pepper Jelly Beans") == 1
+    assert page.read_text(encoding="utf-8") == (
+        "# Notes\n\n- we're out of jelly\n- hot dog washing machine\n- ~~Dr. Pepper Jelly Beans~~\n"
+    )
+
+
+def test_uncross_takes_the_strike_off(tmp_path):
+    nb = notebook(tmp_path, timestamps=False)
+    for note in ("we're out of jelly", "Dr. Pepper Jelly Beans"):
+        page = nb.write(note)
+    nb.mark_used("jelly")  # both mention jelly
+    assert nb.mark_used("out of jelly", undo=True) == 1
+    assert page.read_text(encoding="utf-8") == (
+        "# Notes\n\n- we're out of jelly\n- ~~Dr. Pepper Jelly Beans~~\n"
+    )
+    assert nb.mark_used("out of jelly", undo=True) == 0
 
 
 def test_code_questions_skip_the_lookup():
