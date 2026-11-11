@@ -983,7 +983,7 @@ async def test_renaming_the_page(env, tmp_path, fake_model):
     await finish(a)
     a.ask("call this page Lighthouse")
     await finish(a)
-    assert a.history[-1].content.startswith("There's already a page called Lighthouse")
+    assert "there's already a page called Lighthouse" in a.history[-1].content
 
 
 async def test_crossing_off_a_note_on_another_page(env, tmp_path, fake_model):
@@ -1069,3 +1069,16 @@ async def test_she_knows_which_page_was_open_before(env, tmp_path, fake_model):
         if "most recently written first" in m["content"]
     )
     assert "labyrinth (in use now)" in pages and "Test4 (in use before this one)" in pages
+
+
+async def test_go_to_a_page_that_does_not_exist_goes_to_her(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    a.ask("open a page called Test4")
+    await finish(a)
+    a.ask("Go to the page we started with.")
+    await finish(a)
+    assert not (tmp_path / "notes" / "we started with.md").exists()
+    assert len(fake_model.requests) == 1
+    a.ask("switch to the page called Test4")
+    await finish(a)
+    assert a.history[-1].content == "Back on Test4."

@@ -301,6 +301,15 @@ def filled_note(text: str) -> str:
     return clean_note(line)[:200]
 
 
+_GOES_TO = re.compile(r"^\W*(?:\w+\W+){0,4}?(?:switch|go(?:\s+back)?|change)\s+to\b", re.I)
+
+
+def only_existing(text: str) -> bool:
+    """ "Go to / switch to the page X" moves to a page that exists; it never
+    starts one ("go to the page we started with" is not a page name)."""
+    return bool(_GOES_TO.match(text))
+
+
 def split_then_write(text: str) -> tuple[str, str] | None:
     """("open Test 4", "write down jelly beans") for a two-step request, else None.
     The caller checks that the first part is a page command."""

@@ -64,6 +64,7 @@ from .notes import (
     filled_note,
     is_cancel,
     note_request,
+    only_existing,
     open_page_name,
     refers_to_something,
     split_then_write,
@@ -517,6 +518,14 @@ class Assistant:
         notebook = self._notebook
         if request is None:
             return False
+        if (
+            request.kind == "new_page"
+            and request.text
+            and notebook is not None
+            and only_existing(text)
+            and not notebook.page_exists(request.text)
+        ):
+            return False  # "go to the page we started with": she works out which
         if notebook is None or not notebook.enabled:
             await self._reply_line(lines.notes_off, text)
             return True

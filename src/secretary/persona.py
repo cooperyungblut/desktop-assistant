@@ -76,7 +76,9 @@ class Lines(BaseModel):
     note_marked_used: str = "Crossed off {count} about {what}."
     note_cross_off_missing: str = "Actually, I couldn't find a note about {what} to cross off."
     note_renamed: str = "Renamed it to {page}."
-    note_rename_taken: str = "There's already a page called {page}. Pick another name?"
+    note_rename_taken: str = (
+        "Actually, I didn't rename it: there's already a page called {page}. Pick another name?"
+    )
     note_failed: str = "I couldn't write that down: {reason}."
     notes_off: str = "Note taking is turned off in my settings."
 

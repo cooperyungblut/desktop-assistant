@@ -443,3 +443,12 @@ def test_more_rename_wordings(text):
 def test_intent_openers():
     assert note_request("I'll go to the one before that.") == NoteRequest("previous")
     assert note_request("let's open the latest notes") == NoteRequest("latest")
+
+
+def test_only_existing():
+    from secretary.notes import only_existing
+
+    assert only_existing("Go to the page we started with.")
+    assert only_existing("Juniper, switch to the page called Test4")
+    assert not only_existing("open a page called Notes 5")
+    assert not only_existing("start a new page called Escape room")
