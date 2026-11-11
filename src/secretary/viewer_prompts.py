@@ -1,18 +1,23 @@
-"""Answer Notepad++'s "file doesn't exist anymore, keep it?" prompt after a rename.
+"""Answer Notepad++'s "file doesn't exist anymore, keep it?" prompt for notes pages.
 
 When she renames a page, Notepad++ still has the old file open and asks whether
-to keep it in the editor. The app can't control Notepad++, but on Windows it
-can find that message box (a standard dialog whose text names the old file) and
-press its No button, which closes the stale tab. Only a dialog that names the
-renamed file is touched, and only for a short while after the rename.
+to keep it in the editor, right away or the next time it gets focus (e.g. when
+she opens another page). The app can't control Notepad++, but on Windows it can
+find that message box (a standard dialog whose text names the file) and press
+its No button, which closes the stale tab. Only a dialog naming a page in the
+notes folder that no longer exists is touched, and only for a short while after
+she renames or opens a page.
 """
 
 from __future__ import annotations
 
 import logging
+import os
+import re
 import sys
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
@@ -25,41 +30,65 @@ class WindowApi(Protocol):
     def click(self, hwnd: int) -> None: ...
 
 
-def press_no_on_missing_file_prompt(api: WindowApi, path: Path) -> bool:
-    """One pass: press No on a dialog that names `path`. True if it did."""
+def missing_page_in(folder: Path) -> Callable[[str], bool]:
+    """True for prompt text naming a .md file in `folder` that doesn't exist."""
+    folder_key = os.path.normcase(os.path.abspath(folder))
+
+    def matches(text: str) -> bool:
+        for name in re.findall(r'"([^"]+?\.md)"', text):
+            path = Path(name)
+            if os.path.normcase(os.path.abspath(path.parent)) == folder_key and not path.exists():
+                return True
+        return False
+
+    return matches
+
+
+def press_no_on_missing_file_prompt(api: WindowApi, matches: Callable[[str], bool]) -> bool:
+    """One pass: press No on a dialog whose text `matches`. True if it did."""
     for dialog in api.dialogs():
         children = api.children(dialog)
-        if not any(path.name in text for _, cls, text in children if cls == "Static"):
+        if not any(matches(text) for _, cls, text in children if cls == "Static"):
             continue
         for hwnd, cls, text in children:
             if cls == "Button" and text.replace("&", "").strip().lower() == "no":
                 api.click(hwnd)
-                log.info("Closed Notepad++'s tab for the renamed %s", path.name)
+                log.info("Closed a Notepad++ tab for a page that was renamed")
                 return True
     return False
 
 
 def dismiss_missing_file_prompt(
-    path: Path, timeout: float = 20.0, interval: float = 0.25, api: WindowApi | None = None
-) -> bool:
-    """Watch for the prompt about `path` for up to `timeout` seconds."""
+    matches: Callable[[str], bool],
+    timeout: float = 20.0,
+    interval: float = 0.25,
+    api: WindowApi | None = None,
+) -> int:
+    """Watch for such prompts for up to `timeout` seconds; returns how many it
+    answered (Notepad++ asks once per stale tab)."""
     api = api or _windows_api()
     if api is None:
-        return False
+        return 0
+    answered = 0
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            if press_no_on_missing_file_prompt(api, path):
-                return True
+            if press_no_on_missing_file_prompt(api, matches):
+                answered += 1
+                continue
         except OSError as exc:  # a window closed under us: try again next pass
             log.debug("dialog scan failed: %s", exc)
         time.sleep(interval)
-    return False
+    return answered
 
 
-def dismiss_in_background(path: Path) -> None:
+def dismiss_in_background(folder: Path, timeout: float = 20.0) -> None:
     if sys.platform == "win32":
-        threading.Thread(target=dismiss_missing_file_prompt, args=(path,), daemon=True).start()
+        threading.Thread(
+            target=dismiss_missing_file_prompt,
+            args=(missing_page_in(folder), timeout),
+            daemon=True,
+        ).start()
 
 
 def _windows_api() -> WindowApi | None:
