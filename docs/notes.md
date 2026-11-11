@@ -17,7 +17,8 @@ keep open on another monitor.
 | "Open Test2" / "Switch to Escape room" | Goes to that page, only if a page by that name already exists |
 | "Open Test 4 and write down jelly beans" | Goes to that page, then writes the note there |
 | "Open the latest notes" / "Pull up my last page" | Opens the page written most recently |
-| "Open the one before that" / "Go back to the previous page" | Steps back one page at a time, by when each was last written |
+| "Open the one before that" / "Go back a page" / "Go back again" | Steps back one page at a time, by when each was last written |
+| "Go to the first page" / "the first page we started on" | Opens the first page used since the app started |
 | "Start a new page" | Same, named with the date and time |
 | "Read me my notes" / "What did I write down?" | Reads the last five notes on the current page |
 | "Where did you write that down?" | Names the current page and its file |
