@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from . import commands, escalations
-from .actions import Action, ActionFilter, as_tags
+from .actions import Action, ActionFilter, as_tags, claims_an_action, parse_actions
 from .briefs import Brief
 from .calendar_requests import (
     EventDraft,
@@ -69,7 +69,7 @@ from .notes import (
     split_then_write,
 )
 from .persona import Persona
-from .prompt import Turn, build_messages, build_note_messages
+from .prompt import ACTION_REPAIR, Turn, build_messages, build_note_messages
 from .state import StateStore
 from .stt import NoTranscriber, SttUnavailable, Transcriber
 from .tts import Speaker
@@ -386,6 +386,9 @@ class Assistant:
             # small model keep using the format.
             full = f"[{tags.mood}] {full}"
         said = strip_tags(full)
+        if not actions.actions and claims_an_action(said) and self._notes_on():
+            # She said she did it but left out the tag: ask her for it.
+            actions.actions = await self._repair_actions(messages, full)
         if actions.actions:
             # Keep the tags in history so she sees she can use them.
             full = f"{full} {as_tags(actions.actions)}"
@@ -580,6 +583,24 @@ class Assistant:
         except OSError:
             return None
         return page.stem, notes
+
+    def _notes_on(self) -> bool:
+        return self._notebook is not None and self._notebook.enabled
+
+    async def _repair_actions(self, messages: list[dict[str, str]], reply: str) -> list[Action]:
+        repair = [
+            *messages,
+            {"role": "assistant", "content": reply},
+            {"role": "system", "content": ACTION_REPAIR.format(user=self.persona.user_name)},
+        ]
+        options = {**self.persona.sampling.as_options(), "temperature": 0.1}
+        try:
+            out = "".join([t async for t in self._model.stream_chat(repair, options)])
+        except LlmUnavailable:
+            return []
+        found = parse_actions(out)
+        log.info("Reply claimed a notes change without a tag; repair gave %s", found or "none")
+        return found
 
     async def _do_actions(self, actions: list[Action]) -> str | None:
         """Carry out the note actions she wrote into her reply. Returns a line to
