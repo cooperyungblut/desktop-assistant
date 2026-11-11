@@ -54,6 +54,8 @@ def test_write_requests(text, note):
         ("Can you open the one before that?", NoteRequest("previous")),
         ("the one before that", NoteRequest("previous")),
         ("Open the one before that, please.", NoteRequest("previous")),
+        ("Can you go back a page?", NoteRequest("previous")),
+        ("Go back one page.", NoteRequest("previous")),
         ("Open my last notes page, please", NoteRequest("latest")),
         ("Read my notes please.", NoteRequest("read")),
         ("go back to the previous page", NoteRequest("previous")),

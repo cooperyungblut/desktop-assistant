@@ -103,14 +103,15 @@ _LATEST = re.compile(
     r"(?:notes?(?:\s+(?:page|file))?|page|file|notepad)\b[\s.!?]*$",
     re.IGNORECASE,
 )
-# "open the one before that", "go back to the previous page"
+# "open the one before that", "go back to the previous page", "go back a page"
 _PREVIOUS = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
     r"(?:(?:open|show|pull\s+up|bring\s+up|go\s+to|switch\s+to|go\s+back\s+to|go\s+back)"
     r"\s+(?:me\s+)?(?:to\s+)?)?"
     r"(?:the\s+|my\s+)?"
     r"(?:(?:one|page|notes?(?:\s+page)?)\s+before\s+(?:that|this|it)"
-    r"|previous\s+(?:one|page|notes?(?:\s+(?:page|file))?))"
+    r"|previous\s+(?:one|page|notes?(?:\s+(?:page|file))?)"
+    r"|(?:(?:go|step|move)\s+)?back\s+(?:a|one)\s+(?:notes?\s+)?page)"
     r"\b[\s.!?]*$",
     re.IGNORECASE,
 )
