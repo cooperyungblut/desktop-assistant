@@ -354,6 +354,28 @@ def test_mark_used_strikes_matching_notes(tmp_path):
     assert nb.mark_used("vault") == 0
 
 
+def test_mark_used_strikes_only_the_closest_match(tmp_path):
+    nb = notebook(tmp_path, timestamps=False)
+    for note in ("we're out of jelly", "hot dog washing machine", "Dr. Pepper Jelly Beans"):
+        page = nb.write(note)
+    assert nb.mark_used("Dr. Pepper Jelly Beans") == 1
+    assert page.read_text(encoding="utf-8") == (
+        "# Notes\n\n- we're out of jelly\n- hot dog washing machine\n- ~~Dr. Pepper Jelly Beans~~\n"
+    )
+
+
+def test_uncross_takes_the_strike_off(tmp_path):
+    nb = notebook(tmp_path, timestamps=False)
+    for note in ("we're out of jelly", "Dr. Pepper Jelly Beans"):
+        page = nb.write(note)
+    nb.mark_used("jelly")  # both mention jelly
+    assert nb.mark_used("out of jelly", undo=True) == 1
+    assert page.read_text(encoding="utf-8") == (
+        "# Notes\n\n- we're out of jelly\n- ~~Dr. Pepper Jelly Beans~~\n"
+    )
+    assert nb.mark_used("out of jelly", undo=True) == 0
+
+
 def test_code_questions_skip_the_lookup():
     from secretary.notes import asks_for_a_code
 

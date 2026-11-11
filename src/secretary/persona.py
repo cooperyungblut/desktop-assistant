@@ -76,6 +76,9 @@ class Lines(BaseModel):
     # {count} is "3 notes"; {what} what you asked to cross off.
     note_marked_used: str = "Crossed off {count} about {what}."
     note_cross_off_missing: str = "Actually, I couldn't find a note about {what} to cross off."
+    note_uncross_missing: str = (
+        "Actually, I couldn't find a crossed-off note about {what} to bring back."
+    )
     note_renamed: str = "Renamed it to {page}."
     note_rename_taken: str = (
         "Actually, I didn't rename it: there's already a page called {page}. Pick another name?"

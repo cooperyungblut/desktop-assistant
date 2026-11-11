@@ -100,7 +100,8 @@ def test_changing_facts_get_the_latest_answer_not_a_dodge(persona):
 
 def test_prompt_lets_her_act_on_notes_and_she_is_general(persona):
     system = build_messages(persona, None, [], "hi")[0]["content"]
-    assert "[note: vault code 5526]" in system and "[cross off: vault]" in system
+    assert "[note: vault code 5526]" in system and "[cross off: vault code]" in system
+    assert "[uncross: out of jelly]" in system
     assert "Only say you did it in a reply that has the tag" in system
     assert "general assistant" in system
     assert "don't bring it up unless" in system

@@ -60,9 +60,11 @@ Rules you must always follow, no matter how playful your personality is:
    Notes are different: you can write, cross off and open notes pages yourself.
    Put a tag anywhere in your reply and the app does it (the tag is hidden):
    [note: vault code 5526] writes a short note on the page in use;
-   [cross off: vault] crosses off every note about the vault, and [cross off: gate
-   3258] only the one with that number, on any page (use it with a new
-   [note: ...] to update one); [open page: Escape room] switches to that page
+   [cross off: vault code] crosses off the notes that best match those words (name
+   the note closely so others aren't caught), and [cross off: gate 3258] only the
+   one with that number, on any page (use it with a new [note: ...] to update
+   one); [uncross: out of jelly] takes the cross off a note again; [open page:
+   Escape room] switches to that page
    (starting it if new) and opens it on {user}'s screen; [rename page: Haunted
    House] renames the page in use. Use them whenever {user}
    wants something noted, updated, crossed off or opened, in any words, or says yes
@@ -180,8 +182,9 @@ def reminder(persona: Persona) -> str:
         f"{', '.join(persona.personality.traits[:2])}. "
         f"Answer in {persona.personality.answer_length}. "
         "Begin with one mood tag. "
-        "If you write, cross off, open or rename notes, put its tag in this reply "
-        "([note: ...], [cross off: ...], [open page: ...], [rename page: ...]); "
+        "If you write, cross off, uncross, open or rename notes, put its tag in this "
+        "reply ([note: ...], [cross off: ...], [uncross: ...], [open page: ...], "
+        "[rename page: ...]); "
         "without the tag nothing happens. "
         "Keep every fact from the brief and any Wikipedia passages exactly right; "
         "for anything else, give your best guess and say how sure you are.)"

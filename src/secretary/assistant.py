@@ -639,6 +639,9 @@ class Assistant:
                 elif action.kind == "cross_off":
                     if not await asyncio.to_thread(notebook.mark_used, action.text, True):
                         return lines.note_cross_off_missing.format(what=action.text)
+                elif action.kind == "uncross":
+                    if not await asyncio.to_thread(notebook.mark_used, action.text, True, True):
+                        return lines.note_uncross_missing.format(what=action.text)
                 elif action.kind == "rename_page":
                     try:
                         page = await asyncio.to_thread(notebook.rename, action.text)

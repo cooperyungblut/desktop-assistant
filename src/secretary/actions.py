@@ -1,6 +1,6 @@
 """Note actions the model takes itself, written as tags in its reply.
 
-She can write "[note: vault code 5526]", "[cross off: vault]",
+She can write "[note: vault code 5526]", "[cross off: vault]", "[uncross: jelly]",
 "[open page: Escape room]" or "[rename page: Haunted House]" anywhere in a
 reply. `ActionFilter` pulls these out of the token stream before anything is
 shown or spoken (like mood tags), and the app carries them out once the reply
@@ -24,9 +24,13 @@ _KINDS = {
     "page": "open_page",
     "rename page": "rename_page",
     "rename": "rename_page",
+    "uncross": "uncross",
+    "unmark": "uncross",
+    "uncross off": "uncross",
+    "uncrossoff": "uncross",
 }
 _ACTION = re.compile(
-    r"\[\s*(note|write|cross\s*off|open\s*page|page|rename(?:\s*page)?)\s*:\s*([^\]\n]{1,200}?)\s*\]\s*",
+    r"\[\s*(note|write|cross\s*off|uncross(?:\s*off)?|unmark|open\s*page|page|rename(?:\s*page)?)\s*:\s*([^\]\n]{1,200}?)\s*\]\s*",
     re.IGNORECASE,
 )
 _PREFIX = re.compile(r"\[\s*[a-z ]{0,14}(?::[^\]\n]*)?$", re.IGNORECASE)
@@ -35,7 +39,7 @@ _MAX = 230  # longer than any action tag; past this a "[" is just text
 
 @dataclass(frozen=True)
 class Action:
-    kind: Literal["write", "cross_off", "open_page", "rename_page"]
+    kind: Literal["write", "cross_off", "uncross", "open_page", "rename_page"]
     text: str
 
 
@@ -83,6 +87,7 @@ def strip_actions(text: str) -> str:
 def as_tags(actions: list[Action]) -> str:
     """The actions written back as tags, so her history shows she used them."""
     names = {
+        "uncross": "uncross",
         "write": "note",
         "cross_off": "cross off",
         "open_page": "open page",
@@ -96,6 +101,7 @@ def as_tags(actions: list[Action]) -> str:
 _CLAIM = re.compile(
     r"\bI(?:'ve|’ve|\s+have)?\s+(?:just\s+|now\s+|also\s+|already\s+)?"
     r"(?:crossed|marked|struck|written|wrote|noted|jotted|renamed|updated|archived|added|"
+    r"uncrossed|unmarked|restored|unstruck|"
     r"switched|opened|changed|saved|put)\b"
     r"|\b(?:crossed|marked|struck)\s+(?:it|that|them|those)?\s*(?:off|out)\b"
     r"|\b(?:wrote|written|jotted)\s+(?:it|that|this)\s+down\b"
