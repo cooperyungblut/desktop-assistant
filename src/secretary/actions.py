@@ -98,7 +98,8 @@ _CLAIM = re.compile(
     r"(?:crossed|marked|struck|written|wrote|noted|jotted|renamed|updated|archived|added|"
     r"switched|opened|changed|saved|put)\b"
     r"|\b(?:crossed|marked|struck)\s+(?:it|that|them|those)?\s*(?:off|out)\b"
-    r"|\b(?:wrote|written|jotted)\s+(?:it|that|this)\s+down\b",
+    r"|\b(?:wrote|written|jotted)\s+(?:it|that|this)\s+down\b"
+    r"|\bgot\s+(?:it|that|this|them)\s+(?:written|jotted|noted)\b",
     re.IGNORECASE,
 )
 
