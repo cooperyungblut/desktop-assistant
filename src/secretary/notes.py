@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Literal
 
 from .config import NotesConfig
+from .viewer_prompts import dismiss_in_background
 
 log = logging.getLogger(__name__)
 
@@ -509,6 +510,8 @@ class Notebook:
                 text = f"# {new.stem}\n" + text[len(old.stem) + 3 :]
             old.rename(new)
             new.write_text(text, encoding="utf-8", newline="\n")
+            if self.viewer:  # Notepad++ will ask about the old tab: answer it
+                dismiss_in_background(old)
         self._current = new
         log.info("Renamed %s to %s", old.name, new.name)
         return new
