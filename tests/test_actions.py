@@ -41,6 +41,7 @@ def test_claims():
 
     assert claims_an_action("I have crossed off the gate code 3258 for you.")
     assert claims_an_action("Okay, I've written that down.")
+    assert claims_an_action("I've got that written down for you!")
     assert claims_an_action("Done, crossed it off.")
     assert not claims_an_action("The gate code is 3258.")
     assert not claims_an_action("I can do that for you.")

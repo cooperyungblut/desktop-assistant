@@ -42,6 +42,9 @@ _LEADING = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
     r"(?:"
     r"(?:write|jot|note)\s+(?:(?:that|this|it)\s+)?down(?:\s+for\s+me)?"
+    # Whisper often hears "write" as "right"; only with "that down" or a
+    # comma/colon after "down", so "right down the hall" stays a question.
+    r"|right\s+(?:(?:that|this|it)\s+down|down(?=\s*[,:]))"
     r"|(?:take|make|add)\s+(?:a\s+)?(?:new\s+)?note(?:\s+of\s+(?:that|this))?(?:\s+for\s+me)?"
     r"|add\s+(?:(?:that|this|it)\s+)?to\s+(?:my|the)\s+notes"
     r"|(?:a\s+)?new\s+note\s*:"
@@ -57,7 +60,7 @@ _LEADING = re.compile(
 # "where did you write that down?" never ends up as a note.
 _TRAILING = re.compile(
     r"^\s*(?P<rest>.+?)(?:\s*[,.;:\-–—]\s*|\s+(?=(?:can|could|would|will|please)\b))"
-    rf"{_POLITE}(?:write|jot|note)\s+(?:that|this|it)\s+down"
+    rf"{_POLITE}(?:write|right|jot|note)\s+(?:that|this|it)\s+down"
     r"(?:\s+for\s+me)?(?:\s+please)?[\s.!?]*$",
     re.IGNORECASE | re.DOTALL,
 )
