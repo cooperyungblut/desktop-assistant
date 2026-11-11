@@ -114,7 +114,20 @@ _PREVIOUS = re.compile(
     r"(?:the\s+|my\s+)?"
     r"(?:(?:one|page|notes?(?:\s+page)?)\s+before\s+(?:that|this|it)"
     r"|previous\s+(?:one|page|notes?(?:\s+(?:page|file))?)"
-    r"|(?:(?:go|step|move)\s+)?back\s+(?:a|one)\s+(?:notes?\s+)?page)"
+    r"|(?:(?:go|step|move)\s+)?back\s+(?:a|one)\s+(?:notes?\s+)?page"
+    r"|(?:go|step|move)\s+back(?:\s+one)?\s+(?:again|once\s+more|one\s+more))"
+    r"\b[\s.!?]*$",
+    re.IGNORECASE,
+)
+# "go to the first page we started on", "the first page of the session"
+_FIRST = re.compile(
+    rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:(?:open|show\s+me|pull\s+up|bring\s+up|switch\s+(?:back\s+)?to|take\s+me\s+(?:back\s+)?to"
+    r"|go\s+(?:back\s+)?to)\s+"
+    r"(?:the\s+)?(?:very\s+)?first\s+(?:one|page|notes?(?:\s+page)?)"
+    r"|(?:the\s+)?(?:very\s+)?first\s+(?:page|notes?(?:\s+page)?))"
+    r"(?:\s+(?:we|I|you)\s+(?:started|opened|used|worked)(?:\s+(?:on|with|in))?"
+    r"|\s+(?:of|in|from)\s+(?:the|this)\s+session|\s+this\s+session|\s+today)?"
     r"\b[\s.!?]*$",
     re.IGNORECASE,
 )
@@ -171,7 +184,16 @@ _BAD_NAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 @dataclass(frozen=True)
 class NoteRequest:
     kind: Literal[
-        "write", "new_page", "read", "open", "latest", "previous", "where", "used", "rename"
+        "write",
+        "new_page",
+        "read",
+        "open",
+        "latest",
+        "previous",
+        "first",
+        "where",
+        "used",
+        "rename",
     ]
     text: str = ""  # the note, or the new page's name ("" = ask / use a dated name)
 
@@ -201,6 +223,8 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
         return NoteRequest("latest")
     if _PREVIOUS.match(command):
         return NoteRequest("previous")
+    if _FIRST.match(command):
+        return NoteRequest("first")
     if _READ.match(command):
         return NoteRequest("read")
     if m := _USED.match(command):

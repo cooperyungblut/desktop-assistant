@@ -1079,7 +1079,7 @@ async def test_she_knows_the_first_page_this_session(env, tmp_path, fake_model):
         await finish(a)
         a.ask("write down x")
         await finish(a)
-    a.ask("Can you go to the first page we started on?")
+    a.ask("Which page did we start on?")
     await finish(a)
     pages = next(
         m["content"]
@@ -1101,3 +1101,23 @@ async def test_go_to_a_page_that_does_not_exist_goes_to_her(env, tmp_path, fake_
     a.ask("switch to the page called Test4")
     await finish(a)
     assert a.history[-1].content == "Back on Test4."
+
+
+async def test_first_page_goes_to_the_first_one_this_session(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    for name in ("HauntTest", "Haunted House", "Jelly"):
+        a.ask(f"open a page called {name}")
+        await finish(a)
+        a.ask("write down x")
+        await finish(a)
+    a.ask("Can you go to the first page?")
+    await finish(a)
+    assert a._notebook._current.stem == "HauntTest"
+    assert fake_model.requests == []
+
+
+async def test_first_page_with_none_used_goes_to_her(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    a.ask("Can you go to the first page?")
+    await finish(a)
+    assert len(fake_model.requests) == 1

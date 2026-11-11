@@ -509,7 +509,13 @@ class Assistant:
             return False
         if (parts := split_then_write(text)) is not None:
             first = await self._note_request(parts[0])
-            if first is not None and first.kind in ("new_page", "latest", "previous", "open"):
+            if first is not None and first.kind in (
+                "new_page",
+                "latest",
+                "previous",
+                "first",
+                "open",
+            ):
                 # "Open Test 4 and write down jelly beans": switch, then write.
                 await self._notes_turn(parts[0])
                 await self._notes_turn(parts[1])
@@ -526,6 +532,10 @@ class Assistant:
             and not notebook.page_exists(request.text)
         ):
             return False  # "go to the page we started with": she works out which
+        if request.kind == "first" and (
+            notebook is None or notebook.first is None or not notebook.first.exists()
+        ):
+            return False  # no page used yet this session: she answers
         if notebook is None or not notebook.enabled:
             await self._reply_line(lines.notes_off, text)
             return True
@@ -731,10 +741,13 @@ class Assistant:
                 (page := await asyncio.to_thread(notebook.previous_page)) is None
             ):
                 line = lines.note_no_previous
-            elif request.kind in ("latest", "previous"):
+            elif request.kind in ("latest", "previous", "first"):
                 if request.kind == "latest":
                     page = await asyncio.to_thread(notebook.latest_page)
                     opened = lines.note_latest_opened
+                elif request.kind == "first":
+                    page = notebook._current = notebook.first
+                    opened = lines.note_first_opened
                 else:
                     opened = lines.note_previous_opened
                 if await asyncio.to_thread(notebook.open, page):
