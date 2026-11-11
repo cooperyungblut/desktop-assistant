@@ -438,3 +438,8 @@ def test_an_asked_write_drops_the_question_mark():
 )
 def test_more_rename_wordings(text):
     assert note_request(text, "Juniper") == NoteRequest("rename", "this one")
+
+
+def test_intent_openers():
+    assert note_request("I'll go to the one before that.") == NoteRequest("previous")
+    assert note_request("let's open the latest notes") == NoteRequest("latest")

@@ -196,6 +196,10 @@ If {user} asks about something written down (a code, a password, what a note
 says), answer from these notes and repeat the details exactly. If the answer
 isn't in them, say so. Otherwise don't bring the notes up."""
 
+PAGES = """\
+{user}'s notes pages, most recently written first: {pages}. To go to one of them
+(for example "the one we had open before"), use [open page: its name]."""
+
 OLDER_NOTES = """\
 Notes on {user}'s other pages that may answer this, newest page first:
 {notes}
@@ -253,6 +257,7 @@ def build_messages(
     mention_source: bool = True,
     notes: tuple[str, Sequence[str]] | None = None,
     older_notes: Sequence[tuple[str, str]] = (),
+    pages: Sequence[str] = (),
 ) -> list[Message]:
     recent = list(history)[-2 * history_turns :] if history_turns > 0 else []
     messages: list[Message] = [{"role": "system", "content": system_prompt(persona, brief)}]
@@ -274,6 +279,13 @@ def build_messages(
                 "content": NOTES_CONTEXT.format(
                     page=page, notes="\n".join(f"- {n}" for n in lines), user=persona.user_name
                 ),
+            }
+        )
+    if pages:
+        messages.append(
+            {
+                "role": "system",
+                "content": PAGES.format(pages=", ".join(pages), user=persona.user_name),
             }
         )
     if older_notes:
