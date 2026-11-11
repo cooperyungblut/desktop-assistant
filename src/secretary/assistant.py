@@ -645,8 +645,9 @@ class Assistant:
         return None
 
     async def _pages_for_prompt(self) -> list[str]:
-        """Page names for her, newest first, marking the one in use and the one
-        before it, so "go back to the one we had open" works in any words."""
+        """Page names for her, newest first, marking the one in use, the one
+        before it and the first one this session, so "go back to the one we had
+        open" or "the page we started on" works in any words."""
         notebook = self._notebook
         if notebook is None or not notebook.enabled:
             return []
@@ -654,22 +655,19 @@ class Assistant:
             pages = await asyncio.to_thread(notebook.recent_pages)
         except OSError:
             return []
-        in_use = notebook._current
-        named = []
-        for page in pages:
-            label = page.stem
-            if page == in_use:
-                label += " (in use now)"
-            elif page == notebook.before:
-                label += " (in use before this one)"
-            named.append(label)
-        if (
-            notebook.before is not None
-            and notebook.before not in pages
-            and notebook.before.exists()
+        marks: dict[Path, list[str]] = {}
+        for page, mark in (
+            (notebook._current, "in use now"),
+            (notebook.before, "in use before this one"),
+            (notebook.first, "first one this session"),
         ):
-            named.append(f"{notebook.before.stem} (in use before this one)")
-        return named
+            if page is not None:
+                marks.setdefault(page, []).append(mark)
+        extra = [p for p in marks if p not in pages and p.exists()]
+        return [
+            f"{page.stem} ({', '.join(marks[page])})" if page in marks else page.stem
+            for page in [*pages, *extra]
+        ]
 
     async def _older_notes_for(
         self, question: str, notes: tuple[str, list[str]] | None

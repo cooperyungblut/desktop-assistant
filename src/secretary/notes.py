@@ -421,6 +421,7 @@ class Notebook:
         self._now = now
         self._in_use: Path | None = None  # the page chosen or started this session
         self.before: Path | None = None  # the page in use before that one
+        self.first: Path | None = None  # the first page used this session
 
     @property
     def _current(self) -> Path | None:
@@ -430,6 +431,8 @@ class Notebook:
     def _current(self, path: Path | None) -> None:
         if path != self._in_use and self._in_use is not None:
             self.before = self._in_use
+        if self.first is None:
+            self.first = path
         self._in_use = path
 
     def recent_pages(self, count: int = 8) -> list[Path]:
@@ -548,6 +551,8 @@ class Notebook:
             if self.viewer:  # Notepad++ will ask about the old tab: answer it
                 dismiss_in_background(self.dir)
         before = self.before
+        if self.first == old:
+            self.first = new
         self._current = new
         self.before = before if before != new else None
         log.info("Renamed %s to %s", old.name, new.name)

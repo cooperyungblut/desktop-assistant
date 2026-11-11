@@ -1068,7 +1068,26 @@ async def test_she_knows_which_page_was_open_before(env, tmp_path, fake_model):
         for m in fake_model.requests[-1]
         if "most recently written first" in m["content"]
     )
-    assert "labyrinth (in use now)" in pages and "Test4 (in use before this one)" in pages
+    assert "labyrinth (in use now)" in pages
+    assert "Test4 (in use before this one, first one this session)" in pages
+
+
+async def test_she_knows_the_first_page_this_session(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    for name in ("HauntTest", "Haunted House", "labyrinth"):
+        a.ask(f"open a page called {name}")
+        await finish(a)
+        a.ask("write down x")
+        await finish(a)
+    a.ask("Can you go to the first page we started on?")
+    await finish(a)
+    pages = next(
+        m["content"]
+        for m in fake_model.requests[-1]
+        if "most recently written first" in m["content"]
+    )
+    assert "HauntTest (first one this session)" in pages
+    assert "Haunted House (in use before this one)" in pages
 
 
 async def test_go_to_a_page_that_does_not_exist_goes_to_her(env, tmp_path, fake_model):
