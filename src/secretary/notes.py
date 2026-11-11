@@ -28,7 +28,11 @@ from .viewer_prompts import dismiss_in_background
 log = logging.getLogger(__name__)
 
 _FILLER = r"(?:(?:hey|okay|ok|so|um|uh|alright|and)\b[\s,]*)*"
-_POLITE = r"(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?|please\s+|go\s+ahead\s+and\s+)?"
+_POLITE = (
+    r"(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?|please\s+|go\s+ahead\s+and\s+"
+    r"|(?:i(?:'ll|’ll|\s+will)|let(?:'s|’s|s)|we(?:'ll|’ll|\s+will)|can\s+we|could\s+we"
+    r"|i\s+want\s+to|i'd\s+like\s+to)\s+)?"
+)
 _PUNCT = r"[\s:,.;!?\-–—]*"
 _END = r"(?=[\s:,.;!?\-–—]|$)"
 
@@ -402,7 +406,25 @@ class Notebook:
     def __init__(self, config: NotesConfig, now=dt.datetime.now):
         self._config = config
         self._now = now
-        self._current: Path | None = None  # the page chosen or started this session
+        self._in_use: Path | None = None  # the page chosen or started this session
+        self.before: Path | None = None  # the page in use before that one
+
+    @property
+    def _current(self) -> Path | None:
+        return self._in_use
+
+    @_current.setter
+    def _current(self, path: Path | None) -> None:
+        if path != self._in_use and self._in_use is not None:
+            self.before = self._in_use
+        self._in_use = path
+
+    def recent_pages(self, count: int = 8) -> list[Path]:
+        """Pages, most recently written first."""
+        if not self.dir.is_dir():
+            return []
+        pages = sorted(self.dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+        return pages[:count]
 
     @property
     def enabled(self) -> bool:
@@ -512,7 +534,9 @@ class Notebook:
             new.write_text(text, encoding="utf-8", newline="\n")
             if self.viewer:  # Notepad++ will ask about the old tab: answer it
                 dismiss_in_background(old)
+        before = self.before
         self._current = new
+        self.before = before if before != new else None
         log.info("Renamed %s to %s", old.name, new.name)
         return new
 

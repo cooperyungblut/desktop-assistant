@@ -925,7 +925,7 @@ async def test_a_code_on_an_older_page_is_found(env, tmp_path, fake_model):
     assert 'gate code 3258 (page "Test4")' in sent
     a.ask("What is the vault code?")
     await finish(a)
-    assert "Test4" not in str(fake_model.requests[-1][-3:])
+    assert '(page "Test4")' not in str(fake_model.requests[-1])
 
 
 async def test_she_writes_a_note_herself(env, tmp_path, fake_model):
@@ -1050,3 +1050,22 @@ async def test_no_repair_for_ordinary_replies(env, tmp_path):
     a.ask("what goes well with lamb?")
     await finish(a)
     assert len(model.requests) == 1
+
+
+async def test_she_knows_which_page_was_open_before(env, tmp_path, fake_model):
+    a, _, _ = notes_env(env, tmp_path)
+    for name in ("Test4", "Haunted House"):
+        a.ask(f"open a page called {name}")
+        await finish(a)
+        a.ask("write down x")
+        await finish(a)
+    a.ask("Rename these notes labyrinth.")
+    await finish(a)
+    a.ask("The one we had open before this one.")
+    await finish(a)
+    pages = next(
+        m["content"]
+        for m in fake_model.requests[-1]
+        if "most recently written first" in m["content"]
+    )
+    assert "labyrinth (in use now)" in pages and "Test4 (in use before this one)" in pages
