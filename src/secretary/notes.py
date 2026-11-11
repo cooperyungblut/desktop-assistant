@@ -533,7 +533,7 @@ class Notebook:
             old.rename(new)
             new.write_text(text, encoding="utf-8", newline="\n")
             if self.viewer:  # Notepad++ will ask about the old tab: answer it
-                dismiss_in_background(old)
+                dismiss_in_background(self.dir)
         before = self.before
         self._current = new
         self.before = before if before != new else None
@@ -653,6 +653,9 @@ class Notebook:
             log.exception("Couldn't open %s with %s", path, viewer)
             return False
         log.info("Opened %s with %s", path.name, viewer)
+        # Notepad++ rechecks its tabs when it comes forward and may ask about a
+        # page renamed earlier: answer that too.
+        dismiss_in_background(self.dir, timeout=10.0)
         return True
 
     def _create(self, path: Path) -> None:

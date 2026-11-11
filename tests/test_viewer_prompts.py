@@ -1,8 +1,10 @@
 from pathlib import Path
 
-from secretary.viewer_prompts import dismiss_missing_file_prompt, press_no_on_missing_file_prompt
-
-OLD = Path("C:/dev/notes/JuniperNotes_2026-11-10_2.md")
+from secretary.viewer_prompts import (
+    dismiss_missing_file_prompt,
+    missing_page_in,
+    press_no_on_missing_file_prompt,
+)
 
 
 class FakeApi:
@@ -11,7 +13,11 @@ class FakeApi:
         self.clicked: list[int] = []
 
     def dialogs(self):
-        return list(self._dialogs)
+        return [h for h in self._dialogs if h not in self.closed]
+
+    @property
+    def closed(self):
+        return {h for h, kids in self._dialogs.items() if any(k[0] in self.clicked for k in kids)}
 
     def children(self, hwnd):
         return self._dialogs[hwnd]
@@ -20,25 +26,37 @@ class FakeApi:
         self.clicked.append(hwnd)
 
 
-def prompt(name: str) -> list:
+def prompt(path: Path, base: int) -> list:
     return [
-        (11, "Static", f'The file "C:\\dev\\notes\\{name}" doesn\'t exist anymore.'),
-        (12, "Button", "&Yes"),
-        (13, "Button", "&No"),
+        (base + 1, "Static", f'The file\n"{path}" doesn\'t exist anymore.\nKeep this file?'),
+        (base + 2, "Button", "&Yes"),
+        (base + 3, "Button", "&No"),
     ]
 
 
-def test_presses_no_on_the_prompt_for_the_renamed_file():
-    api = FakeApi({1: prompt("Other.md"), 2: prompt(OLD.name)})
-    assert press_no_on_missing_file_prompt(api, OLD)
-    assert api.clicked == [13]
+def test_presses_no_for_missing_pages_in_the_notes_folder(tmp_path):
+    notes = tmp_path / "notes"
+    notes.mkdir()
+    (notes / "Still here.md").write_text("x")
+    api = FakeApi(
+        {
+            1: prompt(notes / "Still here.md", 10),  # exists: leave it
+            2: prompt(tmp_path / "elsewhere" / "Gone.md", 20),  # not a notes page
+            3: prompt(notes / "JuniperNotes_2026-11-10_2.md", 30),  # renamed: close
+        }
+    )
+    assert press_no_on_missing_file_prompt(api, missing_page_in(notes))
+    assert api.clicked == [33]
 
 
-def test_leaves_other_dialogs_alone():
-    api = FakeApi({1: prompt("Other.md")})
-    assert not dismiss_missing_file_prompt(OLD, timeout=0.05, interval=0.01, api=api)
-    assert api.clicked == []
+def test_answers_one_prompt_per_stale_tab(tmp_path):
+    notes = tmp_path / "notes"
+    api = FakeApi({1: prompt(notes / "A.md", 10), 2: prompt(notes / "B.md", 20)})
+    answered = dismiss_missing_file_prompt(
+        missing_page_in(notes), timeout=0.1, interval=0.01, api=api
+    )
+    assert answered == 2 and api.clicked == [13, 23]
 
 
-def test_gives_up_when_no_prompt_shows():
-    assert dismiss_missing_file_prompt(OLD, timeout=0.01) is False
+def test_gives_up_when_no_prompt_shows(tmp_path):
+    assert dismiss_missing_file_prompt(missing_page_in(tmp_path), timeout=0.01) == 0
