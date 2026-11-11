@@ -54,6 +54,8 @@ def test_write_requests(text, note):
         ("Can you open the one before that?", NoteRequest("previous")),
         ("the one before that", NoteRequest("previous")),
         ("Open the one before that, please.", NoteRequest("previous")),
+        ("Can you go back a page?", NoteRequest("previous")),
+        ("Go back one page.", NoteRequest("previous")),
         ("Open my last notes page, please", NoteRequest("latest")),
         ("Read my notes please.", NoteRequest("read")),
         ("go back to the previous page", NoteRequest("previous")),
@@ -443,3 +445,12 @@ def test_more_rename_wordings(text):
 def test_intent_openers():
     assert note_request("I'll go to the one before that.") == NoteRequest("previous")
     assert note_request("let's open the latest notes") == NoteRequest("latest")
+
+
+def test_only_existing():
+    from secretary.notes import only_existing
+
+    assert only_existing("Go to the page we started with.")
+    assert only_existing("Juniper, switch to the page called Test4")
+    assert not only_existing("open a page called Notes 5")
+    assert not only_existing("start a new page called Escape room")
