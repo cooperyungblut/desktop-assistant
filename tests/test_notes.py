@@ -426,3 +426,15 @@ def test_an_asked_write_drops_the_question_mark():
         "write", "the path is left, left"
     )
     assert note_request("write down: why?") == NoteRequest("write", "why?")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "We'll rename this notes page to this one.",
+        "Rename the current notes page to this one.",
+        "let's rename the open page to this one",
+    ],
+)
+def test_more_rename_wordings(text):
+    assert note_request(text, "Juniper") == NoteRequest("rename", "this one")

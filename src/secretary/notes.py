@@ -68,7 +68,9 @@ _NEW_PAGE = re.compile(
 # "rename these notes Haunted House", "call this page Escape room"
 _RENAME = re.compile(
     rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:(?:we(?:'ll|’ll|\s+will)|let(?:'s|’s|s)?(?:\s+us)?|i\s+want\s+to)\s+)?"
     r"(?:rename|retitle|call|name|title)\s+(?:these|this|the|my|our)\s+"
+    r"(?:(?:current|open|active)\s+)?"
     r"(?:notes?(?:\s+(?:page|file))?|page|file|notepad)"
     r"(?:[\s,:]+(?:to|as))?[\s,:]+(?P<name>.+)$",
     re.IGNORECASE | re.DOTALL,
@@ -199,7 +201,8 @@ def note_request(text: str, name: str | None = None) -> NoteRequest | None:
         topic = topic_words(what)
         return NoteRequest("used", " ".join(w for w in _words(what) if w in topic))
     if m := _RENAME.match(command):
-        return NoteRequest("rename", clean_note(m["name"]).rstrip("?!"))
+        # Not clean_note: a page can be called "This One".
+        return NoteRequest("rename", m["name"].strip().rstrip(".?!").strip())
     if m := _NEW_PAGE.match(command) or _NAMED_PAGE.match(command):
         name = clean_note(m["name"]).rstrip("?!")
         if name.lower().strip(" .,!") in _NOT_A_NAME:  # "open my notes please"
