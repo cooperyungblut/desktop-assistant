@@ -164,6 +164,12 @@ class LiveNotesConfig(BaseModel):
     hold_seconds: float = Field(default=2.5, ge=0.0, le=15.0)
     # Seconds of each source kept in memory (never on disk) while listening.
     recent_seconds: float = Field(default=15.0, ge=0.0, le=120.0)
+    # Her running summary on a second page ("<page> summary"), in her own words,
+    # rewritten this often while listening and once more at the end. Uses the
+    # chat model that's already loaded.
+    summary: bool = True
+    summary_every_seconds: float = Field(default=120.0, ge=20.0, le=1800.0)
+    summary_words: int = Field(default=250, ge=50, le=1000)
 
 
 class AppConfig(BaseModel):

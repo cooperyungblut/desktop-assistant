@@ -23,6 +23,7 @@ Event types sent to the UI:
     live_notes   {on, hidden, page, lines}   live notes started or stopped
     notice       {text}         a line to show as a desktop notification (she's hidden)
     live_line    {label, text}  a line live notes just wrote
+    live_summary {page, final?} her summary page was rewritten
     error        {message}
 """
 
@@ -605,7 +606,10 @@ class Assistant:
                 return lines.live_not_running
             n = len(session.lines)
             count = f"{n} line" + ("s" if n != 1 else "")
-            return lines.live_stopped.format(lines=count, page=session.page.stem)
+            line = lines.live_stopped.format(lines=count, page=session.page.stem)
+            if live.summary is not None and n:
+                line += " " + lines.live_summary_coming.format(page=live.summary.page.stem)
+            return line
         if live.on:
             return lines.live_already.format(page=live.session.page.stem)
         try:
@@ -632,7 +636,14 @@ class Assistant:
             return "off"
         session = self._live.session
         since = dt.datetime.fromtimestamp(session.started).strftime("%H:%M")
-        return f'on since {since}, writing to the page "{session.page.stem}"'
+        text = f'on since {since}, writing to the page "{session.page.stem}"'
+        summary = self._live.summary
+        if summary is not None and summary.text:
+            text += (
+                f". Your running notes on the call so far (from the transcript, "
+                f"in your words):\n{summary.text}"
+            )
+        return text
 
     ANSWER_FRESH_SECONDS = 180.0
 

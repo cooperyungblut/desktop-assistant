@@ -82,7 +82,15 @@ def create_app(config: AppConfig) -> FastAPI:
     wiki = make_wiki(config.wiki)
     config.escalations_dir.mkdir(parents=True, exist_ok=True)
     notebook = Notebook(config.notes)
-    live = LiveNotes(config.live_notes, transcriber, notebook, hub.emit)
+    live = LiveNotes(
+        config.live_notes,
+        transcriber,
+        notebook,
+        hub.emit,
+        model=model,
+        model_options=persona.sampling.as_options(),
+        user=persona.user_name,
+    )
     assistant = Assistant(
         persona=persona,
         model=model,

@@ -69,6 +69,15 @@ https://github.com/user-attachments/assets/f6dc1b93-f154-4ee3-8c28-ec2f78aa97e9
   exactly as heard, to a Markdown page in a local folder. Notepad++ on a side
   monitor shows it live. "Start a new page called ..." and "read me my notes"
   work too. Setup in [`docs/notes.md`](docs/notes.md).
+- **Live notes**: "start live notes" (or Ctrl+Alt+L) writes a word-for-word
+  transcript of a call or interview to a notes page as it happens, your mic
+  labeled "You" and the computer's audio (WASAPI loopback) labeled
+  "Computer", using the same Whisper model. Phrases are cut at pauses, lines
+  go in time order, and with speakers she drops the mic's echo of the call
+  and her own voice. Every couple of minutes she rewrites a short summary
+  page in her own words with the local model. She reminds you to tell
+  everyone they're being transcribed, and a hidden mode keeps her off a
+  shared screen. Setup in [`docs/live-notes.md`](docs/live-notes.md).
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
 
@@ -193,7 +202,7 @@ Google Calendar sign-in), `models/` and avatar files are git-ignored. Everything
 
 Milestones 1–4 are done. Next up, in [`docs/plan.md`](docs/plan.md): a wake
 word, allow-listed actions, and watching the screen to comment on a game.
-The offline Wikipedia lookup is done.
+The offline Wikipedia lookup and live notes are done.
 
 ## AI assistance
 

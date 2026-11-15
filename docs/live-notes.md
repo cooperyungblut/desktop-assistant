@@ -41,6 +41,21 @@ is answered from the transcript, and "write that down: ..." adds your own note
 between the transcript lines. Her own voice is left out of the transcript (the
 page tells the app when she's speaking).
 
+## Her summary
+
+Next to the transcript she keeps a short summary page, `<page> summary`, in
+her own words: the topics, the questions they asked, what you said, and any
+follow-ups (with names, dates and numbers as said). She rewrites it every
+`summary_every_seconds` (2 minutes) while live notes run, and once more after
+they stop ("My summary will be on ... in a moment"). Each update sends the chat
+model only her summary so far and the transcript since the last update, so a
+long interview never outgrows its context, and the model that's already loaded
+does it (no extra VRAM).
+
+While live notes run she also sees this summary, so "what have we covered so
+far?" works. The transcript goes to the model as quoted data: anything someone
+says on the call that sounds like an instruction to her is ignored.
+
 ## Setup
 
 ```powershell
@@ -97,3 +112,6 @@ Audio is never written to disk. While listening, the last
 | `echo_check` | true | Skip "You" lines that repeat the call |
 | `hold_seconds` | 2.5 | How long a line waits before it's written |
 | `recent_seconds` | 15 | Audio kept in memory per side while listening |
+| `summary` | true | Keep her summary page |
+| `summary_every_seconds` | 120 | How often she rewrites it while listening |
+| `summary_words` | 250 | About how long it may get |

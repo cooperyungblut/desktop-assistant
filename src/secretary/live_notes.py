@@ -38,6 +38,8 @@ import numpy as np
 
 from .config import LiveNotesConfig
 from .live_audio import BlockHandler, Chunk, RecentAudio, Segmenter, SoundcardSource
+from .live_summary import LiveSummary
+from .llm import ChatModel
 from .notes import _END, _FILLER, _POLITE, Notebook, page_file_name
 from .stt import SttUnavailable, Transcriber
 
@@ -462,8 +464,17 @@ class LiveNotes:
         emit: Callable[[dict], Awaitable[None]],
         sources: Callable[[LiveNotesConfig], list[AudioSource]] = make_sources,
         now: Callable[[], dt.datetime] = dt.datetime.now,
+        model: ChatModel | None = None,
+        model_options: dict | None = None,
+        user: str = "the user",
     ):
         self._config = config
+        self._model = model
+        self._model_options = model_options or {}
+        self._user = user
+        self.summary: LiveSummary | None = None
+        self._summarizing: asyncio.Task | None = None
+        self._final: asyncio.Task | None = None
         self._transcriber = transcriber
         self._notebook = notebook
         self._emit = emit
@@ -505,6 +516,7 @@ class LiveNotes:
                 await session.stop()
                 raise
             self.session, self.hidden = session, hidden
+            self._start_summary(session, title)
             if not hidden and self._notebook.viewer:
                 await asyncio.to_thread(self._notebook.open, page)
             await self._emit(self.status())
@@ -517,7 +529,58 @@ class LiveNotes:
                 return None
             await session.stop()
             await self._emit(self.status())
+            if self._summarizing is not None:
+                self._summarizing.cancel()
+                self._summarizing = None
+            if self.summary is not None and session.lines:
+                # The last update runs on its own, so stopping is instant.
+                self._final = asyncio.create_task(self._final_summary(self.summary, session))
             return session
+
+    # ---- her running summary ---------------------------------------------------
+
+    def _start_summary(self, session: LiveSession, title: str) -> None:
+        self.summary = None
+        if not self._config.summary or self._model is None:
+            return
+        name = page_file_name(f"{title} summary")
+        self.summary = LiveSummary(
+            self._model,
+            self._model_options,
+            self._notebook.dir / name,
+            self._user,
+            (self._config.you_label, self._config.computer_label),
+            self._config.summary_words,
+            self._now,
+        )
+        self._summarizing = asyncio.create_task(self._summarize_loop(session, self.summary))
+
+    @staticmethod
+    def _lines(session: LiveSession) -> list[str]:
+        return [f"{label}: {line.text}" for line, label in session.lines]
+
+    async def _summarize_loop(self, session: LiveSession, summary: LiveSummary) -> None:
+        while session.running:
+            await asyncio.sleep(self._config.summary_every_seconds)
+            if not session.running:
+                break
+            try:
+                if await summary.update(self._lines(session)):
+                    await self._emit({"type": "live_summary", "page": summary.page.stem})
+            except OSError as exc:
+                log.warning("Couldn't write the live summary: %s", exc)
+
+    async def _final_summary(self, summary: LiveSummary, session: LiveSession) -> None:
+        try:
+            updated = await summary.update(self._lines(session), final=True)
+            if not updated and summary.text:
+                summary.write(final=True)  # nothing new since: just mark it final
+            if summary.text:
+                await self._emit({"type": "live_summary", "page": summary.page.stem, "final": True})
+        except OSError as exc:
+            log.warning("Couldn't write the live summary: %s", exc)
+        except Exception:
+            log.exception("live summary failed")
 
     def status(self) -> dict:
         s = self.session
@@ -539,3 +602,7 @@ class LiveNotes:
 
     async def aclose(self) -> None:
         await self.stop()
+        if self._final is not None and not self._final.done():
+            # Quitting: give the last summary a moment.
+            with contextlib.suppress(TimeoutError, asyncio.CancelledError):
+                await asyncio.wait_for(self._final, timeout=20)

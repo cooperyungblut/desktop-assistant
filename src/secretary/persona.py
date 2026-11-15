@@ -97,6 +97,8 @@ class Lines(BaseModel):
     )
     live_already: str = "I'm already taking live notes, on {page}."
     live_stopped: str = "Live notes stopped. {lines} on {page}."
+    # Added to live_stopped when she's writing a summary. {page} is its page.
+    live_summary_coming: str = "My summary will be on {page} in a moment."
     live_not_running: str = "I wasn't taking live notes."
     live_failed: str = "I couldn't start live notes: {reason}."
 

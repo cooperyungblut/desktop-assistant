@@ -95,3 +95,5 @@ live_notes:
   page: "Live notes {date} {time}"
   pause_seconds: 0.7       # quiet that ends a phrase
   echo_check: true         # with speakers (no headphones), skip "You" lines that repeat the call
+  summary: true            # her own summary on "<page> summary", rewritten while listening
+  summary_every_seconds: 120
