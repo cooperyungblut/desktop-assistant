@@ -2,8 +2,8 @@
 
 Client -> server messages:
     {"type": "start_brief", "id": optional brief id}
-    {"type": "ask", "text": "..."}
-    {"type": "voice", "audio": base64 audio from MediaRecorder}
+    {"type": "ask", "text": "...", "images": optional [base64 PNG/JPEG, ...]}
+    {"type": "voice", "audio": base64 audio from MediaRecorder, "images": optional}
     {"type": "stop"}
     {"type": "live_notes", "action": "start" | "stop", "hidden": bool}
     {"type": "speaking", "on": bool, "text": "..."}   her speech started/ended playing
@@ -27,6 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from .assistant import Assistant
 from .config import AppConfig
 from .google_calendar import make_calendar
+from .images import decode_pictures
 from .live_notes import LiveNotes
 from .llm import LlmUnavailable, OllamaClient
 from .notes import Notebook
@@ -196,11 +197,15 @@ def create_app(config: AppConfig) -> FastAPI:
                 if kind == "start_brief":
                     assistant.start_brief(msg.get("id"))
                 elif kind == "ask":
-                    assistant.ask(str(msg.get("text", ""))[:2000])
+                    pictures = decode_pictures(msg.get("images"))
+                    if msg.get("images") and not pictures:
+                        bad = {"type": "error", "message": "That picture couldn't be read."}
+                        await ws.send_text(json.dumps(bad))
+                    assistant.ask(str(msg.get("text", ""))[:2000], pictures)
                 elif kind == "voice":
                     audio = _decode_audio(msg.get("audio"))
                     if audio:
-                        assistant.voice(audio)
+                        assistant.voice(audio, decode_pictures(msg.get("images")))
                 elif kind == "stop":
                     assistant.stop()
                 elif kind == "live_notes":

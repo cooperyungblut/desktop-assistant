@@ -105,3 +105,36 @@ def test_prompt_lets_her_act_on_notes_and_she_is_general(persona):
     assert "Only say you did it in a reply that has the tag" in system
     assert "general assistant" in system
     assert "don't bring it up unless" in system
+
+
+def test_a_picture_is_attached_to_the_new_question(persona):
+    from secretary.images import Picture
+    from secretary.prompt import build_messages
+
+    pic = Picture("QUJD", "image/png")
+    msgs = build_messages(persona, None, [], "what is this?", pictures=[pic])
+    assert msgs[-1] == {"role": "user", "content": "what is this?", "images": ["QUJD"]}
+    assert any("is showing you a picture" in m["content"] for m in msgs if m["role"] == "system")
+
+
+def test_only_the_latest_earlier_picture_is_sent_again(persona):
+    from secretary.images import Picture
+    from secretary.prompt import Turn, build_messages
+
+    old, new = Picture("T0xE", "image/png"), Picture("TkVX", "image/jpeg")
+    history = [
+        Turn("user", "look at this", (old,)),
+        Turn("assistant", "A cat."),
+        Turn("user", "and this", (new,)),
+        Turn("assistant", "A dog."),
+    ]
+    msgs = build_messages(persona, None, history, "what breed?")
+    with_images = [m for m in msgs if "images" in m]
+    assert [m["images"] for m in with_images] == [["TkVX"]]
+    assert any(m["content"].startswith("(showed you a picture, no longer") for m in msgs)
+    assert any("Earlier Cooper showed you a picture" in m["content"] for m in msgs)
+
+    # A new picture replaces the old one entirely.
+    msgs = build_messages(persona, None, history, "and now?", pictures=[old])
+    assert [m["images"] for m in msgs if "images" in m] == [["T0xE"]]
+    assert not any("Earlier Cooper showed" in m["content"] for m in msgs)

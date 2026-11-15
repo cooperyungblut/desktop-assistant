@@ -1257,3 +1257,72 @@ async def test_long_transcript_lines_are_trimmed_to_fit_the_prompt(env, tmp_path
     )
     assert "line 29" in notes and "line 0 " not in notes
     assert len(notes) < a.NOTES_PROMPT_CHARS + 1000
+
+
+# ---- pictures -----------------------------------------------------------------
+
+PIC_B64 = "iVBORw0KGgoAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+
+def _pic():
+    from secretary.images import decode_picture
+
+    return decode_picture(PIC_B64)
+
+
+async def test_a_pasted_picture_goes_to_the_model_with_the_question(env, fake_model):
+    a, _, _, _ = env
+    a.ask("what does this error mean?", [_pic()])
+    await finish(a)
+    last = fake_model.requests[-1][-1]
+    assert last["content"] == "what does this error mean?"
+    assert last["images"] == [PIC_B64]
+    # A follow-up still sees it.
+    a.ask("and how do I fix it?")
+    await finish(a)
+    sent = [m for m in fake_model.requests[-1] if "images" in m]
+    assert sent and sent[0]["content"] == "what does this error mean?"
+
+
+async def test_a_picture_with_no_words_still_gets_a_reply(env, fake_model):
+    a, _, _, events = env
+    a.ask("", [_pic()])
+    await finish(a)
+    assert fake_model.requests[-1][-1]["images"] == [PIC_B64]
+    assert any(e["type"] == "reply_end" for e in events)
+
+
+async def test_a_picture_skips_the_word_only_fast_lanes(env, fake_model):
+    a, _, escs, _ = env
+    a.ask("/claude what is this?", [_pic()])
+    await finish(a)
+    assert fake_model.requests  # she looked instead of filing it for Claude
+    assert not list(escs.iterdir())
+
+
+async def test_a_refused_picture_is_explained_and_not_kept(env, persona):
+    from secretary.llm import LlmUnavailable
+
+    a, _, _, events = env
+
+    class NoVision:
+        async def stream_chat(self, messages, options):
+            raise LlmUnavailable("this model is missing data required for image input")
+            yield  # pragma: no cover
+
+    a._model = NoVision()
+    a.ask("what is this?", [_pic()])
+    await finish(a)
+    errors = [e["message"] for e in events if e["type"] == "error"]
+    assert errors and "missing data required for image input" in errors[0]
+    ends = [e["text"] for e in events if e["type"] == "reply_end"]
+    assert ends[-1] == persona.lines.cant_see_pictures
+    assert not any(t.pictures for t in a.history)
+
+
+async def test_voice_with_a_picture_looks_at_it(env, fake_model):
+    a, _, _, _ = env
+    a._transcriber = FakeTranscriber("what is this")
+    a.voice(b"audio", [_pic()])
+    await finish(a)
+    assert fake_model.requests[-1][-1]["images"] == [PIC_B64]

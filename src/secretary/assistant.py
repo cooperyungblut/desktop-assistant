@@ -35,7 +35,7 @@ import datetime as dt
 import logging
 import random
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +57,7 @@ from .config import CalendarConfig, FramingConfig
 from .expressions import TagFilter, strip_tags
 from .framing import BriefFramer, FrameLine, paragraphs, split_greeting, split_signoff
 from .google_calendar import Calendar, CalendarError, FoundEvent, NoCalendar
+from .images import Picture
 from .live_notes import LiveNotes, LiveNotesUnavailable, LiveRequest, live_request, tag_request
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .lookup import Lookup, follow_up, lookup_request, render, usable
@@ -199,12 +200,12 @@ class Assistant:
     def start_brief(self, brief_id: str | None = None) -> None:
         self._run(self._read_brief(brief_id))
 
-    def ask(self, text: str) -> None:
-        self._run(self._answer(text))
+    def ask(self, text: str, pictures: Sequence[Picture] = ()) -> None:
+        self._run(self._answer(text, pictures))
 
-    def voice(self, audio: bytes) -> None:
+    def voice(self, audio: bytes, pictures: Sequence[Picture] = ()) -> None:
         """Push-to-talk: transcribe, show what was heard, then answer it."""
-        self._run(self._voice(audio))
+        self._run(self._voice(audio, pictures))
 
     def live_command(self, action: str, hidden: bool = False) -> None:
         """Start or stop live notes from the tray menu or a hotkey."""
@@ -301,7 +302,7 @@ class Assistant:
             await self._express(line.mood)
         await self._say(line.text)
 
-    async def _voice(self, audio: bytes) -> None:
+    async def _voice(self, audio: bytes, pictures: Sequence[Picture] = ()) -> None:
         start = time.perf_counter()
         try:
             hints = speech_hints(self.context_brief(), self.persona)
@@ -313,10 +314,16 @@ class Assistant:
         log.info("Transcribed %d bytes in %.1f s", len(audio), time.perf_counter() - start)
         await self._emit({"type": "transcript", "text": text})
         if text:
-            await self._answer(text)
+            await self._answer(text, pictures)
 
-    async def _answer(self, text: str) -> None:
+    async def _answer(self, text: str, pictures: Sequence[Picture] = ()) -> None:
         text = text.strip()
+        if pictures:
+            # A question about a picture goes straight to her: the fast lanes below
+            # only read the words, so they would answer without looking at it.
+            log.info("Looking at %d picture(s)", len(pictures))
+            await self._reply(text, tuple(pictures))
+            return
         if not text:
             return
         if await self._live_turn(text):
@@ -331,7 +338,10 @@ class Assistant:
         if (req := commands.brief_request(text)) is not None:
             await self._read_requested(req)
             return
+        await self._reply(text)
 
+    async def _reply(self, text: str, pictures: tuple[Picture, ...] = ()) -> None:
+        """Her own answer from the model, streamed to the chat and spoken."""
         notes = await self._notes_for_prompt()
         # "What's the gate code?" with the gate in the notes: answer from them now.
         older = await self._older_notes_for(text, notes)
@@ -342,8 +352,10 @@ class Assistant:
             self.context_brief(),
             self.history,
             text,
+            pictures=pictures,
             history_turns=self._history_turns,
-            wikipedia=None if from_notes else await self._wikipedia_for(text),
+            # A picture question is about the picture, not a topic to look up.
+            wikipedia=None if from_notes or pictures else await self._wikipedia_for(text),
             mention_source=self._wiki_mention_source,
             notes=notes,
             older_notes=older,
@@ -400,7 +412,14 @@ class Assistant:
             splitter = SentenceSplitter()  # drop any half-finished sentence
             tags = TagFilter()
             actions = ActionFilter()
-            await show(self.persona.lines.model_unavailable, ["neutral"])
+            if pictures and not str(exc).startswith("can't reach"):
+                # Ollama is up but refused the picture (a model without vision, or
+                # an image it couldn't decode). Don't keep it for the next turns.
+                await self._emit({"type": "error", "message": f"Couldn't use the picture: {exc}"})
+                pictures = ()
+                await show(self.persona.lines.cant_see_pictures, ["neutral"])
+            else:
+                await show(self.persona.lines.model_unavailable, ["neutral"])
         finally:
             for sentence in splitter.flush():
                 speech.put_nowait(sentence)
@@ -419,7 +438,7 @@ class Assistant:
         if actions.actions:
             # Keep the tags in history so she sees she can use them.
             full = f"{full} {as_tags(actions.actions)}"
-        self.history += [Turn("user", text), Turn("assistant", full)]
+        self.history += [Turn("user", text, pictures), Turn("assistant", full)]
         self._last_answer = (said, time.monotonic()) if said else None
         failed = await self._do_actions(actions.actions)
         await speaking
