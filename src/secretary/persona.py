@@ -25,6 +25,7 @@ class Lines(BaseModel):
     escalated: str = "Okay, I've passed that to Claude. The answer will be in your next brief."
     no_brief: str = "I don't have a brief loaded yet."
     model_unavailable: str = "Sorry, the local model isn't responding. Is Ollama running?"
+    cant_see_pictures: str = "Sorry, I couldn't look at that picture. The details are in the chat."
     # Said when a Wikipedia lookup is taking a few seconds: one is picked at random,
     # never the same one twice in a row. A single string works too.
     looking_up: list[str] = [

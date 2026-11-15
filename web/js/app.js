@@ -4,6 +4,7 @@ import DOMPurify from "dompurify";
 import { Avatar } from "./avatar.js";
 import { SpeechPlayer } from "./audio.js";
 import { PushToTalk, blobToBase64 } from "./mic.js";
+import { PictureTray, imageFiles, thumbnails } from "./pictures.js";
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -62,6 +63,7 @@ const player = new SpeechPlayer({
 // fallback when another app holds one), so desktop/main.js sends the ones that
 // registered and the hints follow them.
 let hints = {};
+let defaultPlaceholder = els.input.placeholder; // while no picture is waiting
 function showHints(keys) {
   const talk = keys.talk ? `${keys.talk} to talk` : null;
   hints = {
@@ -74,6 +76,7 @@ function showHints(keys) {
   els.mic.title = "Click to talk; click again or pause to send"
     + (talk ? ` (or ${keys.hold ? "hold " : ""}${talk})` : "");
   els.input.placeholder = talk ? `Type, or ${keys.hold ? "hold " : ""}${talk}…` : "Type a question…";
+  defaultPlaceholder = els.input.placeholder;
 }
 // Until the desktop shell says which hotkeys it got, show none rather than
 // keys that do nothing there.
@@ -161,10 +164,12 @@ const handlers = {
     if (e.text) {
       el.className = "you";
       el.textContent = e.text;
+      if (el.pictures?.length) el.prepend(thumbnails(el.pictures));
       if (DESKTOP) flash(`You: ${e.text}`);
     } else {
       el.className = "note";
       el.textContent = `Didn't catch that. ${hints.retry}`;
+      if (el.pictures?.length) pictures.restore(el.pictures); // keep them for the retry
       if (DESKTOP) flash("Didn't catch that. Try again?");
     }
   },
@@ -204,13 +209,61 @@ function startBrief(id = readyId) {
 
 function ask(text) {
   text = text.trim();
-  if (!text) return;
+  if (!text && !pictures.count) return;
   player.unlock();
   player.stop();
-  addMessage("you", text);
-  send({ type: "ask", text });
+  const images = pictures.take();
+  const li = addMessage("you", text);
+  if (images.length) li.prepend(thumbnails(images));
+  send(images.length ? { type: "ask", text, images } : { type: "ask", text });
   els.input.value = "";
 }
+
+// ---- pictures ------------------------------------------------------------------
+
+// Paste anywhere on the page, drop onto the chat panel, or use the picture button.
+// A waiting picture goes with the next question, typed or spoken.
+const pictures = new PictureTray($("pictures"), {
+  onChange(n) {
+    els.input.placeholder = n
+      ? `Ask about ${n === 1 ? "the picture" : "the pictures"}…`
+      : defaultPlaceholder;
+    if (n) els.input.focus();
+    scrollChat();
+  },
+  onError(message) { addMessage("note", `⚠ ${message}`); },
+});
+
+document.addEventListener("paste", (e) => {
+  const files = imageFiles(e.clipboardData);
+  if (!files.length) return; // plain text pastes as usual
+  e.preventDefault();
+  pictures.add(files);
+});
+// Without these, dropping a picture would open it in place of the page.
+document.addEventListener("dragover", (e) => {
+  if ([...(e.dataTransfer?.types ?? [])].includes("Files")) {
+    e.preventDefault();
+    side.classList.add("dropping");
+  }
+});
+document.addEventListener("dragleave", (e) => {
+  if (!e.relatedTarget) side.classList.remove("dropping");
+});
+document.addEventListener("drop", (e) => {
+  side.classList.remove("dropping");
+  const files = imageFiles(e.dataTransfer);
+  if (!files.length && ![...(e.dataTransfer?.types ?? [])].includes("Files")) return;
+  e.preventDefault();
+  if (files.length) pictures.add(files);
+  else addMessage("note", "⚠ Only pictures can be dropped here.");
+});
+const pictureFile = $("picture-file");
+$("add-picture").addEventListener("click", () => pictureFile.click());
+pictureFile.addEventListener("change", () => {
+  pictures.add(imageFiles(pictureFile));
+  pictureFile.value = "";
+});
 
 function stopTalking() {
   morePending = false;
@@ -242,8 +295,11 @@ const ptt = new PushToTalk({
     }
   },
   async onClip(blob) {
+    const images = pictures.take(); // a waiting picture goes with what you say
     pendingVoice = addMessage("you pending", "🎙 …");
-    send({ type: "voice", audio: await blobToBase64(blob) });
+    pendingVoice.pictures = images;
+    const audio = await blobToBase64(blob);
+    send(images.length ? { type: "voice", audio, images } : { type: "voice", audio });
   },
   onError(message) { addMessage("note", `⚠ ${message}`); },
 });
