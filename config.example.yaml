@@ -82,3 +82,16 @@ stt:
   device: cpu          # "cuda" saves ~1 s per question but costs ~1 GB VRAM
   compute_type: int8   # use int8_float16 with cuda
   download_dir: models/whisper
+
+# Live notes: a word-for-word transcript of a call or interview on a notes page,
+# your mic labeled "You" and what the computer plays labeled "Computer".
+# Needs: uv sync --extra live (with your other extras). See docs/live-notes.md
+live_notes:
+  enabled: true
+  microphone: true
+  computer_audio: true     # WASAPI loopback: the other side of a call, a video, ...
+  # microphone_device: "Headset"   # part of a device name; default device if unset
+  # speaker_device: "Speakers"     # scripts/live_notes_check.py --devices lists them
+  page: "Live notes {date} {time}"
+  pause_seconds: 0.7       # quiet that ends a phrase
+  echo_check: true         # with speakers (no headphones), skip "You" lines that repeat the call

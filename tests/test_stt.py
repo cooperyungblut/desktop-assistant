@@ -143,3 +143,21 @@ def test_decode_garbage_raises_a_clear_error():
 
     with pytest.raises(SttUnavailable, match="decode"):
         decode_audio(b"definitely not audio")
+
+
+async def test_live_samples_skip_what_whisper_thinks_is_noise(fake_faster_whisper, tmp_path):
+    import numpy as np
+
+    t = WhisperTranscriber(SttConfig(download_dir=tmp_path))
+    await t.load()
+    model = fake_faster_whisper.instances[-1]
+    noise = _Seg(" Thank you.")
+    noise.no_speech_prob, noise.avg_logprob = 0.9, -1.4
+    model.transcribe = lambda audio, **kw: (
+        model.calls.append(kw) or iter([_Seg(" So tell me"), noise, _Seg(" about yourself.")]),
+        None,
+    )
+    text = await t.transcribe_samples(np.zeros(16000, dtype=np.float32), "Earlier words.")
+    assert text == "So tell me about yourself."
+    assert model.calls[-1]["initial_prompt"] == "Earlier words."
+    assert await t.transcribe_samples(np.zeros(100, dtype=np.float32)) == ""  # too short

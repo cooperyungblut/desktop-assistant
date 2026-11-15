@@ -585,15 +585,19 @@ class Notebook:
         log.info("Renamed %s to %s", old.name, new.name)
         return new
 
-    def write(self, note: str) -> Path:
-        """Append one note to the current page and flush it to disk."""
-        if self._current is None:  # nothing opened this session: start her own page
-            self._current = self._session_page()
-        path = self._current
+    def write(self, note: str, page: Path | None = None, at: dt.datetime | None = None) -> Path:
+        """Append one note to the current page (or to `page`, which stays where
+        it is in the page history) and flush it to disk. `at` is the time shown,
+        now by default."""
+        if page is None:
+            if self._current is None:  # nothing opened this session: start her own page
+                self._current = self._session_page()
+            page = self._current
+        path = page
         fresh = not path.exists()
         if fresh:
             self._create(path)
-        stamp = f"[{self._now():%H:%M}] " if self._config.timestamps else ""
+        stamp = f"[{(at or self._now()):%H:%M}] " if self._config.timestamps else ""
         with path.open("a", encoding="utf-8", newline="\n") as f:
             f.write(f"- {stamp}{note}\n")
             f.flush()

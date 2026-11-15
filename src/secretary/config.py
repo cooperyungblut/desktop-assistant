@@ -131,6 +131,41 @@ class NotesConfig(BaseModel):
     open_args: list[str] | None = None
 
 
+class LiveNotesConfig(BaseModel):
+    """Live notes: a word-for-word transcript of a call or interview, written to
+    a notes page as it happens (see secretary/live_notes.py, docs/live-notes.md).
+    Needs: uv sync --extra live"""
+
+    enabled: bool = True
+    # What she listens to. Your microphone is labeled "You", what the computer
+    # plays (the other side of a call) is labeled "Computer".
+    microphone: bool = True
+    computer_audio: bool = True
+    # Device names (or part of one) when the Windows default isn't the one to
+    # use. scripts/live_notes_check.py --devices lists them.
+    microphone_device: str | None = None
+    speaker_device: str | None = None
+    you_label: str = "You"
+    computer_label: str = "Computer"
+    # The page a session writes to. {date} is today, {time} when it started.
+    page: str = "Live notes {date} {time}"
+    # A chunk ends after this much quiet (or at a quiet moment near
+    # max_chunk_seconds): shorter shows text sooner, longer keeps sentences whole.
+    pause_seconds: float = Field(default=0.7, ge=0.2, le=3.0)
+    max_chunk_seconds: float = Field(default=12.0, ge=3.0, le=30.0)
+    # Quietest level that can count as speech (0 to 1). The real threshold
+    # follows each source's own background noise above this.
+    min_level: float = Field(default=0.006, ge=0.0, le=0.5)
+    # With speakers instead of headphones, the microphone also hears the call.
+    # This leaves out a "You" line that repeats a "Computer" line.
+    echo_check: bool = True
+    # Lines wait this long before they're written, so both sources' lines go
+    # in time order and a speaker's back-to-back chunks join into one line.
+    hold_seconds: float = Field(default=2.5, ge=0.0, le=15.0)
+    # Seconds of each source kept in memory (never on disk) while listening.
+    recent_seconds: float = Field(default=15.0, ge=0.0, le=120.0)
+
+
 class AppConfig(BaseModel):
     secretary_dir: Path = Field(description="Synced folder holding briefs/ and escalations/")
     state_file: Path = Path("data/state.json")
@@ -146,6 +181,7 @@ class AppConfig(BaseModel):
     calendar: CalendarConfig = CalendarConfig()
     wiki: WikiConfig = WikiConfig()
     notes: NotesConfig = NotesConfig()
+    live_notes: LiveNotesConfig = LiveNotesConfig()
 
     @property
     def briefs_dir(self) -> Path:
