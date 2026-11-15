@@ -86,7 +86,7 @@ button { white-space: nowrap; flex: none; font: inherit; padding: 8px 14px; bord
 button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
 select { font: inherit; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
 
-.mic { display: grid; place-items: center; padding: 8px 10px; }
+.mic { display: grid; place-items: center; padding: 8px; }
 .mic:disabled { opacity: .4; cursor: not-allowed; }
 .mic.live { background: var(--bad); color: #fff; border-color: var(--bad); animation: pulse 1s infinite; }
 .messages .pending { opacity: .6; }
@@ -137,3 +137,13 @@ html.desktop.moving .move-hint {
   background: rgb(30 27 39 / .82); color: #ece9f5; white-space: nowrap;
 }
 html.desktop.moving .move-hint button { -webkit-app-region: no-drag; padding: 4px 10px; }
+
+/* Pictures waiting to go with the next question, and in sent messages. */
+.pictures { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 16px 0; }
+.picture-chip { position: relative; }
+.picture-chip img { display: block; height: 64px; max-width: 120px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.picture-chip button { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; padding: 0; border-radius: 50%; line-height: 1; font-size: 14px; }
+.picture-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.picture-row img { display: block; max-height: 140px; max-width: 100%; border-radius: 8px; }
+.picture-row:only-child { margin-bottom: 0; }
+.side.dropping { outline: 2px dashed var(--accent); outline-offset: -6px; }

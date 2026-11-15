@@ -69,6 +69,12 @@ https://github.com/user-attachments/assets/f6dc1b93-f154-4ee3-8c28-ec2f78aa97e9
   exactly as heard, to a Markdown page in a local folder. Notepad++ on a side
   monitor shows it live. "Start a new page called ..." and "read me my notes"
   work too. Setup in [`docs/notes.md`](docs/notes.md).
+- **Pictures**: paste a picture into the chat panel (Ctrl+V), drop one on
+  it, or use the picture button, then ask about it, typed or spoken. It goes
+  to Gemma 4's vision along with the question, so there's no second model
+  in VRAM. The browser shrinks it to about 1,600 px first, she can answer
+  follow-ups about the latest picture, and pictures are never saved to disk.
+  `scripts/try_vision.py` checks vision on its own.
 - **Escalation**: `/claude <question>` (or "check with Claude…") saves the
   question to a file that the next scheduled brief answers.
 

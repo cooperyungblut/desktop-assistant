@@ -70,6 +70,7 @@
 
       <section class="chat">
         <ol id="messages" class="messages"></ol>
+        <div id="pictures" class="pictures" hidden></div>
         <form id="ask-form" class="ask">
           <button type="button" id="mic" class="secondary mic" disabled
                   title="Click to talk; click again or pause to send"
@@ -80,6 +81,16 @@
                     stroke-width="2" stroke-linecap="round"/>
             </svg>
           </button>
+          <button type="button" id="add-picture" class="secondary mic"
+                  title="Show her a picture (or paste one, or drop it here)" aria-label="Add a picture">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+              <circle cx="9" cy="10" r="1.8" fill="currentColor"/>
+              <path d="M4 18l5-5 3 3 3-3 5 5" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <input id="picture-file" type="file" accept="image/*" multiple hidden>
           <input id="ask-input" autocomplete="off" placeholder="Type a question…"
                  title="Start with /claude to save the question for Claude instead">
           <button type="submit">Send</button>
