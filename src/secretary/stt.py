@@ -55,6 +55,13 @@ class Transcriber(Protocol):
         current brief; Whisper favors those spellings.
         """
 
+    async def transcribe_samples(self, samples, prompt: str | None = None) -> str:
+        """Like `transcribe`, for 16 kHz mono float32 samples (live notes).
+
+        `prompt` is the text heard just before, so a phrase cut in two still
+        reads as one sentence.
+        """
+
 
 class NoTranscriber:
     available = False
@@ -63,6 +70,9 @@ class NoTranscriber:
         pass
 
     async def transcribe(self, audio: bytes, hints: str | None = None) -> str:
+        raise SttUnavailable("speech input is turned off (stt.engine is 'none')")
+
+    async def transcribe_samples(self, samples, prompt: str | None = None) -> str:
         raise SttUnavailable("speech input is turned off (stt.engine is 'none')")
 
 
@@ -137,6 +147,34 @@ class WhisperTranscriber:
             initial_prompt=hints,  # e.g. "Names: Northwind Traders, Dana Reyes, ..."
         )
         return clean_transcript(" ".join(s.text for s in segments))
+
+    async def transcribe_samples(self, samples, prompt: str | None = None) -> str:
+        if self._model is None:
+            raise SttUnavailable(self.error or "speech recognition is still loading")
+        async with self._lock:  # shared with push-to-talk: one at a time on the GPU
+            return await asyncio.to_thread(self._transcribe_samples_sync, samples, prompt)
+
+    def _transcribe_samples_sync(self, samples, prompt: str | None) -> str:
+        if samples.size < SAMPLE_RATE // 4:
+            return ""
+        segments, _ = self._model.transcribe(
+            samples,
+            language=self._config.language,
+            beam_size=5,
+            vad_filter=True,
+            condition_on_previous_text=False,
+            initial_prompt=prompt or None,
+        )
+        # Music, typing or room noise sometimes comes out as words. Whisper
+        # itself is fairly sure there was no speech in those: leave them out.
+        kept = [
+            s.text
+            for s in segments
+            if not (
+                getattr(s, "no_speech_prob", 0.0) > 0.6 and getattr(s, "avg_logprob", 0.0) < -1.0
+            )
+        ]
+        return clean_transcript(" ".join(kept))
 
 
 def decode_audio(audio: bytes):

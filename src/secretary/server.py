@@ -5,6 +5,8 @@ Client -> server messages:
     {"type": "ask", "text": "...", "images": optional [base64 PNG/JPEG, ...]}
     {"type": "voice", "audio": base64 audio from MediaRecorder, "images": optional}
     {"type": "stop"}
+    {"type": "live_notes", "action": "start" | "stop", "hidden": bool}
+    {"type": "speaking", "on": bool, "text": "..."}   her speech started/ended playing
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ from .assistant import Assistant
 from .config import AppConfig
 from .google_calendar import make_calendar
 from .images import decode_pictures
+from .live_notes import LiveNotes
 from .llm import LlmUnavailable, OllamaClient
 from .notes import Notebook
 from .persona import load_persona
@@ -79,6 +82,16 @@ def create_app(config: AppConfig) -> FastAPI:
     calendar = make_calendar(config.calendar)
     wiki = make_wiki(config.wiki)
     config.escalations_dir.mkdir(parents=True, exist_ok=True)
+    notebook = Notebook(config.notes)
+    live = LiveNotes(
+        config.live_notes,
+        transcriber,
+        notebook,
+        hub.emit,
+        model=model,
+        model_options=persona.sampling.as_options(),
+        user=persona.user_name,
+    )
     assistant = Assistant(
         persona=persona,
         model=model,
@@ -93,7 +106,8 @@ def create_app(config: AppConfig) -> FastAPI:
         calendar=calendar,
         calendar_config=config.calendar,
         wiki=wiki,
-        notebook=Notebook(config.notes),
+        notebook=notebook,
+        live=live,
         wiki_timeout=config.wiki.timeout_seconds,
         wiki_notice_after=config.wiki.notice_after_seconds,
         wiki_mention_source=config.wiki.mention_source,
@@ -154,6 +168,7 @@ def create_app(config: AppConfig) -> FastAPI:
         yield
         warm.cancel()
         task.cancel()
+        await live.aclose()  # writes the last lines of a running transcript
         await unload()
         await model.aclose()
         await calendar.aclose()
@@ -164,6 +179,7 @@ def create_app(config: AppConfig) -> FastAPI:
     # that kill skips the normal shutdown (and so the unload above).
     @app.post("/api/unload")
     async def unload_endpoint() -> dict[str, bool]:
+        await live.aclose()  # write a running transcript's last lines first
         await unload()
         return {"ok": True}
 
@@ -172,6 +188,7 @@ def create_app(config: AppConfig) -> FastAPI:
         await ws.accept()
         hub.clients.add(ws)
         await ws.send_text(json.dumps(await status()))
+        await ws.send_text(json.dumps(live.status()))
         await assistant.send_briefs()
         try:
             while True:
@@ -191,6 +208,10 @@ def create_app(config: AppConfig) -> FastAPI:
                         assistant.voice(audio, decode_pictures(msg.get("images")))
                 elif kind == "stop":
                     assistant.stop()
+                elif kind == "live_notes":
+                    assistant.live_command(str(msg.get("action")), bool(msg.get("hidden")))
+                elif kind == "speaking":
+                    assistant.own_speech(bool(msg.get("on")), str(msg.get("text", ""))[:2000])
         except WebSocketDisconnect:
             pass
         finally:

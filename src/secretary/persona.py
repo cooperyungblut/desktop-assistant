@@ -86,6 +86,22 @@ class Lines(BaseModel):
     )
     note_failed: str = "I couldn't write that down: {reason}."
     notes_off: str = "Note taking is turned off in my settings."
+    # Live notes. {page} is the page's name, {lines} e.g. "42 lines", {reason} what failed.
+    # The start line is also the consent reminder, so keep that part in.
+    live_started: str = (
+        "Okay, I'm taking live notes on {page}. "
+        "Make sure everyone knows the call is being transcribed."
+    )
+    # Shown as a desktop notification instead when she starts hidden.
+    live_started_hidden: str = (
+        "Live notes on {page}. Make sure everyone knows the call is being transcribed."
+    )
+    live_already: str = "I'm already taking live notes, on {page}."
+    live_stopped: str = "Live notes stopped. {lines} on {page}."
+    # Added to live_stopped when she's writing a summary. {page} is its page.
+    live_summary_coming: str = "My summary will be on {page} in a moment."
+    live_not_running: str = "I wasn't taking live notes."
+    live_failed: str = "I couldn't start live notes: {reason}."
 
 
 class Voice(BaseModel):

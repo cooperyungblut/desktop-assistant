@@ -13,7 +13,8 @@ const fs = require("node:fs");
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const {
-  app, BrowserWindow, Menu, Tray, globalShortcut, ipcMain, nativeImage, screen, session, shell,
+  app, BrowserWindow, Menu, Notification, Tray, globalShortcut, ipcMain, nativeImage, screen,
+  session, shell,
 } = require("electron");
 const {
   SIZES, appUrl, sameOrigin, defaultBounds, onScreen, candidateKeys, pickHotkey, keyLabel,
@@ -32,6 +33,8 @@ let win = null;
 let tray = null;
 let moving = false;
 let chatOpen = false;
+let live = { on: false, hidden: false }; // live notes, as the page last reported
+let hiddenForLive = false; // she hid herself for hidden live notes: show her after
 let waitingLogged = false;
 let backend = null; // the Python app, when this shell started it
 const CHAT_WIDTH = 380; // room for the chat panel beside her
@@ -212,6 +215,26 @@ function toggleVisible() {
 // Commands for the page (see onCommand in web/js/app.js).
 const command = (name) => win?.webContents.send("shell:command", name);
 
+// Live notes started or stopped. Hidden live notes hide her window (and bring
+// it back when they stop), so she's out of sight on a shared screen.
+function setLive(state) {
+  const was = live;
+  live = { on: !!state.on, hidden: !!state.on && !!state.hidden };
+  if (live.hidden && !was.hidden && win?.isVisible()) {
+    hiddenForLive = true;
+    win.hide();
+  } else if (!live.on && hiddenForLive) {
+    hiddenForLive = false;
+    win?.showInactive();
+  }
+  tray?.setToolTip(live.on ? "Juniper · live notes on" : "Juniper");
+  buildTrayMenu();
+}
+
+function notify(text) {
+  if (Notification.isSupported()) new Notification({ title: "Juniper", body: text, silent: true }).show();
+}
+
 // ---- tray + hotkeys --------------------------------------------------------
 
 // Each action tries its hotkeys in order and keeps the first one no other app
@@ -228,6 +251,8 @@ const HOTKEYS = {
     keys: ["Control+Alt+H", "Control+Alt+Shift+H"] },
   chat: { label: "Chat panel open/close", run: () => setChat(!chatOpen),
     keys: ["Control+Alt+C", "Control+Alt+I", "Control+Alt+Shift+C"] },
+  live: { label: "Live notes start/stop", run: () => command(live.on ? "live_stop" : "live"),
+    keys: ["Control+Alt+L", "Control+Alt+Shift+L"] },
 };
 const activeKeys = {}; // action -> the hotkey that registered
 
@@ -258,6 +283,12 @@ function buildTrayMenu() {
     { label: "Talk", ...keyFor("talk"), click: () => command("talk") },
     { label: "Read the brief (new, else latest) / stop", ...keyFor("brief"), click: () => command("brief") },
     { label: "Chat", type: "checkbox", checked: chatOpen, ...keyFor("chat"), click: () => setChat(!chatOpen) },
+    ...(live.on
+      ? [{ label: "Stop live notes", ...keyFor("live"), click: () => command("live_stop") }]
+      : [
+        { label: "Start live notes", ...keyFor("live"), click: () => command("live") },
+        { label: "Start live notes, hidden", click: () => command("live_hidden") },
+      ]),
     {
       label: "Chat side",
       submenu: ["left", "right"].map((side) => ({
@@ -393,6 +424,8 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.on("shell:interactive", (_e, on) => setClickThrough(!on));
     ipcMain.on("shell:moving", (_e, on) => setMoving(!!on));
     ipcMain.on("shell:chat", (_e, on) => setChat(!!on));
+    ipcMain.on("shell:live", (_e, state) => setLive(state || {}));
+    ipcMain.on("shell:notify", (_e, text) => notify(String(text).slice(0, 300)));
 
     startBackend().finally(createWindow);
     tray = new Tray(trayIcon());

@@ -75,6 +75,13 @@ Rules you must always follow, no matter how playful your personality is:
    page in use and matching notes from other pages are shown to you when there are
    any; answer questions about them from those notes. There is no button or menu
    for notes, so never tell {user} to do it in the app.
+   Live notes write a word-for-word transcript of a call, interview or video (what
+   {user} says and what the computer plays) to their own page, which becomes the
+   page in use. [live notes: start] starts them, [live notes: start hidden] starts
+   them while you stay out of sight and quiet, [live notes: start, Acme interview]
+   names the page, and [live notes: stop] stops them. The app reminds {user} to
+   tell everyone they're being transcribed. The transcript lines on the page are
+   exactly what was heard; when {user} asks about the call, answer from them.
 6. Your replies are spoken aloud: plain sentences only, no markdown, lists, links or emoji.
    Write numbers, years and times as digits ("1909", "10:30"); the app says them
    the way a person would.
@@ -186,9 +193,10 @@ def reminder(persona: Persona) -> str:
         f"{', '.join(persona.personality.traits[:2])}. "
         f"Answer in {persona.personality.answer_length}. "
         "Begin with one mood tag. "
-        "If you write, cross off, uncross, open or rename notes, put its tag in this "
+        "If you write, cross off, uncross, open or rename notes, or start or stop live "
+        "notes, put its tag in this "
         "reply ([note: ...], [cross off: ...], [uncross: ...], [open page: ...], "
-        "[rename page: ...]); "
+        "[rename page: ...], [live notes: ...]); "
         "without the tag nothing happens. "
         "Keep every fact from the brief and any Wikipedia passages exactly right; "
         "for anything else, give your best guess and say how sure you are.)"
@@ -266,6 +274,7 @@ def build_messages(
     notes: tuple[str, Sequence[str]] | None = None,
     older_notes: Sequence[tuple[str, str]] = (),
     pages: Sequence[str] = (),
+    live: str | None = None,
 ) -> list[Message]:
     recent = list(history)[-2 * history_turns :] if history_turns > 0 else []
     messages: list[Message] = [{"role": "system", "content": system_prompt(persona, brief)}]
@@ -297,6 +306,8 @@ def build_messages(
                 "content": PAGES.format(pages=", ".join(pages), user=persona.user_name),
             }
         )
+    if live:
+        messages.append({"role": "system", "content": f"Live notes are {live}."})
     if older_notes:
         listed = "\n".join(f'- {note} (page "{page}")' for page, note in older_notes)
         messages.append(

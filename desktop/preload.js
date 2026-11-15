@@ -8,7 +8,10 @@ contextBridge.exposeInMainWorld("desktopShell", {
   setInteractive: (on) => ipcRenderer.send("shell:interactive", !!on),
   setMoving: (on) => ipcRenderer.send("shell:moving", !!on),
   setChat: (on) => ipcRenderer.send("shell:chat", !!on),
-  // tray and hotkey commands: "talk", "brief"
+  // live notes { on, hidden }: hidden live notes hide the window until they stop
+  setLive: (state) => ipcRenderer.send("shell:live", { on: !!state.on, hidden: !!state.hidden }),
+  notify: (text) => ipcRenderer.send("shell:notify", String(text)),
+  // tray and hotkey commands: "talk", "brief", "live", "live_hidden", "live_stop"
   onCommand: (fn) => ipcRenderer.on("shell:command", (_e, name) => fn(name)),
   onMoving: (fn) => ipcRenderer.on("shell:moving", (_e, on) => fn(on)),
   // { avatarWidth, chatSide }: her part of the window and where the chat goes

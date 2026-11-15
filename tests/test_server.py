@@ -40,6 +40,35 @@ def test_unload_endpoint_asks_ollama_to_free_the_model_once(tmp_path, monkeypatc
     assert len(calls) == 1
 
 
+def test_live_notes_over_the_websocket(tmp_path):
+    from secretary.config import NotesConfig
+
+    config = AppConfig(
+        secretary_dir=tmp_path,
+        state_file=tmp_path / "state.json",
+        persona_file=ROOT / "personas" / "juniper.yaml",
+        tts=TtsConfig(engine="none"),
+        stt=SttConfig(engine="none"),
+        notes=NotesConfig(dir=tmp_path / "notes"),
+    )
+    client = TestClient(create_app(config))
+    with client.websocket_connect("/ws") as ws:
+        assert ws.receive_json()["type"] == "status"
+        assert ws.receive_json() == {
+            "type": "live_notes",
+            "on": False,
+            "hidden": False,
+            "page": None,
+            "lines": 0,
+        }
+        ws.send_json({"type": "speaking", "on": True, "text": "Hello."})  # no session: ignored
+        ws.send_json({"type": "live_notes", "action": "start"})
+        # Whisper is off here, so she says why it can't start.
+        while (e := ws.receive_json())["type"] != "reply_end":
+            pass
+        assert e["text"].startswith("I couldn't start live notes:")
+
+
 def test_ask_passes_pictures_through_and_reports_unreadable_ones(tmp_path, monkeypatch):
     asked = []
     monkeypatch.setattr(
