@@ -45,8 +45,15 @@ function relaxSoon(ms = RELAX_AFTER_MS) {
 
 const player = new SpeechPlayer({
   onLevel: (v) => { avatar.mouth = v; },
-  onSentence: (text) => { holdMood(); avatar.talking = true; els.caption.textContent = text; },
+  onSentence: (text) => {
+    holdMood();
+    avatar.talking = true;
+    els.caption.textContent = text;
+    // While live notes run, her own voice must stay out of the transcript.
+    if (liveOn) send({ type: "speaking", on: true, text });
+  },
   onIdle: () => {
+    if (liveOn) send({ type: "speaking", on: false });
     els.caption.textContent = "";
     avatar.mouth = 0;
     if (morePending) return; // just a gap between sentences: keep the talking face
@@ -83,6 +90,7 @@ showHints(DESKTOP ? {} : { talk: "V", hold: true, brief: "Space" });
 
 let ws;
 let readyId = null;
+let liveOn = false; // live notes running
 let newestId = null; // newest brief, read or not
 const replies = new Map(); // reply id -> chat bubble
 
@@ -172,6 +180,21 @@ const handlers = {
   calendar_added(e) { addMessage("note", `Added to your calendar: “${e.title}”`); },
   calendar_removed(e) { addMessage("note", `Removed from your calendar: “${e.title}”`); },
   error(e) { addMessage("note", `⚠ ${e.message}`); },
+  live_notes(e) {
+    const was = liveOn;
+    liveOn = e.on;
+    setDot("dot-live", e.on);
+    $("dot-live").title = e.on
+      ? `Live notes on: ${e.page}. Click to stop`
+      : "Live notes (off). Click to start";
+    if (e.on && !was) addMessage("note", `Live notes on: ${e.page}`);
+    else if (!e.on && was) addMessage("note", `Live notes stopped: ${e.lines} lines on ${e.page}`);
+    shellApi?.setLive?.({ on: e.on, hidden: e.hidden });
+  },
+  notice(e) {
+    addMessage("note", e.text);
+    shellApi?.notify?.(e.text);
+  },
 };
 function handle(e) { handlers[e.type]?.(e); }
 
@@ -268,6 +291,10 @@ els.askClaude.addEventListener("click", () => {
   else els.input.focus();
 });
 els.stop.addEventListener("click", stopTalking);
+$("dot-live").addEventListener("click", () => {
+  player.unlock();
+  send({ type: "live_notes", action: liveOn ? "stop" : "start" });
+});
 
 // Space starts the waiting brief (or stops speech); Esc stops; hold V to talk.
 // All ignored while typing in the question box.
@@ -327,6 +354,10 @@ if (shellApi) {
   // Global hotkeys and the tray menu (desktop/main.js).
   shellApi.onCommand((name) => {
     if (name === "talk" && !els.mic.disabled) ptt.toggle();
+    else if (name === "live" || name === "live_hidden") {
+      player.unlock();
+      send({ type: "live_notes", action: "start", hidden: name === "live_hidden" });
+    } else if (name === "live_stop") send({ type: "live_notes", action: "stop" });
     else if (name === "brief") {
       // The waiting brief, or else the newest one again (the desktop window
       // has no history list).

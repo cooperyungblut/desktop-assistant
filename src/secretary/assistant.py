@@ -20,6 +20,9 @@ Event types sent to the UI:
     calendar_added {title, link}  an event she added after a yes
     calendar_removed {title}      an event she removed after a yes
     note_added   {page, text}     a note she wrote down
+    live_notes   {on, hidden, page, lines}   live notes started or stopped
+    notice       {text}         a line to show as a desktop notification (she's hidden)
+    live_line    {label, text}  a line live notes just wrote
     error        {message}
 """
 
@@ -53,6 +56,7 @@ from .config import CalendarConfig, FramingConfig
 from .expressions import TagFilter, strip_tags
 from .framing import BriefFramer, FrameLine, paragraphs, split_greeting, split_signoff
 from .google_calendar import Calendar, CalendarError, FoundEvent, NoCalendar
+from .live_notes import LiveNotes, LiveNotesUnavailable, LiveRequest, live_request, tag_request
 from .llm import ChatModel, LlmUnavailable, SentenceSplitter, split_sentences
 from .lookup import Lookup, follow_up, lookup_request, render, usable
 from .notes import (
@@ -99,6 +103,7 @@ class Assistant:
         calendar_config: CalendarConfig | None = None,
         wiki: Lookup | None = None,
         notebook: Notebook | None = None,
+        live: LiveNotes | None = None,
         wiki_timeout: float = 15.0,
         wiki_notice_after: float = 1.5,
         wiki_mention_source: bool = True,
@@ -118,6 +123,7 @@ class Assistant:
         self._calendar_config = calendar_config or CalendarConfig()
         self._wiki = wiki
         self._notebook = notebook
+        self._live = live
         self._wiki_timeout = wiki_timeout
         self._wiki_notice_after = wiki_notice_after
         self._wiki_mention_source = wiki_mention_source
@@ -198,6 +204,21 @@ class Assistant:
     def voice(self, audio: bytes) -> None:
         """Push-to-talk: transcribe, show what was heard, then answer it."""
         self._run(self._voice(audio))
+
+    def live_command(self, action: str, hidden: bool = False) -> None:
+        """Start or stop live notes from the tray menu or a hotkey."""
+        if action in ("start", "stop"):
+            self._run(self._live_command(LiveRequest(action, "", hidden)))
+
+    async def _live_command(self, request: LiveRequest) -> None:
+        line = await self._live_action(request)
+        if line:
+            rid = self._next_reply_id()
+            await self._emit({"type": "reply_start", "id": rid})
+            await self._emit({"type": "reply_end", "id": rid, "text": line})
+            await self._express("neutral")
+            await self._say(line)
+        await self._emit({"type": "speech_done"})
 
     def stop(self) -> None:
         if self._task and not self._task.done():
@@ -297,6 +318,8 @@ class Assistant:
         text = text.strip()
         if not text:
             return
+        if await self._live_turn(text):
+            return
         if await self._notes_turn(text):
             return
         if await self._calendar_turn(text):
@@ -324,6 +347,7 @@ class Assistant:
             notes=notes,
             older_notes=older,
             pages=await self._pages_for_prompt(),
+            live=self._live_for_prompt(),
         )
         rid = self._next_reply_id()
         await self._emit({"type": "reply_start", "id": rid})
@@ -553,6 +577,63 @@ class Assistant:
         await self._note_action(notebook, request, text)
         return True
 
+    # ---- live notes -----------------------------------------------------------
+
+    async def _live_turn(self, text: str) -> bool:
+        """ "Start live notes", "stop transcribing": True if handled."""
+        if self._live is None or (request := live_request(text)) is None:
+            return False
+        if request.action == "stop" and not self._live.on and "listening" in text.lower():
+            return False  # "stop listening to me": not about live notes
+        line = await self._live_action(request)
+        if line:
+            await self._reply_line(line, text)
+        else:  # started hidden: nothing said, the desktop shows a notification
+            self.history += [Turn("user", text), Turn("assistant", "[live notes: start hidden]")]
+            await self._emit({"type": "speech_done"})
+        return True
+
+    async def _live_action(self, request: LiveRequest) -> str | None:
+        """Start or stop live notes. Returns what she says about it (the start
+        line is the consent reminder), or None when she started hidden."""
+        lines, live = self.persona.lines, self._live
+        if live is None:
+            return lines.live_failed.format(reason="live notes aren't set up")
+        if request.action == "stop":
+            session = await live.stop()
+            if session is None:
+                return lines.live_not_running
+            n = len(session.lines)
+            count = f"{n} line" + ("s" if n != 1 else "")
+            return lines.live_stopped.format(lines=count, page=session.page.stem)
+        if live.on:
+            return lines.live_already.format(page=live.session.page.stem)
+        try:
+            session = await live.start(request.name, request.hidden)
+        except LiveNotesUnavailable as exc:
+            return lines.live_failed.format(reason=str(exc))
+        except OSError as exc:
+            return lines.live_failed.format(reason=exc.strerror or exc)
+        if request.hidden:
+            text = lines.live_started_hidden.format(page=session.page.stem)
+            await self._emit({"type": "notice", "text": text})
+            return None
+        return lines.live_started.format(page=session.page.stem)
+
+    def own_speech(self, speaking: bool, text: str = "") -> None:
+        """The page started or finished playing one of her sentences."""
+        if self._live is not None:
+            self._live.own_speech(speaking, text)
+
+    def _live_for_prompt(self) -> str | None:
+        if self._live is None or not self._live.enabled:
+            return None
+        if not self._live.on:
+            return "off"
+        session = self._live.session
+        since = dt.datetime.fromtimestamp(session.started).strftime("%H:%M")
+        return f'on since {since}, writing to the page "{session.page.stem}"'
+
     ANSWER_FRESH_SECONDS = 180.0
 
     def _recent_answer(self) -> str | None:
@@ -589,6 +670,7 @@ class Assistant:
         return request
 
     NOTES_IN_PROMPT = 30
+    NOTES_PROMPT_CHARS = 4000
 
     async def _notes_for_prompt(self) -> tuple[str, list[str]] | None:
         """The notes page in use, so "what was the gate code?" can be answered."""
@@ -602,7 +684,15 @@ class Assistant:
             notes = await asyncio.to_thread(notebook.last_notes, self.NOTES_IN_PROMPT, page)
         except OSError:
             return None
-        return page.stem, notes
+        # A live transcript has long lines: keep the newest that fit, so the
+        # prompt stays well inside the model's context.
+        kept, size = [], 0
+        for note in reversed(notes):
+            size += len(note) + 3
+            if size > self.NOTES_PROMPT_CHARS and kept:
+                break
+            kept.append(note)
+        return page.stem, kept[::-1]
 
     def _notes_on(self) -> bool:
         return self._notebook is not None and self._notebook.enabled
@@ -631,7 +721,13 @@ class Assistant:
         lines = self.persona.lines
         if notebook is None or not notebook.enabled:
             return lines.notes_off
+        if self._live is None:
+            actions = [a for a in actions if a.kind != "live_notes"]
         for action in actions:
+            if action.kind == "live_notes":
+                if line := await self._live_action(tag_request(action.text)):
+                    return line
+                continue
             try:
                 if action.kind == "write":
                     page = await asyncio.to_thread(notebook.write, action.text)

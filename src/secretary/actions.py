@@ -1,7 +1,8 @@
 """Note actions the model takes itself, written as tags in its reply.
 
 She can write "[note: vault code 5526]", "[cross off: vault]", "[uncross: jelly]",
-"[open page: Escape room]" or "[rename page: Haunted House]" anywhere in a
+"[open page: Escape room]", "[rename page: Haunted House]" or
+"[live notes: start]" anywhere in a
 reply. `ActionFilter` pulls these out of the token stream before anything is
 shown or spoken (like mood tags), and the app carries them out once the reply
 is done. Fixed phrases such as
@@ -28,9 +29,11 @@ _KINDS = {
     "unmark": "uncross",
     "uncross off": "uncross",
     "uncrossoff": "uncross",
+    "live notes": "live_notes",
+    "livenotes": "live_notes",
 }
 _ACTION = re.compile(
-    r"\[\s*(note|write|cross\s*off|uncross(?:\s*off)?|unmark|open\s*page|page|rename(?:\s*page)?)\s*:\s*([^\]\n]{1,200}?)\s*\]\s*",
+    r"\[\s*(note|write|cross\s*off|uncross(?:\s*off)?|unmark|open\s*page|page|rename(?:\s*page)?|live\s*notes)\s*:\s*([^\]\n]{1,200}?)\s*\]\s*",
     re.IGNORECASE,
 )
 _PREFIX = re.compile(r"\[\s*[a-z ]{0,14}(?::[^\]\n]*)?$", re.IGNORECASE)
@@ -39,7 +42,7 @@ _MAX = 230  # longer than any action tag; past this a "[" is just text
 
 @dataclass(frozen=True)
 class Action:
-    kind: Literal["write", "cross_off", "uncross", "open_page", "rename_page"]
+    kind: Literal["write", "cross_off", "uncross", "open_page", "rename_page", "live_notes"]
     text: str
 
 
@@ -92,6 +95,7 @@ def as_tags(actions: list[Action]) -> str:
         "cross_off": "cross off",
         "open_page": "open page",
         "rename_page": "rename page",
+        "live_notes": "live notes",
     }
     return " ".join(f"[{names[a.kind]}: {a.text}]" for a in actions)
 

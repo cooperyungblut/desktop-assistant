@@ -1138,3 +1138,122 @@ async def test_first_page_with_none_used_goes_to_her(env, tmp_path, fake_model):
     a.ask("Can you go to the first page?")
     await finish(a)
     assert len(fake_model.requests) == 1
+
+
+# ---- live notes ----------------------------------------------------------------
+
+
+def live_env(env, tmp_path, **kw):
+    import datetime as dt
+
+    from secretary.config import LiveNotesConfig, NotesConfig
+    from secretary.live_notes import LiveNotes
+    from secretary.notes import Notebook
+    from tests.test_live_notes import FakeSource, FakeTranscriber
+
+    a, _, _, events = env
+    a._notebook = Notebook(NotesConfig(dir=tmp_path / "notes", timestamps=False))
+    sources = [FakeSource("mic"), FakeSource("computer")]
+    a._live = LiveNotes(
+        LiveNotesConfig(hold_seconds=0, **kw),
+        FakeTranscriber({}),
+        a._notebook,
+        a._emit,
+        lambda _cfg: sources,
+        lambda: dt.datetime(2026, 11, 15, 14, 2),
+    )
+    return a, events
+
+
+async def test_start_live_notes_reminds_about_consent(env, tmp_path, fake_model):
+    a, events = live_env(env, tmp_path)
+    a.ask("Start live notes for the Acme interview")
+    await finish(a)
+    assert a._live.on
+    said = a.history[-1].content
+    assert said.startswith("Okay, I'm taking live notes on Acme interview.")
+    assert "transcribed" in said
+    assert [e for e in events if e["type"] == "live_notes"][-1]["on"] is True
+    assert fake_model.requests == []
+
+    a.ask("start transcribing")
+    await finish(a)
+    assert a.history[-1].content == "I'm already taking live notes, on Acme interview."
+
+    a.ask("stop live notes")
+    await finish(a)
+    assert a.history[-1].content == "Live notes stopped. 0 lines on Acme interview."
+    assert not a._live.on
+
+
+async def test_hidden_live_notes_say_nothing_and_send_a_notice(env, tmp_path):
+    a, events = live_env(env, tmp_path)
+    a.ask("start live notes hidden")
+    await finish(a)
+    assert a._live.on and a._live.hidden
+    assert not [e for e in events if e["type"] == "say"]
+    notice = next(e for e in events if e["type"] == "notice")
+    assert "transcribed" in notice["text"]
+    status = [e for e in events if e["type"] == "live_notes"][-1]
+    assert status["hidden"] is True
+    await a._live.stop()
+
+
+async def test_stop_listening_without_live_notes_goes_to_her(env, tmp_path, fake_model):
+    a, _ = live_env(env, tmp_path)
+    a.ask("Stop listening")
+    await finish(a)
+    assert fake_model.requests  # not a live-notes command right now
+    a.ask("stop live notes")
+    await finish(a)
+    assert a.history[-1].content == "I wasn't taking live notes."
+
+
+async def test_she_can_start_live_notes_with_a_tag(env, tmp_path, fake_model):
+    a, events = live_env(env, tmp_path)
+    fake_model.reply = "[relaxed] Sure, I'll keep a transcript. [live notes: start, Sync call]"
+    a.ask("my sync call is starting, can you keep track of what everyone says?")
+    await finish(a)
+    assert a._live.on and a._live.session.page.stem == "Sync call"
+    said = [e["text"] for e in events if e["type"] == "say"]
+    assert any("transcribed" in s for s in said)  # the consent reminder follows her reply
+    await a._live.stop()
+
+
+async def test_prompt_says_whether_live_notes_are_on(env, tmp_path, fake_model):
+    a, _ = live_env(env, tmp_path)
+    a.ask("hi")
+    await finish(a)
+    assert {"role": "system", "content": "Live notes are off."} in fake_model.requests[-1]
+    await a._live.start("Call")
+    a.ask("what did he just ask?")
+    await finish(a)
+    texts = [m["content"] for m in fake_model.requests[-1]]
+    assert any(t.startswith("Live notes are on since") and '"Call"' in t for t in texts)
+    assert "[live notes: start]" in fake_model.requests[-1][0]["content"]
+    await a._live.stop()
+
+
+async def test_tray_command_starts_and_stops(env, tmp_path):
+    a, events = live_env(env, tmp_path)
+    a.live_command("start")
+    await finish(a)
+    assert a._live.on
+    assert any("transcribed" in e.get("text", "") for e in events if e["type"] == "say")
+    a.live_command("stop")
+    await finish(a)
+    assert not a._live.on
+    a.live_command("bogus")
+
+
+async def test_long_transcript_lines_are_trimmed_to_fit_the_prompt(env, tmp_path, fake_model):
+    a, _ = live_env(env, tmp_path)
+    for n in range(30):
+        a._notebook.write(f"**Computer:** line {n} " + "word " * 60)
+    a.ask("what did they say last?")
+    await finish(a)
+    notes = next(
+        m["content"] for m in fake_model.requests[-1] if "notes page in use" in m["content"]
+    )
+    assert "line 29" in notes and "line 0 " not in notes
+    assert len(notes) < a.NOTES_PROMPT_CHARS + 1000

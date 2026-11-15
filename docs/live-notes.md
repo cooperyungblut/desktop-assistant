@@ -24,6 +24,23 @@ or rewrites these lines.
 consent where you live, and it's the polite thing anyway. Tell the other
 people that you're taking a transcript before you start.
 
+## Starting and stopping
+
+| You say / do | She does |
+| --- | --- |
+| "Start live notes" / "Transcribe this call" / "Start transcribing" / "Take notes of this meeting" | Starts on a new page, `Live notes <date> <time>`, opens it in your viewer and says: "Okay, I'm taking live notes on ... Make sure everyone knows the call is being transcribed." |
+| "Start live notes for the Acme interview" | Same, on a page called `Acme interview` |
+| "Start live notes hidden" / "... quietly" / "... in the background" | Starts without a word, hides her window, doesn't open the page, and shows the reminder as a Windows notification instead. Her window comes back when live notes stop |
+| "Stop live notes" / "Stop transcribing" / "Stop listening" | Writes the last lines and says how many are on the page |
+| Ctrl+Alt+L, or the tray menu | Start / stop (the tray also has "Start live notes, hidden") |
+| The "live" dot on the full page | Click to start / stop; it's red while she's transcribing |
+| Anything else ("my call's starting, keep track of what they say") | She works it out and starts or stops them herself (`[live notes: start]` tag) |
+
+While live notes run, their page is the page in use: "what did he just ask?"
+is answered from the transcript, and "write that down: ..." adds your own note
+between the transcript lines. Her own voice is left out of the transcript (the
+page tells the app when she's speaking).
+
 ## Setup
 
 ```powershell

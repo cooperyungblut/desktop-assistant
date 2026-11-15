@@ -137,3 +137,7 @@ html.desktop.moving .move-hint {
   background: rgb(30 27 39 / .82); color: #ece9f5; white-space: nowrap;
 }
 html.desktop.moving .move-hint button { -webkit-app-region: no-drag; padding: 4px 10px; }
+/* Live notes: grey while off, red while it's transcribing. */
+#dot-live { cursor: pointer; }
+#dot-live.off::before { color: var(--muted); }
+#dot-live.on::before { color: var(--bad); }

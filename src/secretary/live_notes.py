@@ -38,7 +38,7 @@ import numpy as np
 
 from .config import LiveNotesConfig
 from .live_audio import BlockHandler, Chunk, RecentAudio, Segmenter, SoundcardSource
-from .notes import Notebook
+from .notes import _END, _FILLER, _POLITE, Notebook, page_file_name
 from .stt import SttUnavailable, Transcriber
 
 log = logging.getLogger(__name__)
@@ -49,6 +49,9 @@ JOIN_GAP = 1.5
 LINE_MAX_SECONDS = 45.0
 LINE_MAX_CHARS = 600
 PROMPT_CHARS = 200  # how much of the previous text Whisper gets as context
+# Her own speech, padded for the browser's playback delay and room echo.
+OWN_SPEECH_LEAD = 0.3
+OWN_SPEECH_TAIL = 0.6
 
 
 class LiveNotesUnavailable(RuntimeError):
@@ -146,13 +149,15 @@ class LiveSession:
         self._heard: dict[str, str] = {}  # the last text per source, for Whisper's context
         self._computer_said: list[Line] = []  # recent computer lines, for the echo check
         self._tasks: list[asyncio.Task] = []
-        self._transcribing = 0
+        self._stopping = False
         self.page: Path | None = None
         self.started: float | None = None
         self.listening: list[str] = []  # sources that started
         self.lines: list[tuple[Line, str]] = []  # (line, label) as written
         self.problems: list[str] = []
         self._writing = asyncio.Lock()
+        # Her own sentences as they played: (start, end or None while playing, text).
+        self._own: list[tuple[float, float | None, str]] = []
 
     @property
     def running(self) -> bool:
@@ -204,12 +209,12 @@ class LiveSession:
                 self._chunks.put_nowait(chunk)
         self._chunks.put_nowait(None)
         pump, transcribe, ticker = self._tasks
-        pump.cancel()
-        ticker.cancel()
+        pump.cancel()  # only ever waits for the next block
         with contextlib.suppress(asyncio.CancelledError):
             await pump
-        with contextlib.suppress(asyncio.CancelledError):
-            await ticker
+        # The ticker may be writing a line: let it finish that, never cut it off.
+        self._stopping = True
+        await ticker
         await transcribe
         self._tasks = []
         await self._flush(everything=True)
@@ -238,7 +243,6 @@ class LiveSession:
 
     async def _transcribe_loop(self) -> None:
         while (chunk := await self._chunks.get()) is not None:
-            self._transcribing += 1
             try:
                 text = await self._transcriber.transcribe_samples(
                     chunk.samples, self._heard.get(chunk.source, "")[-PROMPT_CHARS:]
@@ -249,9 +253,7 @@ class LiveSession:
             except Exception:
                 log.exception("live transcription failed")
                 continue
-            finally:
-                self._transcribing -= 1
-            if not text:
+            if not text or self._is_own_voice(chunk, text):
                 continue
             self._heard[chunk.source] = f"{self._heard.get(chunk.source, '')} {text}"[-1000:]
             line = Line(
@@ -265,9 +267,35 @@ class LiveSession:
             if chunk.source == "computer":
                 self._computer_said.append(line)
 
+    def own_speech(self, speaking: bool, text: str = "") -> None:
+        """She started (or finished) saying a sentence out loud."""
+        now = self._clock()
+        if self._own and self._own[-1][1] is None:
+            start, _, said = self._own[-1]
+            self._own[-1] = (start, now + OWN_SPEECH_TAIL, said)
+        if speaking:
+            self._own.append((now - OWN_SPEECH_LEAD, None, text))
+        self._own = [o for o in self._own if o[1] is None or o[1] > now - 120]
+
+    def _is_own_voice(self, chunk: Chunk, text: str) -> bool:
+        """Her own voice coming back through the loopback (or the mic, with
+        speakers): it isn't part of the conversation."""
+        for start, end, said in self._own:
+            end = self._clock() if end is None else end
+            overlap = min(end, chunk.end) - max(start, chunk.start)
+            if overlap <= 0:
+                continue
+            if chunk.source == "computer" and overlap >= 0.5 * chunk.seconds:
+                return True
+            if is_echo(text, said):
+                return True
+        return False
+
     async def _ticker(self) -> None:
-        while True:
+        while not self._stopping:
             await asyncio.sleep(self._tick)
+            if self._stopping:
+                break
             now = self._clock()
             for seg in self._segmenters.values():
                 for chunk in seg.idle(now):
@@ -344,3 +372,170 @@ class LiveSession:
         self.lines.append((line, label))
         if self._on_line is not None:
             await self._on_line(line, label)
+
+
+# ---- starting and stopping -----------------------------------------------------
+
+# "start live notes", "take a live transcript", "transcribe this call",
+# "listen in on this interview", "start transcribing". Anything worded another
+# way goes to her, and she can start or stop it with a [live notes: ...] tag.
+_LIVE_THING = (
+    r"(?:(?:a\s+)?live\s+(?:notes?|transcripts?|transcription)|(?:a\s+)?transcript(?:ion)?"
+    r"|(?:(?:a\s+|some\s+)?(?:notes?|transcripts?)\s+(?:of|on)\s+(?:this|the|my|our)\s+)"
+    r"(?:call|meeting|interview|conversation|video|chat))"
+)
+_CALL = r"(?:this|the|my|our)\s+(?:call|meeting|interview|conversation|video|chat)"
+_START = re.compile(
+    rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:"
+    r"(?:(?:start|begin)\s+(?:taking|doing|keeping)|start|begin|turn\s+on|switch\s+on"
+    r"|take|do|keep|run)\s+(?:the\s+|some\s+)?"
+    + _LIVE_THING
+    + r"|start\s+(?:transcribing|listening\s+in)(?:\s+(?:on|to))?(?:\s+"
+    + _CALL
+    + r")?"
+    + r"|(?:transcribe|listen\s+in\s+(?:on|to))\s+"
+    + _CALL
+    + r")"
+    rf"{_END}(?P<rest>.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_STOP = re.compile(
+    rf"^\s*{_FILLER}{_POLITE}"
+    r"(?:stop|end|turn\s+off|switch\s+off|finish|quit)\s+(?:the\s+|taking\s+(?:the\s+)?)?"
+    r"(?:live\s+(?:notes?|transcripts?|transcription)|transcri(?:pt|ption|bing)|listening(?:\s+in)?)"
+    r"(?:\s+(?:now|please|for\s+now))*[\s.!?]*$",
+    re.IGNORECASE,
+)
+_HIDDEN = re.compile(
+    r"(?:\b(?:and|but)\s+)?(?:\b(?:stay|keep|be|remain)\s+)?(?:in\s+)?"
+    r"\b(?:hidden|hide|quietly|silently|in\s+the\s+background|out\s+of\s+sight"
+    r"|(?:without|don't|do\s+not)\s+(?:showing|show|being\s+seen|talking|saying))\b[^,.;]*",
+    re.IGNORECASE,
+)
+_NAMED = re.compile(
+    r"^[\s,:;-]*(?:on\s+a\s+page\s+)?(?:for|called|named|titled|about)\s+(?:the\s+|my\s+|our\s+)?"
+    r"(?P<name>[^.!?]+)",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class LiveRequest:
+    action: str  # "start" or "stop"
+    name: str = ""  # the page name, if one was given
+    hidden: bool = False
+
+
+def live_request(text: str) -> LiveRequest | None:
+    if _STOP.match(text):
+        return LiveRequest("stop")
+    m = _START.match(text)
+    if m is None:
+        return None
+    rest = m["rest"]
+    hidden = bool(_HIDDEN.search(rest))
+    rest = _HIDDEN.sub("", rest)
+    named = _NAMED.match(rest)
+    name = named["name"].strip(" ,;:-\"'“”") if named else ""
+    name = re.sub(r"\s+(?:and|while|please)\s*$", "", name, flags=re.IGNORECASE).strip()
+    return LiveRequest("start", name, hidden)
+
+
+def tag_request(text: str) -> LiveRequest:
+    """[live notes: start], [live notes: start hidden, Acme call], [live notes: stop]"""
+    what, _, name = text.partition(",")
+    if re.search(r"\b(?:stop|end|off)\b", what, re.IGNORECASE):
+        return LiveRequest("stop")
+    return LiveRequest("start", name.strip(), bool(_HIDDEN.search(what)))
+
+
+class LiveNotes:
+    """Starts and stops live-notes sessions for the app (one at a time) and
+    keeps her own voice out of the transcript."""
+
+    def __init__(
+        self,
+        config: LiveNotesConfig,
+        transcriber: Transcriber,
+        notebook: Notebook,
+        emit: Callable[[dict], Awaitable[None]],
+        sources: Callable[[LiveNotesConfig], list[AudioSource]] = make_sources,
+        now: Callable[[], dt.datetime] = dt.datetime.now,
+    ):
+        self._config = config
+        self._transcriber = transcriber
+        self._notebook = notebook
+        self._emit = emit
+        self._make_sources = sources
+        self._now = now
+        self.session: LiveSession | None = None
+        self.hidden = False
+        self._lock = asyncio.Lock()
+
+    @property
+    def enabled(self) -> bool:
+        return self._config.enabled and self._notebook.enabled
+
+    @property
+    def on(self) -> bool:
+        return self.session is not None and self.session.running
+
+    async def start(self, name: str = "", hidden: bool = False) -> LiveSession:
+        """Start a session on a new page (or the named one). Raises
+        LiveNotesUnavailable with a reason she can say."""
+        async with self._lock:
+            if self.on:
+                return self.session  # type: ignore[return-value]
+            if not self.enabled:
+                raise LiveNotesUnavailable("live notes are turned off in config.yaml")
+            sources = self._make_sources(self._config)
+            session = LiveSession(
+                self._config, self._transcriber, self._notebook, sources, self._line_added
+            )
+            when = self._now()
+            title = name or page_name(self._config.page, when)
+            page = self._notebook.find_page(title) or self._notebook.dir / page_file_name(title)
+            await session.start(page)
+            # The live page becomes the page in use, so "what did he just ask?"
+            # and "write that down" during the call both work on it.
+            try:
+                await asyncio.to_thread(self._notebook.new_page, title)
+            except OSError:
+                await session.stop()
+                raise
+            self.session, self.hidden = session, hidden
+            if not hidden and self._notebook.viewer:
+                await asyncio.to_thread(self._notebook.open, page)
+            await self._emit(self.status())
+            return session
+
+    async def stop(self) -> LiveSession | None:
+        async with self._lock:
+            session = self.session
+            if session is None or not session.running:
+                return None
+            await session.stop()
+            await self._emit(self.status())
+            return session
+
+    def status(self) -> dict:
+        s = self.session
+        return {
+            "type": "live_notes",
+            "on": self.on,
+            "hidden": self.hidden and self.on,
+            "page": s.page.stem if s and s.page else None,
+            "lines": len(s.lines) if s else 0,
+        }
+
+    def own_speech(self, speaking: bool, text: str = "") -> None:
+        """The page started or stopped playing one of her sentences."""
+        if self.session is not None:
+            self.session.own_speech(speaking, text)
+
+    async def _line_added(self, line: Line, label: str) -> None:
+        await self._emit({"type": "live_line", "label": label, "text": line.text})
+
+    async def aclose(self) -> None:
+        await self.stop()
